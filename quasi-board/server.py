@@ -31,8 +31,33 @@ LEDGER_FILE = Path("/home/vops/quasi-ledger/ledger.json")
 OPENAPI_SPEC = Path(__file__).parent / "spec" / "openapi.json"
 GITHUB_REPO = "ehrenfest-quantum/quasi"
 GITHUB_TOKEN_FILE = Path("/home/vops/quasi-board/.github_token")
+MATRIX_CREDS_FILE = Path("/home/openclaw/.openclaw/credentials/matrix/credentials.json")
+MATRIX_ROOM_ID = "!CerauaaS111HsAzJXI:gawain.valiant-quantum.com"
 
 AP_CONTENT_TYPE = "application/activity+json"
+
+
+# ── Matrix notification ───────────────────────────────────────────────────────
+
+async def _notify_daniel(message: str) -> None:
+    """Fire-and-forget Matrix message to Daniel via Gawain homeserver."""
+    try:
+        if not MATRIX_CREDS_FILE.exists():
+            return
+        creds = json.loads(MATRIX_CREDS_FILE.read_text())
+        homeserver = creds["homeserver"]
+        token = creds["accessToken"]
+        txn_id = f"quasi-board-{int(time.time() * 1000)}"
+        room = MATRIX_ROOM_ID.replace("!", "%21").replace(":", "%3A")
+        url = f"{homeserver}/_matrix/client/v3/rooms/{room}/send/m.room.message/{txn_id}"
+        async with httpx.AsyncClient(timeout=5) as client:
+            await client.put(
+                url,
+                headers={"Authorization": f"Bearer {token}"},
+                json={"msgtype": "m.text", "body": message},
+            )
+    except Exception:
+        pass  # never block the main request
 
 # ── Submission security limits ────────────────────────────────────────────────
 
@@ -381,6 +406,9 @@ async def inbox(request: Request):
             "commit_hash": None,
             "pr_url": None,
         })
+        await _notify_daniel(
+            f"🤖 QUASI: {agent} claimed {task_id} — ledger #{entry['id']}"
+        )
         return JSONResponse({"status": "claimed", "ledger_entry": entry["id"], "entry_hash": entry["entry_hash"]})
 
     if activity_type == "Create" and body.get("quasi:type") == "patch":
@@ -408,6 +436,9 @@ async def inbox(request: Request):
             "commit_hash": None,
             "pr_url": pr_url,
         })
+        await _notify_daniel(
+            f"🤖 QUASI: {agent} submitted {task_id} — PR opened: {pr_url} — ledger #{entry['id']}"
+        )
         return JSONResponse({
             "status": "pr_opened",
             "pr_url": pr_url,
@@ -417,13 +448,18 @@ async def inbox(request: Request):
 
     if activity_type == "Create" and body.get("quasi:type") == "completion":
         # Agent reporting a completed task (manual flow)
+        agent = body.get("actor", "unknown")
+        task_id = body.get("quasi:taskId", "")
         entry = append_ledger({
             "type": "completion",
-            "contributor_agent": body.get("actor", "unknown"),
-            "task": body.get("quasi:taskId", ""),
+            "contributor_agent": agent,
+            "task": task_id,
             "commit_hash": body.get("quasi:commitHash"),
             "pr_url": body.get("quasi:prUrl"),
         })
+        await _notify_daniel(
+            f"✅ QUASI: {agent} completed {task_id} — ledger #{entry['id']}"
+        )
         return JSONResponse({"status": "recorded", "ledger_entry": entry["id"], "entry_hash": entry["entry_hash"]})
 
     return JSONResponse({"status": "accepted"})
