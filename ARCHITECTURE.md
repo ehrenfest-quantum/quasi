@@ -109,6 +109,8 @@ The project structure mirrors the OS structure mirrors the language structure:
 | Provenance Certificate | Attribution Ledger |
 | Ehrenfest job unit | Contribution (typed change-set) |
 
+Full argument: [docs/coherence.md](docs/coherence.md)
+
 ## Positioning vs. existing standards
 
 | Standard | Relationship |
