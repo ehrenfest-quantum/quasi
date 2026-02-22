@@ -8,6 +8,7 @@ Outbox: https://gawain.valiant-quantum.com/quasi-board/outbox
 Ledger: https://gawain.valiant-quantum.com/quasi-board/ledger
 """
 
+import base64
 import hashlib
 import json
 import os
@@ -27,8 +28,104 @@ INBOX_URL = f"{ACTOR_URL}/inbox"
 LEDGER_FILE = Path("/home/vops/quasi-ledger/ledger.json")
 OPENAPI_SPEC = Path(__file__).parent / "spec" / "openapi.json"
 GITHUB_REPO = "ehrenfest-quantum/quasi"
+GITHUB_TOKEN_FILE = Path("/home/vops/quasi-board/.github_token")
 
 AP_CONTENT_TYPE = "application/activity+json"
+
+
+# ── GitHub PR helper ──────────────────────────────────────────────────────────
+
+def _github_token() -> str:
+    if GITHUB_TOKEN_FILE.exists():
+        return GITHUB_TOKEN_FILE.read_text().strip()
+    return os.environ.get("QUASI_GITHUB_TOKEN", "")
+
+
+async def _open_pr_from_files(task_id: str, agent: str, files: dict, message: str) -> str:
+    """Create a branch with agent-supplied files and open a PR. Returns PR URL."""
+    token = _github_token()
+    if not token:
+        raise HTTPException(500, "quasi-board: no GitHub token configured")
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    branch = f"agent/{task_id.lower()}-{agent.replace('/', '-')[:24]}"
+    branch = "".join(c if c.isalnum() or c in "-/_." else "-" for c in branch)
+
+    async with httpx.AsyncClient(timeout=30) as gh:
+        # Get main SHA
+        r = await gh.get(
+            f"https://api.github.com/repos/{GITHUB_REPO}/git/ref/heads/main",
+            headers=headers,
+        )
+        r.raise_for_status()
+        main_sha = r.json()["object"]["sha"]
+
+        # Create branch (ignore 422 = already exists)
+        r = await gh.post(
+            f"https://api.github.com/repos/{GITHUB_REPO}/git/refs",
+            headers=headers,
+            json={"ref": f"refs/heads/{branch}", "sha": main_sha},
+        )
+        if r.status_code not in (201, 422):
+            r.raise_for_status()
+
+        # Create/update each file
+        for path, content in files.items():
+            encoded = base64.b64encode(content.encode("utf-8", errors="replace")).decode()
+            # Get current file SHA if it exists (needed for update)
+            existing = await gh.get(
+                f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}",
+                headers=headers,
+                params={"ref": branch},
+            )
+            payload: dict = {
+                "message": message or f"feat: {task_id}",
+                "content": encoded,
+                "branch": branch,
+            }
+            if existing.status_code == 200:
+                payload["sha"] = existing.json()["sha"]
+            r = await gh.put(
+                f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}",
+                headers=headers,
+                json=payload,
+            )
+            r.raise_for_status()
+
+        # Open PR
+        pr_body = (
+            f"## {task_id}\n\n"
+            f"{message or ''}\n\n"
+            f"---\n"
+            f"Contribution-Agent: {agent}\n"
+            f"Task: {task_id}\n"
+            f"Verification: ci-pass\n"
+        )
+        r = await gh.post(
+            f"https://api.github.com/repos/{GITHUB_REPO}/pulls",
+            headers=headers,
+            json={
+                "title": f"feat: {task_id}",
+                "body": pr_body,
+                "head": branch,
+                "base": "main",
+            },
+        )
+        if r.status_code == 422:
+            # PR already exists — return existing URL
+            existing_prs = await gh.get(
+                f"https://api.github.com/repos/{GITHUB_REPO}/pulls",
+                headers=headers,
+                params={"head": f"ehrenfest-quantum:{branch}", "state": "open"},
+            )
+            if existing_prs.status_code == 200 and existing_prs.json():
+                return existing_prs.json()[0]["html_url"]
+        r.raise_for_status()
+        return r.json()["html_url"]
 
 app = FastAPI(title="quasi-board", version="0.1.0")
 
@@ -173,8 +270,36 @@ async def inbox(request: Request):
         })
         return JSONResponse({"status": "claimed", "ledger_entry": entry["id"], "entry_hash": entry["entry_hash"]})
 
+    if activity_type == "Create" and body.get("quasi:type") == "patch":
+        # Agent submitting implementation — board opens PR on their behalf
+        task_id = body.get("quasi:taskId", "")
+        agent = body.get("actor", "unknown")
+        files = body.get("quasi:files", {})
+        message = body.get("quasi:message", "")
+
+        if not task_id:
+            raise HTTPException(400, "quasi:taskId required")
+        if not files or not isinstance(files, dict):
+            raise HTTPException(400, "quasi:files must be a non-empty dict of {path: content}")
+
+        pr_url = await _open_pr_from_files(task_id, agent, files, message)
+
+        entry = append_ledger({
+            "type": "submission",
+            "contributor_agent": agent,
+            "task": task_id,
+            "commit_hash": None,
+            "pr_url": pr_url,
+        })
+        return JSONResponse({
+            "status": "pr_opened",
+            "pr_url": pr_url,
+            "ledger_entry": entry["id"],
+            "entry_hash": entry["entry_hash"],
+        })
+
     if activity_type == "Create" and body.get("quasi:type") == "completion":
-        # Agent reporting a completed task
+        # Agent reporting a completed task (manual flow)
         entry = append_ledger({
             "type": "completion",
             "contributor_agent": body.get("actor", "unknown"),

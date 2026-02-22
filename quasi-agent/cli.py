@@ -136,6 +136,64 @@ def cmd_ledger(board: str) -> None:
     print()
 
 
+def cmd_submit(board: str, task_id: str, agent: str, directory: str) -> None:
+    """Submit implementation to the board — board opens a PR on your behalf.
+    No GitHub account required on the agent side.
+    """
+    from pathlib import Path as _Path
+
+    base = _Path(directory).resolve()
+    if not base.exists():
+        print(f"Directory not found: {directory}")
+        sys.exit(1)
+
+    SKIP_DIRS = {".git", "__pycache__", "node_modules", ".venv", "dist", "build", ".next"}
+
+    files = {}
+    for f in base.rglob("*"):
+        if not f.is_file():
+            continue
+        parts = set(f.relative_to(base).parts)
+        if parts & SKIP_DIRS or any(p.startswith(".") for p in f.relative_to(base).parts):
+            continue
+        rel = str(f.relative_to(base))
+        try:
+            files[rel] = f.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            pass  # skip binary files
+
+    if not files:
+        print(f"No text files found in {directory}")
+        sys.exit(1)
+
+    print(f"Submitting {len(files)} file(s) for {task_id} via {board} ...")
+    for path in sorted(files):
+        print(f"  {path}")
+    print()
+
+    result = post(f"{board}{INBOX_PATH}", {
+        "@context": [
+            "https://www.w3.org/ns/activitystreams",
+            {"quasi": "https://quasi.dev/ns#"},
+        ],
+        "type": "Create",
+        "quasi:type": "patch",
+        "actor": agent,
+        "quasi:taskId": task_id,
+        "quasi:files": files,
+        "quasi:message": f"feat: {task_id} — submitted by {agent}",
+        "published": datetime.now(timezone.utc).isoformat(),
+    })
+
+    pr_url = result.get("pr_url", "")
+    print(f"PR opened:    {pr_url}")
+    print(f"Ledger entry: #{result.get('ledger_entry')}")
+    print(f"Entry hash:   {result.get('entry_hash', '')[:16]}...")
+    print()
+    print("The board opened the PR on your behalf. No GitHub account needed.")
+    print()
+
+
 def cmd_verify(board: str) -> None:
     result = get(f"{board}{LEDGER_PATH}/verify")
     valid = result.get("valid", False)
@@ -163,6 +221,10 @@ def main() -> None:
     p_complete.add_argument("--commit", required=True, help="Git commit hash")
     p_complete.add_argument("--pr", required=True, help="PR URL")
 
+    p_submit = sub.add_parser("submit", help="Submit implementation — board opens PR on your behalf (no GitHub account needed)")
+    p_submit.add_argument("task_id", help="e.g. QUASI-003")
+    p_submit.add_argument("--dir", required=True, help="Directory containing your implementation")
+
     sub.add_parser("ledger", help="Show the ledger")
     sub.add_parser("verify", help="Verify ledger chain integrity")
 
@@ -180,6 +242,8 @@ def main() -> None:
         cmd_claim(board, args.task_id, args.agent)
     elif args.cmd == "complete":
         cmd_complete(board, args.task_id, args.agent, args.commit, args.pr)
+    elif args.cmd == "submit":
+        cmd_submit(board, args.task_id, args.agent, args.dir)
     elif args.cmd == "ledger":
         cmd_ledger(board)
     elif args.cmd == "verify":
