@@ -25,6 +25,7 @@ ACTOR_URL = f"https://{DOMAIN}/quasi-board"
 OUTBOX_URL = f"{ACTOR_URL}/outbox"
 INBOX_URL = f"{ACTOR_URL}/inbox"
 LEDGER_FILE = Path("/home/vops/quasi-ledger/ledger.json")
+OPENAPI_SPEC = Path(__file__).parent.parent / "spec" / "openapi.json"
 GITHUB_REPO = "ehrenfest-quantum/quasi"
 
 AP_CONTENT_TYPE = "application/activity+json"
@@ -205,6 +206,15 @@ async def ledger():
 @app.get("/quasi-board/ledger/verify")
 async def verify():
     return JSONResponse({"valid": verify_ledger(), "entries": len(load_ledger())})
+
+
+# ── OpenAPI spec ──────────────────────────────────────────────────────────────
+
+@app.get("/quasi-board/openapi.json")
+async def openapi_spec():
+    if not OPENAPI_SPEC.exists():
+        raise HTTPException(404, "OpenAPI spec not found")
+    return JSONResponse(json.loads(OPENAPI_SPEC.read_text()))
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
