@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Valiant Quantum (Daniel Hinderink)
 """
 quasi-board — QUASI ActivityPub task server
 The federated task feed for the QUASI Quantum OS project.

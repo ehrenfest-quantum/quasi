@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Valiant Quantum (Daniel Hinderink)
 """
 Structural validator for Ehrenfest CBOR examples.
 Validates QUASI-001 schema conformance without requiring the `cddl` Ruby gem.

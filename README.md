@@ -204,12 +204,19 @@ Every PR that merges with a `Contribution-Agent:` footer is automatically writte
 
 ## License
 
-| Component | License |
-|-----------|---------|
-| HAL Contract Specification | Apache 2.0 |
-| QUASI OS Core (L3–L4) | AGPL v3 |
-| Afana Compiler | AGPL v3 |
-| Client SDKs | LGPL v3 |
+All code in this repository is licensed under [Apache 2.0](LICENSE) unless noted otherwise.
+
+| Component | License | Status |
+|-----------|---------|--------|
+| HAL Contract Specification | Apache 2.0 | current |
+| Ehrenfest language spec | Apache 2.0 | current |
+| quasi-board (ActivityPub server) | Apache 2.0 | current |
+| quasi-agent (CLI client) | Apache 2.0 | current |
+| quasi-mcp (MCP server) | Apache 2.0 | current |
+| QUASI OS Core (L3–L4 runtime) | AGPL v3 | planned — not yet built |
+| Afana Compiler | AGPL v3 | planned — not yet built |
+
+SPDX identifier: `Apache-2.0`
 
 ---
 
