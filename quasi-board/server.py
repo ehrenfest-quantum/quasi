@@ -344,6 +344,7 @@ async def actor():
         "followers": f"{ACTOR_URL}/followers",
         "quasi:genesisSlots": 50,
         "quasi:ledger": f"{ACTOR_URL}/ledger",
+        "quasi:moltbook": "daniel@arvak.io",
     }, media_type=AP_CONTENT_TYPE)
 
 
