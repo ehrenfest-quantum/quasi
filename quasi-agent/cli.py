@@ -13,6 +13,8 @@ Usage:
     python3 quasi-agent/cli.py claim QUASI-001 --as "Alice <@alice@fosstodon.org>"
     python3 quasi-agent/cli.py complete QUASI-001 --commit abc123 --pr https://github.com/.../pull/1
     python3 quasi-agent/cli.py complete QUASI-001 --commit abc123 --pr https://... --as "Alice <@alice@fosstodon.org>"
+    python3 quasi-agent/cli.py watch --interval 300
+    python3 quasi-agent/cli.py watch --once
     python3 quasi-agent/cli.py ledger
     python3 quasi-agent/cli.py contributors
     python3 quasi-agent/cli.py verify
@@ -26,11 +28,14 @@ anonymously — anonymous contributions count equally.
 
 import argparse
 import json
+import os
 import re
 import sys
+import time
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
+from pathlib import Path
 
 DEFAULT_BOARD = "https://gawain.valiant-quantum.com"
 ACTOR_PATH = "/quasi-board"
@@ -274,6 +279,99 @@ def cmd_contributors(board: str) -> None:
     print()
 
 
+SEEN_TASKS_FILE = Path("~/.quasi/seen_tasks.json").expanduser()
+
+
+def _get_quiet(url: str) -> dict | None:
+    """Like get() but returns None on error instead of exiting."""
+    req = urllib.request.Request(url, headers={
+        "Accept": "application/activity+json, application/json",
+        "User-Agent": "quasi-agent/0.1",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read())
+    except Exception:
+        return None
+
+
+def _extract_task_info(item: dict) -> dict | None:
+    """Extract task_id, title, url, status from an outbox item."""
+    t = item.get("object", item) if item.get("type") == "Create" else item
+    task_id = t.get("quasi:taskId")
+    if not task_id:
+        return None
+    title = t.get("name", "")
+    if not title:
+        content = t.get("content", "")
+        m = re.search(r"<strong>(.+?)</strong>", content)
+        title = m.group(1) if m else "(no title)"
+    return {
+        "task_id": task_id,
+        "title": title,
+        "url": t.get("url", ""),
+        "status": t.get("quasi:status", "open"),
+    }
+
+
+def _load_seen() -> set[str]:
+    if SEEN_TASKS_FILE.exists():
+        try:
+            return set(json.loads(SEEN_TASKS_FILE.read_text()))
+        except Exception:
+            pass
+    return set()
+
+
+def _save_seen(seen: set[str]) -> None:
+    SEEN_TASKS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    SEEN_TASKS_FILE.write_text(json.dumps(sorted(seen)))
+
+
+def cmd_watch(board: str, interval: int, once: bool) -> None:
+    seen = _load_seen()
+    first_run = True
+
+    try:
+        while True:
+            outbox = _get_quiet(f"{board}{OUTBOX_PATH}")
+            if outbox is None:
+                if first_run:
+                    print(f"Could not reach {board} — retrying in {interval}s")
+                if once:
+                    sys.exit(1)
+                time.sleep(interval)
+                first_run = False
+                continue
+
+            tasks = outbox.get("orderedItems", [])
+            new_tasks = []
+            for item in tasks:
+                info = _extract_task_info(item)
+                if info and info["status"] == "open" and info["task_id"] not in seen:
+                    new_tasks.append(info)
+
+            now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            if new_tasks:
+                for t in new_tasks:
+                    print(f"[{now}] NEW TASK: {t['task_id']} — {t['title']}")
+                    print(f"  Claim: python3 quasi-agent/cli.py --agent <model> claim {t['task_id']}")
+                    seen.add(t["task_id"])
+                _save_seen(seen)
+            elif first_run:
+                print(f"[{now}] Watching {board} — no new tasks (polling every {interval}s)")
+
+            if once:
+                if not new_tasks:
+                    print(f"[{now}] No new open tasks.")
+                return
+
+            first_run = False
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        print("\nStopped watching.")
+
+
 def cmd_verify(board: str) -> None:
     result = get(f"{board}{LEDGER_PATH}/verify")
     valid = result.get("valid", False)
@@ -314,6 +412,10 @@ def main() -> None:
     p_submit.add_argument("task_id", help="e.g. QUASI-003")
     p_submit.add_argument("--dir", required=True, help="Directory containing your implementation")
 
+    p_watch = sub.add_parser("watch", help="Poll for new tasks and notify")
+    p_watch.add_argument("--interval", type=int, default=300, help="Poll interval in seconds (default: 300)")
+    p_watch.add_argument("--once", action="store_true", help="Print current open tasks and exit")
+
     sub.add_parser("ledger", help="Show the ledger")
     sub.add_parser("contributors", help="List named contributors from the ledger")
     sub.add_parser("verify", help="Verify ledger chain integrity")
@@ -334,6 +436,8 @@ def main() -> None:
         cmd_complete(board, args.task_id, args.agent, args.commit, args.pr, getattr(args, "as_str", None))
     elif args.cmd == "submit":
         cmd_submit(board, args.task_id, args.agent, args.dir)
+    elif args.cmd == "watch":
+        cmd_watch(board, args.interval, args.once)
     elif args.cmd == "ledger":
         cmd_ledger(board)
     elif args.cmd == "contributors":
