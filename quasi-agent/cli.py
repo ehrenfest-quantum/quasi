@@ -100,7 +100,12 @@ def cmd_list(board: str) -> None:
         # Unwrap ActivityPub Create envelope — task data lives in "object"
         t = item.get("object", item) if item.get("type") == "Create" else item
         task_id = t.get("quasi:taskId", "?")
-        title = t.get("name", "(no title)")
+        title = t.get("name", "")
+        if not title:
+            # Fallback: extract from <strong>...</strong> in content HTML
+            content = t.get("content", "")
+            m = re.search(r"<strong>(.+?)</strong>", content)
+            title = m.group(1) if m else "(no title)"
         print(f"  {task_id}  {title}")
         print(f"         {t.get('url', '')}")
         print(f"         Status: {t.get('quasi:status', 'open')}")
