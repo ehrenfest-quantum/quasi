@@ -625,6 +625,20 @@ async def outbox():
     }, media_type=AP_CONTENT_TYPE)
 
 
+@app.get("/quasi-board/tasks/{task_id}")
+async def task_detail(task_id: str):
+    _validate_task_id(task_id)
+    status_info = _effective_task_status(task_id)
+    response: dict = {
+        "quasi:taskId": task_id,
+        "quasi:status": status_info["status"],
+    }
+    if status_info["status"] == "claimed":
+        response["quasi:claimedBy"] = status_info["agent"]
+        response["quasi:expiresAt"] = status_info["expires_at"]
+    return JSONResponse(response)
+
+
 @app.post("/quasi-board/inbox")
 async def inbox(request: Request):
     body = await request.json()
@@ -789,6 +803,28 @@ async def inbox(request: Request):
             },
         })
         return JSONResponse({"status": "recorded", "ledger_entry": entry["id"], "entry_hash": entry["entry_hash"]})
+
+    if activity_type == "quasi:Refresh":
+        # Agent extends their active claim by another CLAIM_TTL_HOURS
+        task_id = body.get("quasi:taskId", "")
+        agent = body.get("actor", "unknown")
+        _validate_task_id(task_id)
+        _check_agent_claimed(task_id, agent)
+        entry = append_ledger({
+            "type": "claim",
+            "contributor_agent": agent,
+            "task": task_id,
+            "commit_hash": None,
+            "pr_url": None,
+            "quasi:refresh": True,
+        })
+        expires_at = (datetime.now(timezone.utc) + timedelta(hours=CLAIM_TTL_HOURS)).isoformat()
+        return JSONResponse({
+            "status": "refreshed",
+            "ledger_entry": entry["id"],
+            "entry_hash": entry["entry_hash"],
+            "quasi:expiresAt": expires_at,
+        })
 
     return JSONResponse({"status": "accepted"})
 
