@@ -1,12 +1,16 @@
-# QUASI-Bench — AI Benchmark Methodology
+# Pauli-Test — AI Benchmark Methodology
 
-**QUASI as a Living Benchmark for Autonomous AI Engineering Agents**
+**Named after the Pauli Exclusion Principle — three Pauls: Ehrenfest, Ehrenfest Jr., and Wolfgang Pauli.**
 
 ---
 
 ## Abstract
 
-We introduce QUASI-Bench, a continuously evolving benchmark for autonomous AI engineering agents grounded in the QUASI Quantum OS project. Unlike static benchmarks that suffer from dataset contamination, fixed capability ceilings, and construct conflation, QUASI-Bench exploits the **computational irreducibility** of an active open-source quantum software project: no model trained before a given frontier level can anticipate the emergent complexity of the next. Tasks are drawn directly from the QUASI GitHub issue tracker, solutions are verified by CI pipelines, and performance is recorded on a tamper-evident, hash-linked ledger. The framework introduces a five-level **Capability Ladder** grounded in physical realizability — from scaffolding and documentation through language design, compiler construction, hardware backend integration, to full Turing-complete quantum programming — with objective stopping criteria at each level. QUASI-Bench addresses four endemic failures of AI coding benchmarks identified in recent meta-analytic work: contamination through training data overlap, fixed ceilings that saturate before measuring frontier capability, construct conflation of tool-use with genuine reasoning, and ecologically invalid synthetic tasks disconnected from real engineering practice.
+We introduce the **Pauli-Test**, a continuously evolving benchmark for autonomous AI engineering agents grounded in the QUASI Quantum OS project. The name carries three Pauls: Paul Ehrenfest, after whom the QUASI quantum language is named; his son Paul Ehrenfest Jr. ("Pavlik"), photographed in Einstein's lap at the Leiden house in 1920; and Wolfgang Pauli — Ehrenfest's student, inventor of the Exclusion Principle, and the scientist least tolerant of imprecision in the history of physics. His verdict on sloppy work — *"nicht einmal falsch"* — defines what this benchmark demands.
+
+Unlike static benchmarks that suffer from dataset contamination, fixed capability ceilings, and construct conflation, the Pauli-Test exploits the **computational irreducibility** of an active open-source quantum software project: no model trained before a given frontier level can anticipate the emergent complexity of the next. Tasks are drawn directly from the QUASI GitHub issue tracker, solutions are verified by CI pipelines, and performance is recorded on a tamper-evident, hash-linked ledger. The framework introduces a five-level **Capability Ladder** grounded in physical realizability — from scaffolding and documentation through language design, compiler construction, hardware backend integration, to full Turing-complete quantum programming — with objective stopping criteria at each level. The Pauli-Test addresses four endemic failures of AI coding benchmarks identified in recent meta-analytic work: contamination through training data overlap, fixed ceilings that saturate before measuring frontier capability, construct conflation of tool-use with genuine reasoning, and ecologically invalid synthetic tasks disconnected from real engineering practice.
+
+**Pauli-Test axiom:** No AI agent can occupy a capability level it has not genuinely traversed — by CI, by physics, by ledger.
 
 ---
 
@@ -15,13 +19,13 @@ We introduce QUASI-Bench, a continuously evolving benchmark for autonomous AI en
 ### Four Failure Modes of Static AI Benchmarks
 
 **1. Contamination**
-Static benchmarks (HumanEval, SWE-bench, LiveCodeBench) are published once. Within months, their tasks appear in training corpora. Models that score highly may have memorized solutions rather than generalized to new problems. QUASI-Bench is immune: the project continuously generates new issues, and the complexity at any frontier level is not reproducible from prior data alone.
+Static benchmarks (HumanEval, SWE-bench, LiveCodeBench) are published once. Within months, their tasks appear in training corpora. Models that score highly may have memorized solutions rather than generalized to new problems. Pauli-Test is immune: the project continuously generates new issues, and the complexity at any frontier level is not reproducible from prior data alone.
 
 **2. Fixed Ceiling**
-Published benchmarks become saturated — state-of-the-art models approach 90%+ on HumanEval. At saturation, the benchmark no longer discriminates between models. QUASI-Bench has no ceiling: the Capability Ladder extends from L0 (trivial scaffolding) through L4 (Turing-complete quantum programming), with L3–L4 tasks currently beyond any known model.
+Published benchmarks become saturated — state-of-the-art models approach 90%+ on HumanEval. At saturation, the benchmark no longer discriminates between models. Pauli-Test has no ceiling: the Capability Ladder extends from L0 (trivial scaffolding) through L4 (Turing-complete quantum programming), with L3–L4 tasks currently beyond any known model.
 
 **3. Construct Conflation**
-Many "coding benchmarks" actually measure instruction following, retrieval, or pattern matching rather than autonomous engineering reasoning. QUASI-Bench requires understanding of quantum circuit semantics, ZX-calculus rewriting rules, HAL Contract interfaces, and hardware topology — domains where shallow retrieval fails. The label taxonomy (see below) enables discriminant validity analysis across constructs.
+Many "coding benchmarks" actually measure instruction following, retrieval, or pattern matching rather than autonomous engineering reasoning. Pauli-Test requires understanding of quantum circuit semantics, ZX-calculus rewriting rules, HAL Contract interfaces, and hardware topology — domains where shallow retrieval fails. The label taxonomy (see below) enables discriminant validity analysis across constructs.
 
 **4. Synthetic Tasks**
 Benchmarks built on toy problems (sort an array, implement a linked list) do not reflect the complexity of real engineering work. QUASI tasks are extracted from an active GitHub project with real contributors, real CI pipelines, and real hardware backends (IBM Quantum, IQM/Scaleway). Failure modes are real; success is objectively verifiable.
@@ -30,7 +34,7 @@ Benchmarks built on toy problems (sort an array, implement a linked list) do not
 
 ## The Capability Ladder
 
-QUASI-Bench organizes tasks into five levels, each grounded in measurable, physical criteria.
+Pauli-Test organizes tasks into five levels, each grounded in measurable, physical criteria.
 
 | Level | Name | Description | Physical Metric |
 |-------|------|-------------|-----------------|
@@ -50,7 +54,7 @@ Levels L2–L4 are grounded in quantities measurable on real quantum hardware: g
 
 ## Computational Irreducibility
 
-The central argument for QUASI-Bench's contamination resistance is **computational irreducibility** (Wolfram 1985; adapted from algorithmic information theory):
+The central argument for Pauli-Test's contamination resistance is **computational irreducibility** (Wolfram 1985; adapted from algorithmic information theory):
 
 > The behavior of complex systems cannot be compressed into a formula that lets you predict the outcome without executing the computation.
 
@@ -62,7 +66,7 @@ This is structurally analogous to the **Heisenberg limit** in measurement: you c
 
 ## Objective Verification
 
-Task success in QUASI-Bench is verified by three independent mechanisms:
+Task success in Pauli-Test is verified by three independent mechanisms:
 
 1. **CI Pipeline** — GitHub Actions runs unit tests, integration tests, and type checks on every PR. CI pass/fail is public, immutable, and not subject to human judgment.
 
@@ -126,9 +130,9 @@ Each ledger entry includes: task ID, action (claim/complete), timestamp, contrib
 
 ## Statistical Validity
 
-QUASI-Bench satisfies the eight methodological recommendations for AI benchmark validity (Burnell et al. 2025 / arXiv:2511.04703):
+Pauli-Test satisfies the eight methodological recommendations for AI benchmark validity (Burnell et al. 2025 / arXiv:2511.04703):
 
-| Recommendation | QUASI-Bench Implementation |
+| Recommendation | Pauli-Test Implementation |
 |---------------|---------------------------|
 | Construct definition | Five-level capability ladder with physical metrics |
 | Contamination resistance | Computationally irreducible; living project |
@@ -168,11 +172,11 @@ quasi/
 
 ## Citation
 
-If you use QUASI-Bench in research, please cite:
+If you use Pauli-Test in research, please cite:
 
 ```bibtex
 @misc{quasi-bench-2026,
-  title   = {QUASI-Bench: A Computationally Irreducible Benchmark for
+  title   = {Pauli-Test: A Computationally Irreducible Benchmark for
              Autonomous AI Engineering Agents in Quantum Software},
   author  = {Hinderink, Daniel and {QUASI Contributors}},
   year    = {2026},
