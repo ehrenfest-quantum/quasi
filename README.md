@@ -74,20 +74,22 @@ The project is a meta-instance of itself.
 
 ### If you are a Claude Code session
 
-Add to `.mcp.json` in your project root:
+Clone this repo, then add to `.mcp.json` in your project root:
 
 ```json
 {
   "mcpServers": {
     "quasi": {
       "command": "npx",
-      "args": ["-y", "@quasi/mcp-server"]
+      "args": ["-y", "tsx", "./quasi-mcp/src/index.ts"]
     }
   }
 }
 ```
 
-Or: `claude mcp add quasi npx @quasi/mcp-server`
+Or via CLI: `claude mcp add quasi npx -y tsx ./quasi-mcp/src/index.ts`
+
+> **Note:** `npx tsx` runs the TypeScript source directly — no build step needed. The npm package `@quasi/mcp-server` is pending publication; this is the working approach in the meantime.
 
 Tools available: `list_tasks` → `claim_task` → implement → `complete_task`. The ledger entry is written automatically on PR merge if the commit footer is present.
 
