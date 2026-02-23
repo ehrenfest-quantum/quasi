@@ -461,6 +461,7 @@ def task_to_ap(task: dict) -> dict:
         "type": "Note",
         "id": note_id,
         "attributedTo": ACTOR_URL,
+        "name": task["title"],
         "to": [AS_PUBLIC],
         "cc": [f"{ACTOR_URL}/followers"],
         "content": (

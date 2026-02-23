@@ -96,8 +96,12 @@ def cmd_list(board: str) -> None:
         print("No open tasks.")
         return
     print(f"\nOpen tasks on {board}:\n")
-    for t in tasks:
-        print(f"  {t.get('quasi:taskId', '?')}  {t.get('name', '(no title)')}")
+    for item in tasks:
+        # Unwrap ActivityPub Create envelope — task data lives in "object"
+        t = item.get("object", item) if item.get("type") == "Create" else item
+        task_id = t.get("quasi:taskId", "?")
+        title = t.get("name", "(no title)")
+        print(f"  {task_id}  {title}")
         print(f"         {t.get('url', '')}")
         print(f"         Status: {t.get('quasi:status', 'open')}")
         print()
