@@ -15,7 +15,7 @@ import hashlib
 import json
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from email.utils import formatdate
 from pathlib import Path
 from typing import Any
@@ -40,6 +40,7 @@ FOLLOWERS_FILE = Path("/home/vops/quasi-board/followers.json")
 ACTOR_KEY_ID = f"{ACTOR_URL}#main-key"
 
 AP_CONTENT_TYPE = "application/activity+json"
+CLAIM_TTL_HOURS = 24
 
 
 # ── HTTP Signatures ───────────────────────────────────────────────────────────
@@ -278,16 +279,45 @@ def _validate_task_id(task_id: str) -> None:
         raise HTTPException(400, f"Invalid task_id format: {task_id!r} — expected QUASI-NNN")
 
 
-def _check_agent_claimed(task_id: str, agent: str) -> None:
-    """Reject submission if this agent has no claim entry for this task."""
+def _effective_task_status(task_id: str) -> dict:
+    """Derive task status from ledger. Claims older than CLAIM_TTL_HOURS are treated as expired."""
     chain = load_ledger()
-    for entry in chain:
-        if (
-            entry.get("type") == "claim"
-            and entry.get("task") == task_id
-            and entry.get("contributor_agent") == agent
-        ):
-            return
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=CLAIM_TTL_HOURS)
+    latest = None
+    for entry in reversed(chain):
+        if entry.get("task") == task_id and entry.get("type") in ("claim", "completion", "submission"):
+            latest = entry
+            break
+    if latest is None:
+        return {"status": "open"}
+    if latest["type"] == "completion":
+        return {"status": "done"}
+    if latest["type"] in ("claim", "submission"):
+        entry_time = datetime.fromisoformat(latest["timestamp"])
+        if entry_time > cutoff:
+            expires_at = entry_time + timedelta(hours=CLAIM_TTL_HOURS)
+            return {
+                "status": "claimed",
+                "agent": latest["contributor_agent"],
+                "expires_at": expires_at.isoformat(),
+            }
+    return {"status": "open"}
+
+
+def _check_agent_claimed(task_id: str, agent: str) -> None:
+    """Reject submission if this agent has no valid (non-expired) claim for this task."""
+    chain = load_ledger()
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=CLAIM_TTL_HOURS)
+    for entry in reversed(chain):
+        if entry.get("task") != task_id or entry.get("contributor_agent") != agent:
+            continue
+        if entry.get("type") == "claim":
+            entry_time = datetime.fromisoformat(entry["timestamp"])
+            if entry_time > cutoff:
+                return  # valid claim found
+            raise HTTPException(403, f"Claim on {task_id} expired — re-claim to continue")
+        if entry.get("type") in ("submission", "completion"):
+            return  # already submitted/completed, allow
     raise HTTPException(403, f"Agent {agent!r} has not claimed {task_id} — call claim first")
 
 
@@ -457,6 +487,8 @@ def task_to_ap(task: dict) -> dict:
     published = datetime.now(timezone.utc).isoformat()
     note_id = f"{ACTOR_URL}/tasks/{task_id}"
     body = task.get("body", "").strip()[:300]
+    quasi_task_id = f"QUASI-{task_id:03d}"
+    status_info = _effective_task_status(quasi_task_id)
     note = {
         "type": "Note",
         "id": note_id,
@@ -471,9 +503,12 @@ def task_to_ap(task: dict) -> dict:
         ),
         "url": task["html_url"],
         "published": published,
-        "quasi:taskId": f"QUASI-{task_id:03d}",
-        "quasi:status": "open",
+        "quasi:taskId": quasi_task_id,
+        "quasi:status": status_info["status"],
     }
+    if status_info["status"] == "claimed":
+        note["quasi:claimedBy"] = status_info["agent"]
+        note["quasi:expiresAt"] = status_info["expires_at"]
     return {
         "type": "Create",
         "id": f"{note_id}/activity",
@@ -614,6 +649,14 @@ async def inbox(request: Request):
         # Agent claiming a task
         task_id = body.get("quasi:taskId", body.get("object", ""))
         agent = body.get("actor", "unknown")
+        # Reject if another agent has an active (non-expired) claim
+        status_info = _effective_task_status(task_id)
+        if status_info["status"] == "claimed" and status_info["agent"] != agent:
+            raise HTTPException(
+                409,
+                f"{task_id} is already claimed by {status_info['agent']} "
+                f"(expires {status_info['expires_at'][:16]})"
+            )
         ledger_entry: dict[str, Any] = {
             "type": "claim",
             "contributor_agent": agent,

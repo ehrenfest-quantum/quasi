@@ -102,13 +102,18 @@ def cmd_list(board: str) -> None:
         task_id = t.get("quasi:taskId", "?")
         title = t.get("name", "")
         if not title:
-            # Fallback: extract from <strong>...</strong> in content HTML
             content = t.get("content", "")
             m = re.search(r"<strong>(.+?)</strong>", content)
             title = m.group(1) if m else "(no title)"
+        status = t.get("quasi:status", "open")
         print(f"  {task_id}  {title}")
         print(f"         {t.get('url', '')}")
-        print(f"         Status: {t.get('quasi:status', 'open')}")
+        if status == "claimed":
+            agent = t.get("quasi:claimedBy", "?")
+            expires = t.get("quasi:expiresAt", "")[:16]
+            print(f"         Status: claimed by {agent} (expires {expires})")
+        else:
+            print(f"         Status: {status}")
         print()
     ledger = get(f"{board}{LEDGER_PATH}")
     remaining = ledger.get("quasi:slotsRemaining", "?")
