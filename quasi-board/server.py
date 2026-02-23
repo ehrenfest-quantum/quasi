@@ -24,7 +24,7 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 DOMAIN = "gawain.valiant-quantum.com"
 ACTOR_URL = f"https://{DOMAIN}/quasi-board"
@@ -785,6 +785,142 @@ async def openapi_spec():
 async def health():
     return {"status": "ok", "domain": DOMAIN, "ledger_entries": len(load_ledger())}
 
+
+# ── HTML status page ─────────────────────────────────────────────────────
+
+@app.get("/quasi-board/status", response_class=HTMLResponse)
+async def status_page():
+    tasks = fetch_tasks()
+    chain = load_ledger()
+    ledger_valid = verify_ledger()
+
+    # Derive task status from ledger (last relevant entry wins)
+    task_statuses: dict[str, str] = {}
+    for entry in chain:
+        tid = entry.get("task", "")
+        etype = entry.get("type", "")
+        if etype == "completion":
+            task_statuses[tid] = "done"
+        elif etype == "submission" and task_statuses.get(tid) != "done":
+            task_statuses[tid] = "submitted"
+        elif etype == "claim" and tid not in task_statuses:
+            task_statuses[tid] = "claimed"
+
+    completed_tasks = {tid for tid, s in task_statuses.items() if s == "done"}
+    genesis_remaining = max(0, 50 - len(completed_tasks))
+
+    n_open = 0
+    n_claimed = 0
+    n_done = len(completed_tasks)
+
+    # Build task rows
+    task_rows = ""
+    for t in tasks:
+        task_id = f"QUASI-{t['number']:03d}"
+        title = t.get("title", task_id)
+        url = t.get("html_url", "#")
+        st = task_statuses.get(task_id, "open")
+        if st == "open":
+            n_open += 1
+            badge = '<span style="color:#4ec9b0;">open</span>'
+        elif st == "claimed":
+            n_claimed += 1
+            badge = '<span style="color:#dcdcaa;">claimed</span>'
+        elif st == "submitted":
+            n_claimed += 1
+            badge = '<span style="color:#ce9178;">submitted</span>'
+        else:
+            badge = '<span style="color:#608b4e;">done</span>'
+        # Escape HTML in title
+        safe_title = title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        task_rows += (
+            f"<tr>"
+            f"<td>{task_id}</td>"
+            f'<td><a href="{url}" style="color:#569cd6;">{safe_title}</a></td>'
+            f"<td>{badge}</td>"
+            f"</tr>\n"
+        )
+
+    # Recent ledger entries (last 10)
+    recent = chain[-10:] if chain else []
+    recent.reverse()
+    ledger_rows = ""
+    for e in recent:
+        eid = e.get("id", "")
+        etype = e.get("type", "")
+        agent = e.get("contributor_agent", "")
+        # Escape agent name
+        safe_agent = str(agent).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        task = e.get("task", "")
+        ts = e.get("timestamp", "")[:19]
+        ledger_rows += (
+            f"<tr>"
+            f"<td>{eid}</td>"
+            f"<td>{etype}</td>"
+            f"<td>{safe_agent}</td>"
+            f"<td>{task}</td>"
+            f"<td>{ts}</td>"
+            f"</tr>\n"
+        )
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    integrity = "intact" if ledger_valid else "BROKEN"
+    integrity_color = "#608b4e" if ledger_valid else "#f44747"
+
+    html = f"""\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="60">
+<title>quasi-board — QUASI Quantum OS</title>
+</head>
+<body style="margin:0; padding:2em; font-family:monospace; background:#1a1a2e; color:#e0e0e0; line-height:1.6;">
+<h1 style="color:#569cd6; margin-bottom:0.2em;">quasi-board</h1>
+<p style="color:#888; margin-top:0;">QUASI Quantum OS &mdash; federated task feed</p>
+<p style="color:#666; font-size:0.85em;">Last updated: {now} &middot; Ledger integrity: <span style="color:{integrity_color};">{integrity}</span></p>
+
+<h2 style="color:#dcdcaa;">Summary</h2>
+<table style="border-collapse:collapse; margin-bottom:1.5em;">
+<tr>
+<td style="padding:0.3em 1.5em 0.3em 0;"><strong style="color:#4ec9b0;">{n_open}</strong> Open</td>
+<td style="padding:0.3em 1.5em 0.3em 0;"><strong style="color:#dcdcaa;">{n_claimed}</strong> Claimed/Submitted</td>
+<td style="padding:0.3em 1.5em 0.3em 0;"><strong style="color:#608b4e;">{n_done}</strong> Completed</td>
+<td style="padding:0.3em 0;"><strong style="color:#c586c0;">{genesis_remaining}</strong> Genesis slots remaining</td>
+</tr>
+</table>
+
+<h2 style="color:#dcdcaa;">Open Tasks</h2>
+<table style="border-collapse:collapse; width:100%; max-width:60em; margin-bottom:1.5em;">
+<tr style="border-bottom:1px solid #444; text-align:left;">
+<th style="padding:0.4em 1em 0.4em 0;">ID</th>
+<th style="padding:0.4em 1em 0.4em 0;">Title</th>
+<th style="padding:0.4em 0;">Status</th>
+</tr>
+{task_rows}</table>
+
+<h2 style="color:#dcdcaa;">Recent Ledger Entries</h2>
+<table style="border-collapse:collapse; width:100%; max-width:60em; margin-bottom:1.5em;">
+<tr style="border-bottom:1px solid #444; text-align:left;">
+<th style="padding:0.4em 1em 0.4em 0;">#</th>
+<th style="padding:0.4em 1em 0.4em 0;">Type</th>
+<th style="padding:0.4em 1em 0.4em 0;">Agent</th>
+<th style="padding:0.4em 1em 0.4em 0;">Task</th>
+<th style="padding:0.4em 0;">Timestamp</th>
+</tr>
+{ledger_rows}</table>
+
+<h2 style="color:#dcdcaa;">Links</h2>
+<ul style="list-style:none; padding:0;">
+<li><a href="https://github.com/{GITHUB_REPO}" style="color:#569cd6;">GitHub Repository</a></li>
+<li><a href="{ACTOR_URL}/openapi.json" style="color:#569cd6;">OpenAPI Spec</a></li>
+<li><a href="{ACTOR_URL}" style="color:#569cd6;">ActivityPub Actor</a></li>
+<li><a href="{ACTOR_URL}/ledger" style="color:#569cd6;">Ledger API</a></li>
+</ul>
+</body>
+</html>"""
+    return HTMLResponse(html)
 
 
 # ── GitHub webhook ────────────────────────────────────────────────────────────
