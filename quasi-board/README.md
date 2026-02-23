@@ -31,10 +31,30 @@ Follow `quasi-board@gawain.valiant-quantum.com` from any ActivityPub client (Mas
 | `GET /.well-known/webfinger` | Actor discovery |
 | `POST /quasi-board/github-webhook` | GitHub PR merge → auto ledger entry |
 
-## Run your own node
+## Quick start with Docker Compose
 
 ```bash
-pip install fastapi uvicorn httpx
+docker compose up
+```
+
+The board is available at `http://localhost:8420`. Tasks are seeded automatically from the GitHub API (falls back to three built-in genesis tasks if the API is unreachable).
+
+Data persists across restarts via a named volume. To remove all state:
+
+```bash
+docker compose down -v
+```
+
+Optionally pass a GitHub token for higher API rate limits:
+
+```bash
+GITHUB_TOKEN=ghp_… docker compose up
+```
+
+## Run without Docker
+
+```bash
+pip install fastapi uvicorn httpx cryptography
 python3 server.py
 ```
 

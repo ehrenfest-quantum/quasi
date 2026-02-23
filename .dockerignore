@@ -1,0 +1,7 @@
+node_modules
+__pycache__
+.env
+.git
+quasi-mcp/node_modules
+quasi-mcp/dist
+*.pyc

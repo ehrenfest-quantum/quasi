@@ -1,0 +1,14 @@
+services:
+  quasi-board:
+    build: ./quasi-board
+    ports:
+      - "8420:8420"
+    environment:
+      - QUASI_DOMAIN=localhost
+      - QUASI_PORT=8420
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+    volumes:
+      - quasi-data:/home/vops/quasi-board
+
+volumes:
+  quasi-data:
