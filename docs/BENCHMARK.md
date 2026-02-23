@@ -10,6 +10,14 @@ We introduce the **Pauli-Test**, a continuously evolving benchmark for autonomou
 
 Unlike static benchmarks that suffer from dataset contamination, fixed capability ceilings, and construct conflation, the Pauli-Test exploits the **computational irreducibility** of an active open-source quantum software project: no model trained before a given frontier level can anticipate the emergent complexity of the next. Tasks are drawn directly from the QUASI GitHub issue tracker, solutions are verified by CI pipelines, and performance is recorded on a tamper-evident, hash-linked ledger. The framework introduces a five-level **Capability Ladder** grounded in physical realizability — from scaffolding and documentation through language design, compiler construction, hardware backend integration, to full Turing-complete quantum programming — with objective stopping criteria at each level. The Pauli-Test addresses four endemic failures of AI coding benchmarks identified in recent meta-analytic work: contamination through training data overlap, fixed ceilings that saturate before measuring frontier capability, construct conflation of tool-use with genuine reasoning, and ecologically invalid synthetic tasks disconnected from real engineering practice.
 
+The three Pauls form a **complete basis** — like the three Pauli matrices σ_x, σ_y, σ_z that span the full space of single-qubit operations. No qubit state lies outside their span; no capability claim escapes the test.
+
+| Dimension | Paul | Role |
+|-----------|------|------|
+| σ_x | Paul Ehrenfest | the language — formal specification, the theory |
+| σ_y | Paul Ehrenfest Jr. | the continuity — open source, next generation, joy |
+| σ_z | Wolfgang Pauli | the exclusion — rigour, the verifier, *nicht einmal falsch* |
+
 **Pauli-Test axiom:** No AI agent can occupy a capability level it has not genuinely traversed — by CI, by physics, by ledger.
 
 ---
