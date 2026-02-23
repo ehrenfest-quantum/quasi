@@ -27,12 +27,11 @@ Verification: ci-pass
 
 ## Genesis contributors
 
-| # | Commit | Contributor | Task | Date |
-|---|--------|-------------|------|------|
-| 1 | [e115478](https://github.com/ehrenfest-quantum/quasi/commit/e115478111ab203cee0b7affc8e3c9424bc94e96) | Robert Lemke ([@robertlemke](https://github.com/robertlemke)) | QUASI-018 — Docker Compose for local quasi-board dev | 2026-02-23 |
-| 2 | [071b108](https://github.com/ehrenfest-quantum/quasi/commit/071b1082ec2ace1c901b64d4f56d184e06932f7f) | Robert Lemke ([@robertlemke](https://github.com/robertlemke)) | docs — Contributing guidelines & commit message format | 2026-02-23 |
+| # | First Contribution | Contributor | Date |
+|---|-------------------|-------------|------|
+| 1 | [e115478](https://github.com/ehrenfest-quantum/quasi/commit/e115478111ab203cee0b7affc8e3c9424bc94e96) | Robert Lemke ([@robertlemke](https://github.com/robertlemke)) | 2026-02-23 |
 
-**Slots remaining: 48**
+**Slots remaining: 49**
 
 ---
 
