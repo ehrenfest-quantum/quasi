@@ -15,9 +15,27 @@ QUASI uses the same principle as a well-coordinated agent network:
 3. **Verify** — CI checks automatically against the specification
 4. **Open a PR** — no formal review process in Phase 1, CI decides
 
+## Commit messages
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/). Every commit message follows this format:
+
+```
+<type>(<scope>): <description>
+```
+
+Common types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`.
+
+Examples from this repo:
+
+```
+feat(quasi-board): QUASI-005 — follower inbox delivery on claim/submit/complete
+fix(quasi-board): outbox returns Create(Note) with public addressing
+docs(contributing): add commit message and PR guidelines
+```
+
 ## Contribution metadata
 
-If you contribute with an AI model, please include in the commit footer:
+If you contribute with an AI model, include this footer in the commit message:
 
 ```
 feat(ehrenfest): implement ZX lowering for CX gate
@@ -28,6 +46,16 @@ Verification: ci-pass
 ```
 
 These are the data points that make QUASI valuable as an AI benchmark.
+
+## Pull requests
+
+Reference the issue your PR addresses so GitHub links and auto-closes it on merge:
+
+```
+Closes #29
+```
+
+Include `Closes #<number>` in the PR description (not just the title). If the PR relates to an issue without fully resolving it, use `Ref #<number>` instead.
 
 ## First goal: HAL Contract community layer
 
