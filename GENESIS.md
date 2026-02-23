@@ -25,6 +25,12 @@ Task: QUASI-001
 Verification: ci-pass
 ```
 
+## Initiator
+
+| Role | Contributor | Handles |
+|------|-------------|---------|
+| Project initiator | Daniel Hinderink | [@Stabimobilism@social.tchncs.de](https://social.tchncs.de/@Stabimobilism) · [@daniel@arvak.io](https://arvak.io/@daniel) |
+
 ## Genesis contributors
 
 | # | First Contribution | Contributor | Date |
