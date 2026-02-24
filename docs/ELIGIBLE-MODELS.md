@@ -48,15 +48,15 @@ European models with coding capability and open weights.
 | **Mistral Small 3.1** | France (Mistral AI) | Apache 2.0 | `mistralai/mistral-small-3.1-24b-instruct` | $0.10 | $0.30 |
 | **Mistral Nemo** | France (Mistral AI) | Apache 2.0 | `mistralai/mistral-nemo` | $0.02 | $0.08 |
 | **Viking-33B** | Finland (AMD Silo AI + TurkuNLP + HPLT) | Apache 2.0 | Self-host (HuggingFace) · Google Cloud Vertex AI | Free (self-host) | — |
-| **Apertus-70B** | Switzerland (ETH Zurich + EPFL + CSCS) | Fully open | CSCS Swiss AI API (`api.swissai.cscs.ch`) · self-host (HuggingFace) | Free (CSCS account) | — |
+| **Apertus-70B** | Switzerland (ETH Zurich + EPFL + CSCS) | Fully open | HuggingFace Inference Router (`router.huggingface.co`) · CSCS API (`api.research.computer`) | Free (HF account) | — |
 
 **Notes:**
 - Codestral (Mistral's dedicated code model) is not open weights — excluded.
 - Mistral Large 2 is not open weights — excluded.
 - Mistral Small 3.1 and Nemo are Apache 2.0 with managed APIs via `api.mistral.ai` and OpenRouter.
 - Viking-33B: Apache 2.0, trained on LUMI supercomputer. AMD acquired Silo AI (Finland) in 2024. Medium coding capability. No managed API currently — self-host or Google Cloud Vertex.
-- Apertus-70B: The most transparent large model ever released — weights, training data (15T tokens), training code, and all checkpoints are public. ETH Zurich's "We trade speed for sunlight" principle. Medium coding capability (on par with Llama 3, 2024 class). **API status (Feb 2026):** Model ID `swiss-ai/Apertus-70B-Instruct-2509` is live at `api.swissai.cscs.ch/v1/chat/completions` (OpenAI-compatible). Requires a CSCS account — register at `serving.swissai.cscs.ch`. HuggingFace Inference Router lists it but returns 403 on inference. Self-host remains the auth-free option.
-- Neither Viking nor Apertus have OpenRouter IDs at time of writing. Add to generation rotation when an OpenRouter ID or a verified CSCS API key is available.
+- Apertus-70B: The most transparent large model ever released — weights, training data (15T tokens), training code, and all checkpoints are public. ETH Zurich's "We trade speed for sunlight" principle. Medium coding capability (on par with Llama 3, 2024 class). **API status (Feb 2026):** `swiss-ai/Apertus-70B-Instruct-2509` confirmed working via HuggingFace Inference Router (`router.huggingface.co`) with `HF_TOKEN`. **In the generation rotation.** Also accessible via CSCS Swiss AI API (`api.research.computer`) with a `CSCS_SERVING_API` key from `serving.swissai.cscs.ch`.
+- Viking-33B has no managed API currently. Add to generation rotation when a hosted API with a pinnable version string is available.
 
 ---
 

@@ -81,7 +81,9 @@ PROVIDERS: dict[str, dict] = {
     "huggingface": {
         "url": "https://router.huggingface.co/v1/chat/completions",
         "env": "HF_TOKEN",
-        "headers": {},
+        # User-Agent required — HF router proxies through Cloudflare-protected
+        # backends that block Python's default urllib user agent.
+        "headers": {"User-Agent": "quasi-agent/1.0 (https://quasi.arvak.io)"},
         "verify_header": None,
     },
     # Swiss National Supercomputing Centre (CSCS) — hosts Apertus-70B
@@ -130,8 +132,7 @@ ROTATION: list[dict] = [
     {"id": "jamba",          "model": "ai21/jamba-large-1.7",                    "provider": "openrouter", "license": "Jamba Open",   "origin": "Israel / AI21"},
     # falcon: no OpenRouter ID as of 2026-02-24 — use AI71 platform or self-host
     # {"id": "falcon",    "model": "tiiuae/falcon3-10b-instruct",             "provider": "openrouter", "license": "Apache-2.0",   "origin": "UAE / TII"},
-    # apertus: CSCS Swiss AI API — needs SWISSAI_TOKEN (register at serving.swissai.cscs.ch)
-    # {"id": "apertus",   "model": "swiss-ai/Apertus-70B-Instruct-2509",      "provider": "swissai",    "license": "Fully open",   "origin": "Switzerland / ETH Zurich + EPFL + CSCS"},
+    {"id": "apertus",    "model": "swiss-ai/Apertus-70B-Instruct-2509",      "provider": "huggingface", "license": "Fully open",   "origin": "Switzerland / ETH Zurich + EPFL + CSCS"},
 ]
 
 DEFAULT_MODEL_ID = "deepseek-v3"
