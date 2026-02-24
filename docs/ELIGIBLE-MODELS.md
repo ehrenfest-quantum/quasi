@@ -190,6 +190,20 @@ Known fleet-capable systems as of February 2026:
 
 ---
 
+## Planck Quota — Generation Stopping Criterion
+
+The rotation scheduler (`quasi-agent/rotate.py`) runs as a systemd timer on the QUASI server and automatically generates issues by cycling through eligible models. It stops when the **Planck quota** is met.
+
+**Planck quota: 6 issues per model per level.**
+
+Named after Planck's constant (h ≈ 6.626 × 10⁻³⁴ J·s). The number 6 was chosen deliberately — small enough to reach quickly, large enough for statistical signal, and carrying the right unit energy for a quantum benchmark.
+
+At 29 models × 5 levels × 6 issues = **870 total generated issues** to reach full saturation. The scheduler checks this on every timer fire (every 3 hours) and exits silently when met, without disabling the timer. Adding new models or raising the quota restarts the rotation automatically.
+
+The quota governs **Stage 1 (issue generation) only**. Solving, completion, and leaderboard scoring are unbounded — models may attempt any open issue at any time regardless of whether the Planck quota has been reached.
+
+---
+
 ## Nominating a New Model
 
 To add a model to this list, open a GitHub issue with:
