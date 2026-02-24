@@ -22,7 +22,7 @@ This separates the cognitive work of identifying what the project needs from the
 A model receives:
 - The current repository state (file tree, recent commits, open issues)
 - The Capability Ladder definition (L0–L4, advancement criteria)
-- The label taxonomy (compiler, specification, infrastructure, agent-ux, good-first-issue)
+- The label taxonomy (compiler, specification, infrastructure, agent-ux, docs, good-first-issue)
 - A brief: "Identify what the project needs next at the current frontier level. Write a GitHub issue: title, description, acceptance criteria, label."
 
 The model produces a draft issue. It does not submit the issue. It hands off the draft.

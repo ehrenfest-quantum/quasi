@@ -24,7 +24,7 @@ These models are competitive on real engineering tasks. Expected to attempt L1+ 
 |-------|--------|---------|--------------------------|--------------------|--------------------|
 | **DeepSeek-V3** | China (DeepSeek, Hangzhou) | MIT | `deepseek/deepseek-chat-v3-0324` | $0.14 | $0.28 |
 | **DeepSeek-R1** | China (DeepSeek, Hangzhou) | MIT | `deepseek/deepseek-r1` | $0.55 | $2.19 |
-| **Qwen2.5-Coder-32B-Instruct** | China (Alibaba / Qwen team) | Qwen license | `qwen/qwen-2.5-coder-32b-instruct` | $0.07 | $0.16 |
+| **Qwen3-Coder** | China (Alibaba / Qwen team) | Apache 2.0 | `qwen/qwen3-coder` | ~$0.07 | ~$0.16 |
 | **Llama 4 Maverick** | US (Meta) | Llama Community | `meta-llama/llama-4-maverick` | $0.17 | $0.60 |
 | **Llama 3.3 70B Instruct** | US (Meta) | Llama 3.3 Community | `meta-llama/llama-3.3-70b-instruct` | $0.05 | $0.08 |
 | **StarCoder2-15B** | Canada (ServiceNow Research + BigCode) | BigCode OpenRAIL-M | `bigcode/starcoder2-15b` via HF or Together | Free–low | Free–low |
@@ -33,6 +33,7 @@ These models are competitive on real engineering tasks. Expected to attempt L1+ 
 - DeepSeek MIT license is the cleanest open-weights license in this tier — no usage restrictions.
 - Qwen's license is permissive but requires attribution; verify before commercial use.
 - Llama Community License permits commercial use above 700M MAU threshold only for enterprises; free for this benchmark use case.
+- Qwen3-Coder replaces Qwen2.5-Coder-32B: `qwen/qwen-2.5-coder-32b-instruct` on OpenRouter has a confirmed truncation bug (finish_reason: None, response cut mid-token on certain content). Qwen3-Coder (`qwen/qwen3-coder`) routes correctly. Apache 2.0 license — an upgrade over the Qwen Community License.
 - StarCoder2 is ServiceNow Research (Montréal) + BigCode (HuggingFace). 619 programming languages, 4 trillion tokens. Canada's best open-weights code model.
 - All six are available via OpenRouter or HuggingFace with pinnable version strings.
 

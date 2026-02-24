@@ -42,7 +42,7 @@ REPO_URL = "https://github.com/ehrenfest-quantum/quasi"
 ROTATION = [
     "deepseek/deepseek-chat-v3-0324",       # DeepSeek-V3 (MIT)
     "deepseek/deepseek-r1",                  # DeepSeek-R1 (MIT)
-    "qwen/qwen-2.5-coder-32b-instruct",      # Qwen2.5-Coder (Qwen license)
+    "qwen/qwen3-coder",                      # Qwen3-Coder (Apache 2.0) — replaces qwen-2.5-coder-32b which has OpenRouter truncation bug
     "meta-llama/llama-4-maverick",           # Llama 4 Maverick
     "meta-llama/llama-3.3-70b-instruct",     # Llama 3.3 70B
     "mistralai/mistral-small-3.1-24b-instruct",  # Mistral Small 3.1 (Apache 2.0)
@@ -61,7 +61,7 @@ LEVEL_NAMES = {
     4: "L4 — Turing-Complete Runtime (quantum memory model, classical control flow)",
 }
 
-LABEL_TAXONOMY = "compiler · specification · infrastructure · agent-ux · good-first-issue"
+LABEL_TAXONOMY = "compiler · specification · infrastructure · agent-ux · docs · good-first-issue"
 
 # ── Repo context ──────────────────────────────────────────────────────────────
 
@@ -199,7 +199,7 @@ def call_openrouter(model: str, prompt: str, api_key: str) -> str:
     body = json.dumps({
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 1024,
+        "max_tokens": 2048,
         "temperature": 0.7,
     }).encode()
 
