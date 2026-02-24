@@ -212,21 +212,59 @@ MAX_FILE_BYTES = 100_000          # 100 KB per file
 MAX_TOTAL_BYTES = 500_000         # 500 KB total payload
 MAX_PATH_LEN = 200
 
-# Paths that can never be written by agent submissions
-_BLOCKED_PREFIXES = (
-    ".github/",       # CI/CD workflows, CODEOWNERS, Actions secrets
-    "quasi-board/",   # board server itself
-    "quasi-agent/",   # agent CLI itself
-    "quasi-mcp/",     # MCP server
-    "infra/",         # infrastructure configs
-    "spec/",          # core specification
-    ".git/",          # git internals (GitHub API would reject, but belt-and-suspenders)
+# Paths that are always rejected — no submission path through these
+_HARD_BLOCKED_PREFIXES = (
+    ".git/",    # git internals (GitHub API would also reject)
+    "infra/",   # infrastructure / secrets
 )
 
-_BLOCKED_EXACT = {
-    "CLAUDE.md", "README.md", "CONTRIBUTING.md", "ARCHITECTURE.md",
-    "GENESIS.md", "LICENSE", ".gitignore",
+_HARD_BLOCKED_EXACT = {
+    "GENESIS.md", "LICENSE",
 }
+
+# Paths that require human review before the PR can be merged.
+# The quasi-board creates the PR and records a "submission" ledger entry,
+# but merge requires a human to call POST /quasi-board/admin/merges/{pr}/approve.
+_REVIEW_REQUIRED_PREFIXES = (
+    ".github/",     # CI/CD workflows, CODEOWNERS, Actions secrets
+    "quasi-board/", # board server itself — no self-modification without human sign-off
+    "quasi-agent/", # agent CLI
+    "quasi-mcp/",   # MCP server
+    "spec/",        # canonical language specification
+)
+
+_REVIEW_REQUIRED_EXACT = {
+    "CLAUDE.md", "README.md", "CONTRIBUTING.md", "ARCHITECTURE.md",
+    "ROADMAP.md", ".gitignore",
+}
+
+PENDING_MERGES_FILE = Path("/home/vops/quasi-board/pending_merges.json")
+
+
+def _load_pending_merges() -> list[dict]:
+    if not PENDING_MERGES_FILE.exists():
+        return []
+    return json.loads(PENDING_MERGES_FILE.read_text()).get("merges", [])
+
+
+def _save_pending_merges(merges: list[dict]) -> None:
+    PENDING_MERGES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PENDING_MERGES_FILE.write_text(json.dumps({"merges": merges}, indent=2))
+
+
+def _requires_human_review(files: dict) -> bool:
+    """Return True if any file path falls under review-required prefixes."""
+    for path in files.keys():
+        clean = "/".join(
+            p for p in path.replace("\", "/").split("/")
+            if p not in ("", ".", "..")
+        )
+        if clean in _REVIEW_REQUIRED_EXACT:
+            return True
+        for prefix in _REVIEW_REQUIRED_PREFIXES:
+            if clean.startswith(prefix) or clean == prefix.rstrip("/"):
+                return True
+    return False
 
 
 def _validate_submission_files(files: dict) -> None:
@@ -259,10 +297,10 @@ def _validate_submission_files(files: dict) -> None:
             resolved.append(part)
         clean_path = "/".join(resolved)
 
-        if clean_path in _BLOCKED_EXACT:
+        if clean_path in _HARD_BLOCKED_EXACT:
             raise HTTPException(400, f"Cannot overwrite protected file: {clean_path!r}")
 
-        for prefix in _BLOCKED_PREFIXES:
+        for prefix in _HARD_BLOCKED_PREFIXES:
             if clean_path.startswith(prefix) or clean_path == prefix.rstrip("/"):
                 raise HTTPException(400, f"Cannot write to protected path: {clean_path!r}")
 
@@ -804,9 +842,32 @@ async def inbox(request: Request):
             "commit_hash": None,
             "pr_url": pr_url,
         })
-        await _notify_daniel(
-            f"🤖 QUASI: {agent} submitted {task_id} — PR opened: {pr_url} — ledger #{entry['id']}"
-        )
+
+        needs_review = _requires_human_review(files)
+        if needs_review:
+            # Store for admin approval — PR exists but must not be auto-merged
+            pending = _load_pending_merges()
+            import re as _re2
+            pr_number_m = _re2.search(r"/pull/(\d+)", pr_url)
+            pr_number = int(pr_number_m.group(1)) if pr_number_m else 0
+            pending.append({
+                "pr_number": pr_number,
+                "pr_url": pr_url,
+                "task_id": task_id,
+                "agent": agent,
+                "ledger_submission_id": entry["id"],
+                "submitted_at": datetime.now(timezone.utc).isoformat(),
+            })
+            _save_pending_merges(pending)
+            await _notify_daniel(
+                f"🔍 QUASI: {agent} submitted {task_id} — **human review required** before merge\n"
+                f"PR: {pr_url}\n"
+                f"Approve: POST /quasi-board/admin/merges/{pr_number}/approve"
+            )
+        else:
+            await _notify_daniel(
+                f"🤖 QUASI: {agent} submitted {task_id} — PR opened: {pr_url} — ledger #{entry['id']}"
+            )
         await _deliver_to_followers({
             "@context": "https://www.w3.org/ns/activitystreams",
             "type": "Create",
@@ -825,9 +886,10 @@ async def inbox(request: Request):
             },
         })
         return JSONResponse({
-            "status": "pr_opened",
+            "status": "pending_human_review" if needs_review else "pr_opened",
             "pr_url": pr_url,
             "ledger_entry": entry["id"],
+            "review_required": needs_review,
             "entry_hash": entry["entry_hash"],
         })
 
@@ -912,62 +974,19 @@ async def inbox(request: Request):
 
 # ── Task status endpoint ──────────────────────────────────────────────────────
 
-def _fetch_github_issue(issue_number: int) -> dict | None:
-    """Fetch a single GitHub issue by number. Returns None on error."""
-    try:
-        resp = httpx.get(
-            f"https://api.github.com/repos/{GITHUB_REPO}/issues/{issue_number}",
-            headers={"Accept": "application/vnd.github+json"},
-            timeout=10,
-        )
-        if resp.status_code == 200:
-            return resp.json()
-    except Exception:
-        pass
-    return None
-
-
 @app.get("/quasi-board/tasks/{task_id}")
 async def task_status(task_id: str):
-    # Accept both "QUASI-007" and plain numbers ("7", "007")
-    import re as _re
-    m = _re.fullmatch(r"(?:QUASI-)?(\d{1,6})", task_id)
-    if not m:
-        raise HTTPException(400, f"Invalid task id {task_id!r} — expected QUASI-NNN or a plain number")
-    issue_number = int(m.group(1))
-    canonical_id = f"QUASI-{issue_number:03d}"
-
-    effective = _effective_task_status(canonical_id)
-
-    # All ledger entries for this task
-    chain = load_ledger()
-    task_entries = [e for e in chain if e.get("task") == canonical_id]
-
+    _validate_task_id(task_id)
+    effective = _effective_task_status(task_id)
     result: dict[str, Any] = {
-        "quasi:taskId": canonical_id,
+        "quasi:taskId": task_id,
         "quasi:status": effective["status"],
-        "quasi:ledgerEntries": task_entries,
     }
     if effective["status"] == "claimed":
         result["quasi:claimedBy"] = effective.get("agent")
         result["quasi:expiresAt"] = effective.get("expires_at")
     elif effective["status"] == "done":
         result["quasi:claimedBy"] = effective.get("agent")
-
-    # Enrich with GitHub issue data when available
-    issue = _fetch_github_issue(issue_number)
-    if issue:
-        result["task"] = {
-            "number": issue["number"],
-            "title": issue["title"],
-            "body": issue.get("body", ""),
-            "html_url": issue["html_url"],
-            "state": issue["state"],
-            "labels": [lb["name"] for lb in issue.get("labels", [])],
-            "created_at": issue["created_at"],
-            "updated_at": issue["updated_at"],
-        }
-
     return JSONResponse(result)
 
 
@@ -1128,6 +1147,113 @@ async def reject_proposal(prop_id: str, request: Request):
             _save_proposals(proposals)
             return JSONResponse({"status": "rejected", "proposal": p})
     raise HTTPException(404, f"Proposal '{prop_id}' not found")
+
+
+# ── Admin: human-review merge gate ───────────────────────────────────────────
+
+@app.get("/quasi-board/admin/merges")
+async def list_pending_merges(request: Request):
+    _check_admin(request)
+    return JSONResponse({"pending": _load_pending_merges()})
+
+
+@app.post("/quasi-board/admin/merges/{pr_number}/approve")
+async def approve_merge(pr_number: int, request: Request):
+    """Merge a review-gated PR and record ledger completion."""
+    _check_admin(request)
+
+    pending = _load_pending_merges()
+    match = next((m for m in pending if m["pr_number"] == pr_number), None)
+    if not match:
+        raise HTTPException(404, f"No pending merge for PR #{pr_number}")
+
+    token = _github_token()
+    if not token:
+        raise HTTPException(500, "quasi-board: no GitHub token configured")
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+    # Merge the PR via GitHub API
+    async with httpx.AsyncClient(timeout=30) as gh:
+        r = await gh.put(
+            f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}/merge",
+            headers=headers,
+            json={
+                "merge_method": "squash",
+                "commit_title": f"feat: {match['task_id']} (human-approved)",
+                "commit_message": (
+                    f"Submitted-By: {match['agent']}\n"
+                    f"Submission-Ledger: #{match['ledger_submission_id']}\n"
+                    f"Approved-Via: quasi-board admin"
+                ),
+            },
+        )
+        if r.status_code == 405:
+            raise HTTPException(409, f"PR #{pr_number} is not mergeable (conflicts or already merged)")
+        r.raise_for_status()
+        merge_sha = r.json().get("sha", "")
+
+    # Record completion on ledger
+    entry = append_ledger({
+        "type": "completion",
+        "contributor_agent": match["agent"],
+        "task": match["task_id"],
+        "commit_hash": merge_sha,
+        "pr_url": match["pr_url"],
+    })
+
+    # Remove from pending
+    pending = [m for m in pending if m["pr_number"] != pr_number]
+    _save_pending_merges(pending)
+
+    await _notify_daniel(
+        f"✅ QUASI: PR #{pr_number} approved + merged — {match['task_id']} by {match['agent']} "
+        f"— ledger completion #{entry['id']}"
+    )
+
+    return JSONResponse({
+        "status": "merged",
+        "pr_number": pr_number,
+        "merge_sha": merge_sha,
+        "task_id": match["task_id"],
+        "agent": match["agent"],
+        "ledger_completion": entry["id"],
+        "entry_hash": entry["entry_hash"],
+    })
+
+
+@app.post("/quasi-board/admin/merges/{pr_number}/reject")
+async def reject_merge(pr_number: int, request: Request):
+    """Close the PR and remove from pending queue without ledger completion."""
+    _check_admin(request)
+
+    pending = _load_pending_merges()
+    match = next((m for m in pending if m["pr_number"] == pr_number), None)
+    if not match:
+        raise HTTPException(404, f"No pending merge for PR #{pr_number}")
+
+    token = _github_token()
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+    async with httpx.AsyncClient(timeout=30) as gh:
+        await gh.patch(
+            f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}",
+            headers=headers,
+            json={"state": "closed"},
+        )
+
+    pending = [m for m in pending if m["pr_number"] != pr_number]
+    _save_pending_merges(pending)
+
+    return JSONResponse({"status": "rejected", "pr_number": pr_number, "task_id": match["task_id"]})
 
 
 # ── GitHub webhook ────────────────────────────────────────────────────────────
