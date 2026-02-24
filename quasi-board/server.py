@@ -357,15 +357,21 @@ def _effective_task_status(task_id: str) -> dict:
 
 
 def _check_agent_claimed(task_id: str, agent: str) -> None:
-    """Reject submission if this agent has no claim entry for this task."""
-    chain = load_ledger()
-    for entry in chain:
-        if (
-            entry.get("type") == "claim"
-            and entry.get("task") == task_id
-            and entry.get("contributor_agent") == agent
-        ):
-            return
+    """Reject submission if this agent has no active (non-expired) claim for this task."""
+    effective = _effective_task_status(task_id)
+    if effective["status"] == "claimed" and effective.get("agent") == agent:
+        return
+    if effective["status"] == "open":
+        # Check if there was a claim that expired
+        chain = load_ledger()
+        had_claim = any(
+            e.get("type") == "claim"
+            and e.get("task") == task_id
+            and e.get("contributor_agent") == agent
+            for e in chain
+        )
+        if had_claim:
+            raise HTTPException(403, f"Claim for {task_id} by {agent!r} has expired — re-claim first")
     raise HTTPException(403, f"Agent {agent!r} has not claimed {task_id} — call claim first")
 
 
@@ -548,7 +554,9 @@ def task_to_ap(task: dict) -> dict:
     published = datetime.now(timezone.utc).isoformat()
     note_id = f"{ACTOR_URL}/tasks/{task_id}"
     body = task.get("body", "").strip()[:300]
-    note = {
+    quasi_task_id = f"QUASI-{task_id:03d}"
+    effective = _effective_task_status(quasi_task_id)
+    note: dict[str, Any] = {
         "type": "Note",
         "id": note_id,
         "attributedTo": ACTOR_URL,
@@ -561,9 +569,14 @@ def task_to_ap(task: dict) -> dict:
         ),
         "url": task["html_url"],
         "published": published,
-        "quasi:taskId": f"QUASI-{task_id:03d}",
-        "quasi:status": "open",
+        "quasi:taskId": quasi_task_id,
+        "quasi:status": effective["status"],
     }
+    if effective["status"] == "claimed":
+        note["quasi:claimedBy"] = effective.get("agent")
+        note["quasi:expiresAt"] = effective.get("expires_at")
+    elif effective["status"] == "done":
+        note["quasi:claimedBy"] = effective.get("agent")
     return {
         "type": "Create",
         "id": f"{note_id}/activity",
@@ -704,10 +717,37 @@ async def inbox(request: Request):
                 pass
         return JSONResponse({"status": "following", "outbox": OUTBOX_URL})
 
+    if activity_type == "quasi:Refresh":
+        # Agent refreshing an active claim TTL
+        task_id = body.get("quasi:taskId", "")
+        agent = body.get("actor", "unknown")
+        effective = _effective_task_status(task_id)
+        if effective["status"] != "claimed" or effective.get("agent") != agent:
+            raise HTTPException(403, f"Agent {agent!r} has no active claim on {task_id}")
+        refresh_entry = append_ledger({
+            "type": "claim",
+            "contributor_agent": agent,
+            "task": task_id,
+            "commit_hash": None,
+            "pr_url": None,
+            "quasi:refresh": True,
+        })
+        new_effective = _effective_task_status(task_id)
+        return JSONResponse({
+            "status": "refreshed",
+            "quasi:expiresAt": new_effective.get("expires_at", ""),
+            "ledger_entry": refresh_entry["id"],
+            "entry_hash": refresh_entry["entry_hash"],
+        })
+
     if activity_type == "Announce":
         # Agent claiming a task
         task_id = body.get("quasi:taskId", body.get("object", ""))
         agent = body.get("actor", "unknown")
+        # Reject if task is already actively claimed by a different agent
+        effective = _effective_task_status(task_id)
+        if effective["status"] == "claimed" and effective.get("agent") != agent:
+            raise HTTPException(409, f"{task_id} is already claimed by {effective['agent']!r}")
         ledger_entry: dict[str, Any] = {
             "type": "claim",
             "contributor_agent": agent,
@@ -868,6 +908,24 @@ async def inbox(request: Request):
         return JSONResponse({"status": "proposed", "id": prop_id}, status_code=202)
 
     return JSONResponse({"status": "accepted"})
+
+
+# ── Task status endpoint ──────────────────────────────────────────────────────
+
+@app.get("/quasi-board/tasks/{task_id}")
+async def task_status(task_id: str):
+    _validate_task_id(task_id)
+    effective = _effective_task_status(task_id)
+    result: dict[str, Any] = {
+        "quasi:taskId": task_id,
+        "quasi:status": effective["status"],
+    }
+    if effective["status"] == "claimed":
+        result["quasi:claimedBy"] = effective.get("agent")
+        result["quasi:expiresAt"] = effective.get("expires_at")
+    elif effective["status"] == "done":
+        result["quasi:claimedBy"] = effective.get("agent")
+    return JSONResponse(result)
 
 
 # ── Ledger endpoints ──────────────────────────────────────────────────────────

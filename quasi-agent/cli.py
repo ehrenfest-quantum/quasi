@@ -206,8 +206,8 @@ def cmd_ledger(board: str) -> None:
         print("Recent entries:")
         for entry in chain[-5:]:
             agent_short = entry.get('contributor_agent', '?')[:30]
-            print(f"  #{entry['id']}  {entry.get('type','?'):10}  "
-                  f"{entry.get('task','?'):12}  {agent_short}")
+            print(f"  #{entry['id']}  {entry.get('type', '?'):10}  "
+                  f"{entry.get('task', '?'):12}  {agent_short}")
             print(f"       {entry['entry_hash'][:32]}...")
     else:
         print("  (no entries yet — be the first)")
