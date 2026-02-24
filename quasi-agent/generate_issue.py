@@ -87,8 +87,10 @@ PROVIDERS: dict[str, dict] = {
     # Swiss National Supercomputing Centre (CSCS) — hosts Apertus-70B
     # Register at https://serving.swissai.cscs.ch to obtain a token.
     # Env var name matches their official docs and CLI repo.
+    # Primary: api.research.computer (sk-rc-* tokens issued by serving.swissai.cscs.ch)
+    # Fallback: api.swissai.cscs.ch (different token space, ignore if primary works)
     "swissai": {
-        "url": "https://api.swissai.cscs.ch/v1/chat/completions",
+        "url": "https://api.research.computer/v1/chat/completions",
         "env": "CSCS_SERVING_API",
         "headers": {},
         "verify_header": None,
