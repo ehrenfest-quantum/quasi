@@ -39,7 +39,6 @@ MATRIX_ROOM_ID = "!CerauaaS111HsAzJXI:gawain.valiant-quantum.com"
 ACTOR_KEY_FILE = Path("/home/vops/quasi-board/keys/actor.pem")
 FOLLOWERS_FILE = Path("/home/vops/quasi-board/followers.json")
 PROPOSALS_FILE = Path("/home/vops/quasi-board/proposals.json")
-ADMIN_TOKEN_FILE = Path("/home/vops/quasi-board/.admin_token")
 ACTOR_KEY_ID = f"{ACTOR_URL}#main-key"
 
 AP_CONTENT_TYPE = "application/activity+json"
@@ -179,8 +178,6 @@ def _save_proposals(proposals: list[dict]) -> None:
 
 
 def _admin_token() -> str:
-    if ADMIN_TOKEN_FILE.exists():
-        return ADMIN_TOKEN_FILE.read_text().strip()
     return os.environ.get("QUASI_ADMIN_TOKEN", "")
 
 
