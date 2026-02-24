@@ -9,15 +9,22 @@ and writes one GitHub issue. A different model (or human) will solve it.
 
 Usage:
     python3 quasi-agent/generate_issue.py --level 0 --dry-run
+    python3 quasi-agent/generate_issue.py --level 0 --model sarvam-m
     python3 quasi-agent/generate_issue.py --level 0 --model deepseek/deepseek-chat-v3-0324
 
-Environment:
-    OPENROUTER_API_KEY   Required. Get one at openrouter.ai.
-    QUASI_GENERATOR_MODEL  Optional. Overrides --model flag.
-    GITHUB_TOKEN         Optional. Required to open a draft GitHub issue.
+Environment variables (set only the keys for providers you want to use):
+    OPENROUTER_API_KEY   openrouter.ai — covers most models
+    SARVAM_API_KEY       api.sarvam.ai — Sarvam-30B/105B (India)
+    MISTRAL_API_KEY      api.mistral.ai — direct Mistral endpoint
+    HF_TOKEN             HuggingFace Inference API — Viking, Apertus, etc.
+    QUASI_GENERATOR_MODEL  Optional model override (short ID or full model string)
+    GITHUB_TOKEN         Required to open a real GitHub issue (not needed for --dry-run)
 
 See docs/ISSUE-GENERATION.md for the full protocol.
+See docs/ELIGIBLE-MODELS.md for the model roster and licensing.
 """
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -30,28 +37,101 @@ from pathlib import Path
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-OPENROUTER_API = "https://openrouter.ai/api/v1/chat/completions"
 GITHUB_API = "https://api.github.com/repos/ehrenfest-quantum/quasi/issues"
-BOARD_LEDGER = "https://gawain.valiant-quantum.com/quasi-board/ledger"
 BOARD_INBOX = "https://gawain.valiant-quantum.com/quasi-board/inbox"
 REPO_URL = "https://github.com/ehrenfest-quantum/quasi"
 
-# Rotation pool — models eligible for Stage 1 (issue generation).
-# No model may write two consecutive issues at the same level.
-# See docs/ELIGIBLE-MODELS.md for the full roster.
-ROTATION = [
-    "deepseek/deepseek-chat-v3-0324",       # DeepSeek-V3 (MIT)
-    "deepseek/deepseek-r1",                  # DeepSeek-R1 (MIT)
-    "qwen/qwen3-coder",                      # Qwen3-Coder (Apache 2.0) — replaces qwen-2.5-coder-32b which has OpenRouter truncation bug
-    "meta-llama/llama-4-maverick",           # Llama 4 Maverick
-    "meta-llama/llama-3.3-70b-instruct",     # Llama 3.3 70B
-    "mistralai/mistral-small-3.1-24b-instruct",  # Mistral Small 3.1 (Apache 2.0)
-    "mistralai/mistral-nemo",                # Mistral Nemo (Apache 2.0)
-    "ai21/jamba-1-5-mini",                   # Jamba 1.5 Mini (Apache 2.0)
-    "tiiuae/falcon3-10b-instruct",           # Falcon 3 10B (Apache 2.0)
+# ── Providers ─────────────────────────────────────────────────────────────────
+#
+# Each provider is an OpenAI-compatible /v1/chat/completions endpoint.
+# Add new direct-API providers here — no other code changes needed.
+#
+# Fields:
+#   url      — chat completions endpoint
+#   env      — environment variable holding the API key
+#   headers  — extra headers beyond Authorization and Content-Type
+#   verified — True if we can cross-check the served model name in the response
+#              (prevents a provider from silently routing to a different model)
+
+PROVIDERS: dict[str, dict] = {
+    "openrouter": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "env": "OPENROUTER_API_KEY",
+        "headers": {
+            "HTTP-Referer": "https://quasi.arvak.io",
+            "X-Title": "QUASI Pauli-Test issue generator",
+        },
+        # OpenRouter returns X-Finalized-Model header with the actual model served
+        "verify_header": "x-finalized-model",
+    },
+    "sarvam": {
+        "url": "https://api.sarvam.ai/v1/chat/completions",
+        "env": "SARVAM_API_KEY",
+        "headers": {},
+        "verify_header": None,
+    },
+    "mistral": {
+        "url": "https://api.mistral.ai/v1/chat/completions",
+        "env": "MISTRAL_API_KEY",
+        "headers": {},
+        "verify_header": None,
+    },
+    "huggingface": {
+        "url": "https://router.huggingface.co/v1/chat/completions",
+        "env": "HF_TOKEN",
+        "headers": {},
+        "verify_header": None,
+    },
+}
+
+# ── Eligible model rotation ───────────────────────────────────────────────────
+#
+# This is the ALLOWLIST. Only models listed here may be used for issue
+# generation. The script refuses any model not in this list.
+#
+# ANTI-MASKING RULE: models must be served by a verified open-weights provider.
+# A closed-weights model (Claude, GPT, Gemini, Grok) cannot be in this list
+# regardless of what a provider claims. The provider field must resolve to a
+# real entry in PROVIDERS above. OpenRouter routes to the stated model; we
+# cross-check the X-Finalized-Model response header where available.
+#
+# Format: {"id": short name for --model flag,
+#           "model": API model string,
+#           "provider": key in PROVIDERS,
+#           "license": SPDX or brief license name,
+#           "origin": country/org for coverage tracking}
+
+ROTATION: list[dict] = [
+    # ── Tier 1 — Strong coding ────────────────────────────────────────────
+    {"id": "deepseek-v3",    "model": "deepseek/deepseek-chat-v3-0324",          "provider": "openrouter", "license": "MIT",          "origin": "China / DeepSeek"},
+    {"id": "deepseek-r1",    "model": "deepseek/deepseek-r1",                    "provider": "openrouter", "license": "MIT",          "origin": "China / DeepSeek"},
+    {"id": "qwen3-coder",    "model": "qwen/qwen3-coder",                        "provider": "openrouter", "license": "Apache-2.0",   "origin": "China / Alibaba"},
+    {"id": "llama4",         "model": "meta-llama/llama-4-maverick",             "provider": "openrouter", "license": "Llama Community", "origin": "US / Meta"},
+    {"id": "llama3.3",       "model": "meta-llama/llama-3.3-70b-instruct",       "provider": "openrouter", "license": "Llama Community", "origin": "US / Meta"},
+    {"id": "starcoder2",     "model": "bigcode/starcoder2-15b",                  "provider": "openrouter", "license": "OpenRAIL-M",   "origin": "Canada / BigCode"},
+    # ── Tier 2 — EU / competitive coding ─────────────────────────────────
+    {"id": "mistral-small",  "model": "mistralai/mistral-small-3.1-24b-instruct","provider": "openrouter", "license": "Apache-2.0",   "origin": "France / Mistral"},
+    {"id": "mistral-nemo",   "model": "mistralai/mistral-nemo",                  "provider": "openrouter", "license": "Apache-2.0",   "origin": "France / Mistral"},
+    # ── Tier 3 — Regional participation ──────────────────────────────────
+    {"id": "sarvam-m",       "model": "sarvam-m",                                "provider": "sarvam",     "license": "Open",         "origin": "India / Sarvam AI"},
+    {"id": "jamba",          "model": "ai21/jamba-1-5-mini",                     "provider": "openrouter", "license": "Apache-2.0",   "origin": "Israel / AI21"},
+    {"id": "falcon",         "model": "tiiuae/falcon3-10b-instruct",             "provider": "openrouter", "license": "Apache-2.0",   "origin": "UAE / TII"},
 ]
 
-DEFAULT_MODEL = "deepseek/deepseek-chat-v3-0324"
+DEFAULT_MODEL_ID = "deepseek-v3"
+
+
+def find_rotation_entry(model_arg: str) -> dict:
+    """Resolve --model argument to a rotation entry. Accepts short id or full model string.
+    Raises SystemExit if not in the allowlist — prevents injection of arbitrary models."""
+    for entry in ROTATION:
+        if model_arg in (entry["id"], entry["model"]):
+            return entry
+    ids = ", ".join(e["id"] for e in ROTATION)
+    print(f"Error: '{model_arg}' is not in the eligible model allowlist.", file=sys.stderr)
+    print(f"Allowed model IDs: {ids}", file=sys.stderr)
+    print("To add a model, open a PR against docs/ELIGIBLE-MODELS.md.", file=sys.stderr)
+    sys.exit(1)
 
 LEVEL_NAMES = {
     0: "L0 — Scaffolding (README, badges, CI config, docs)",
@@ -192,37 +272,52 @@ Output ONLY valid JSON in this exact structure — no prose before or after:
 }}"""
 
 
-# ── OpenRouter call ───────────────────────────────────────────────────────────
+# ── Provider dispatch ─────────────────────────────────────────────────────────
 
-def call_openrouter(model: str, prompt: str, api_key: str) -> str:
-    """Call the OpenRouter chat completions endpoint. Returns the response text."""
+def call_model(entry: dict, prompt: str) -> tuple[str, str | None]:
+    """Call the model via its provider. Returns (response_text, verified_model_name).
+    verified_model_name is non-None only when the provider confirms the served model."""
+    provider_key = entry["provider"]
+    provider = PROVIDERS[provider_key]
+    api_key = os.environ.get(provider["env"], "").strip()
+    if not api_key:
+        print(f"Error: {provider['env']} not set (required for provider '{provider_key}').", file=sys.stderr)
+        sys.exit(1)
+
     body = json.dumps({
-        "model": model,
+        "model": entry["model"],
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 2048,
         "temperature": 0.7,
     }).encode()
 
-    req = urllib.request.Request(
-        OPENROUTER_API,
-        data=body,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://quasi.arvak.io",
-            "X-Title": "QUASI Pauli-Test issue generator",
-        },
-        method="POST",
-    )
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        **provider["headers"],
+    }
+
+    req = urllib.request.Request(provider["url"], data=body, headers=headers, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=90) as resp:
+            resp_headers = {k.lower(): v for k, v in resp.headers.items()}
             data = json.loads(resp.read())
     except urllib.error.HTTPError as e:
         body_text = e.read().decode()
-        print(f"OpenRouter error {e.code}: {body_text}", file=sys.stderr)
+        print(f"Provider '{provider_key}' error {e.code}: {body_text}", file=sys.stderr)
         sys.exit(1)
 
-    return data["choices"][0]["message"]["content"].strip()
+    text = data["choices"][0]["message"]["content"].strip()
+
+    # Cross-check the served model name where the provider exposes it.
+    # This catches silent re-routing to a different (possibly closed-weights) model.
+    verify_header = provider.get("verify_header")
+    verified_model = resp_headers.get(verify_header) if verify_header else None
+    if verified_model and verified_model != entry["model"]:
+        print(f"Warning: provider routed to '{verified_model}' instead of '{entry['model']}'.", file=sys.stderr)
+        print("This may indicate silent model substitution. Check before publishing.", file=sys.stderr)
+
+    return text, verified_model
 
 
 def parse_issue(raw: str) -> dict:
@@ -292,7 +387,7 @@ def open_github_issue(issue: dict, model: str, level: int, github_token: str) ->
 
 # ── Ledger entry ──────────────────────────────────────────────────────────────
 
-def record_ledger(model: str, level: int, issue_url: str) -> None:
+def record_ledger(model: str, provider: str, level: int, issue_url: str) -> None:
     """Append a generation event to the quasi-ledger."""
     body = json.dumps({
         "@context": "https://www.w3.org/ns/activitystreams",
@@ -300,7 +395,7 @@ def record_ledger(model: str, level: int, issue_url: str) -> None:
         "quasi:type": "issue_generated",
         "quasi:level": level,
         "quasi:generator_model": model,
-        "quasi:generator_provider": "openrouter",
+        "quasi:generator_provider": provider,
         "quasi:issueUrl": issue_url,
         "published": datetime.now(timezone.utc).isoformat(),
     }).encode()
@@ -329,17 +424,23 @@ def main() -> None:
   # Dry run — print draft without opening a GitHub issue
   python3 quasi-agent/generate_issue.py --level 0 --dry-run
 
-  # Use a specific model
-  python3 quasi-agent/generate_issue.py --level 0 --model mistralai/mistral-nemo --dry-run
+  # Use a specific model (short ID or full API string)
+  python3 quasi-agent/generate_issue.py --level 0 --model sarvam-m --dry-run
+  python3 quasi-agent/generate_issue.py --level 0 --model mistral-nemo --dry-run
+  python3 quasi-agent/generate_issue.py --level 0 --model deepseek-v3 --dry-run
 
-  # Open a real GitHub draft issue (requires GITHUB_TOKEN)
+  # Open a real GitHub issue (requires GITHUB_TOKEN)
   python3 quasi-agent/generate_issue.py --level 0
+
+  # List eligible models
+  python3 quasi-agent/generate_issue.py --list-models
 """,
     )
     parser.add_argument("--level", type=int, default=0, choices=range(5),
                         help="Capability Ladder level to target (default: 0)")
     parser.add_argument("--model", default=None,
-                        help=f"OpenRouter model ID (default: {DEFAULT_MODEL})")
+                        help=f"Model short ID or full API string (default: {DEFAULT_MODEL_ID}). "
+                             f"Run --list-models to see all eligible IDs.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print the draft issue without opening it on GitHub")
     parser.add_argument("--list-models", action="store_true",
@@ -347,42 +448,39 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.list_models:
-        print("\nEligible generation models (OpenRouter IDs):\n")
-        for m in ROTATION:
-            print(f"  {m}")
+        print("\nEligible generation models:\n")
+        print(f"  {'ID':<20} {'Provider':<12} {'License':<18} {'Origin'}")
+        print(f"  {'-'*20} {'-'*12} {'-'*18} {'-'*30}")
+        for e in ROTATION:
+            print(f"  {e['id']:<20} {e['provider']:<12} {e['license']:<18} {e['origin']}")
         print()
         return
 
-    # Resolve model
-    model = (
+    # Resolve model → allowlist entry (exits if not eligible)
+    model_arg = (
         args.model
         or os.environ.get("QUASI_GENERATOR_MODEL")
-        or DEFAULT_MODEL
+        or DEFAULT_MODEL_ID
     )
-
-    # Resolve API key
-    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-    if not api_key:
-        print("Error: OPENROUTER_API_KEY not set.", file=sys.stderr)
-        print("  export OPENROUTER_API_KEY=sk-or-...", file=sys.stderr)
-        sys.exit(1)
+    entry = find_rotation_entry(model_arg)
 
     root = repo_root()
     level = args.level
 
     print(f"\n── QUASI Pauli-Test Issue Generator ──")
-    print(f"   Model:  {model}")
-    print(f"   Level:  L{level} — {LEVEL_NAMES[level]}")
-    print(f"   Repo:   {root}")
-    print(f"   Mode:   {'dry-run (no GitHub issue)' if args.dry_run else 'live'}")
+    print(f"   Model:    {entry['model']}")
+    print(f"   Provider: {entry['provider']}  ({entry['origin']} · {entry['license']})")
+    print(f"   Level:    L{level} — {LEVEL_NAMES[level]}")
+    print(f"   Repo:     {root}")
+    print(f"   Mode:     {'dry-run (no GitHub issue)' if args.dry_run else 'live'}")
     print()
 
     print("Building context...", end=" ", flush=True)
     prompt = build_context(level, root)
     print(f"done ({len(prompt)} chars)")
 
-    print(f"Calling {model}...", end=" ", flush=True)
-    raw = call_openrouter(model, prompt, api_key)
+    print(f"Calling {entry['model']} via {entry['provider']}...", end=" ", flush=True)
+    raw, verified_model = call_model(entry, prompt)
     print("done")
 
     print("\n── Raw model output ──")
@@ -429,13 +527,13 @@ def main() -> None:
         sys.exit(1)
 
     print("Opening GitHub issue...", end=" ", flush=True)
-    issue_url = open_github_issue(issue, model, level, github_token)
+    issue_url = open_github_issue(issue, entry["model"], level, github_token)
     print(f"done\n  {issue_url}")
 
     print("Recording ledger entry...", end=" ", flush=True)
-    record_ledger(model, level, issue_url)
+    record_ledger(entry["model"], entry["provider"], level, issue_url)
 
-    print(f"\n✓ Issue generated at L{level} by {model}")
+    print(f"\n✓ Issue generated at L{level} by {entry['model']} ({entry['provider']})")
     print(f"  {issue_url}")
     print()
 
