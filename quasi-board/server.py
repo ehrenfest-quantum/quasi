@@ -791,6 +791,61 @@ async def health():
     return {"status": "ok", "domain": DOMAIN, "ledger_entries": len(load_ledger())}
 
 
+# ── Stats ──────────────────────────────────────────────────────────────────────
+
+def _fetch_open_issue_count() -> int:
+    """Return the number of open GitHub issues. Falls back to 0 on error."""
+    try:
+        resp = httpx.get(
+            f"https://api.github.com/repos/{GITHUB_REPO}/issues",
+            params={"state": "open", "per_page": 1},
+            headers={"Accept": "application/vnd.github+json"},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            link = resp.headers.get("link", "")
+            # GitHub paginates; last page number is in the Link header
+            import re as _re
+            m = _re.search(r'page=(\d+)>; rel="last"', link)
+            if m:
+                return int(m.group(1))
+            return len(resp.json())
+    except Exception:
+        pass
+    return 0
+
+
+@app.get("/quasi-board/stats")
+async def stats():
+    chain = load_ledger()
+    valid = verify_ledger()
+
+    done_tasks = {e["task"] for e in chain if e.get("type") == "completion" and e.get("task")}
+    claimed_tasks = {e["task"] for e in chain if e.get("type") == "claim" and e.get("task")} - done_tasks
+
+    seen_contributors: set[str] = set()
+    for entry in chain:
+        contrib = entry.get("contributor")
+        if contrib and isinstance(contrib, dict):
+            key = contrib.get("handle") or contrib.get("name")
+            if key:
+                seen_contributors.add(key)
+
+    genesis_limit = 50
+    total_open = _fetch_open_issue_count()
+    tasks_open = max(0, total_open - len(done_tasks) - len(claimed_tasks))
+
+    return JSONResponse({
+        "tasks_open": tasks_open,
+        "tasks_claimed": len(claimed_tasks),
+        "tasks_done": len(done_tasks),
+        "contributors_named": len(seen_contributors),
+        "genesis_slots_remaining": max(0, genesis_limit - len(done_tasks)),
+        "ledger_entries": len(chain),
+        "ledger_valid": valid,
+    })
+
+
 
 # ── GitHub webhook ────────────────────────────────────────────────────────────
 
