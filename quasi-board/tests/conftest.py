@@ -1,17 +1,12 @@
+import sys
 from pathlib import Path
 from tempfile import mkdtemp
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 # Redirect /home/vops paths to temp dir for testing
 _tmp = mkdtemp(prefix="quasi-test-")
-_original_path_init = Path.__new__
 
-
-def _patched_path(cls, *args, **kwargs):
-    obj = object.__new__(cls)
-    return obj
-
-
-# Monkey-patch at module level before server import
 _orig_exists = Path.exists
 _orig_read_text = Path.read_text
 _orig_read_bytes = Path.read_bytes
