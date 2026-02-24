@@ -38,6 +38,8 @@ MATRIX_CREDS_FILE = Path("/home/vops/quasi-board/matrix_credentials.json")
 MATRIX_ROOM_ID = "!CerauaaS111HsAzJXI:gawain.valiant-quantum.com"
 ACTOR_KEY_FILE = Path("/home/vops/quasi-board/keys/actor.pem")
 FOLLOWERS_FILE = Path("/home/vops/quasi-board/followers.json")
+PROPOSALS_FILE = Path("/home/vops/quasi-board/proposals.json")
+ADMIN_TOKEN_FILE = Path("/home/vops/quasi-board/.admin_token")
 ACTOR_KEY_ID = f"{ACTOR_URL}#main-key"
 
 AP_CONTENT_TYPE = "application/activity+json"
@@ -161,6 +163,25 @@ async def _deliver_to_followers(activity: dict) -> None:
                         await _deliver(inbox, activity)
         except Exception:
             pass
+
+
+# ── Proposals ─────────────────────────────────────────────────────────────────
+
+def _load_proposals() -> list[dict]:
+    if not PROPOSALS_FILE.exists():
+        return []
+    return json.loads(PROPOSALS_FILE.read_text()).get("proposals", [])
+
+
+def _save_proposals(proposals: list[dict]) -> None:
+    PROPOSALS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PROPOSALS_FILE.write_text(json.dumps({"proposals": proposals}, indent=2))
+
+
+def _admin_token() -> str:
+    if ADMIN_TOKEN_FILE.exists():
+        return ADMIN_TOKEN_FILE.read_text().strip()
+    return os.environ.get("QUASI_ADMIN_TOKEN", "")
 
 
 # ── Matrix notification ───────────────────────────────────────────────────────
@@ -751,6 +772,30 @@ async def inbox(request: Request):
         entry = append_ledger(gen_entry)
         return JSONResponse({"status": "recorded", "ledger_entry": entry["id"], "entry_hash": entry["entry_hash"]})
 
+    if activity_type == "quasi:Propose":
+        proposal_obj = body.get("object", {})
+        title = str(proposal_obj.get("quasi:title", "")).strip()[:200]
+        description = str(proposal_obj.get("quasi:description", "")).strip()[:2000]
+        if not title or not description:
+            raise HTTPException(400, "quasi:title and quasi:description are required")
+
+        proposals = _load_proposals()
+        prop_id = f"prop-{len(proposals) + 1:03d}"
+        proposal: dict[str, Any] = {
+            "id": prop_id,
+            "title": title,
+            "description": description,
+            "estimated_effort": str(proposal_obj.get("quasi:estimatedEffort", ""))[:200],
+            "rationale": str(proposal_obj.get("quasi:rationale", ""))[:500],
+            "proposed_by": str(body.get("actor", "unknown"))[:200],
+            "proposed_at": datetime.now(timezone.utc).isoformat(),
+            "status": "pending",
+        }
+        proposals.append(proposal)
+        _save_proposals(proposals)
+        await _notify_daniel(f"📋 QUASI proposal: {title} from {proposal['proposed_by']}")
+        return JSONResponse({"status": "proposed", "id": prop_id}, status_code=202)
+
     return JSONResponse({"status": "accepted"})
 
 
@@ -789,6 +834,73 @@ async def openapi_spec():
 @app.get("/quasi-board/health")
 async def health():
     return {"status": "ok", "domain": DOMAIN, "ledger_entries": len(load_ledger())}
+
+
+# ── Proposals ─────────────────────────────────────────────────────────────────
+
+@app.get("/quasi-board/proposals")
+async def proposals_list():
+    """Public list of all task proposals submitted by agents."""
+    props = _load_proposals()
+    return JSONResponse({
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "type": "Collection",
+        "id": f"{ACTOR_URL}/proposals",
+        "totalItems": len(props),
+        "items": props,
+    })
+
+
+def _check_admin(request: Request) -> None:
+    """Raise 401 if the request does not carry the admin bearer token."""
+    token = _admin_token()
+    if not token:
+        raise HTTPException(401, "Admin token not configured on this server")
+    auth = request.headers.get("Authorization", "")
+    if auth != f"Bearer {token}":
+        raise HTTPException(401, "Invalid or missing admin token")
+
+
+@app.post("/quasi-board/admin/proposals/{prop_id}/accept")
+async def accept_proposal(prop_id: str, request: Request):
+    _check_admin(request)
+    proposals = _load_proposals()
+    for p in proposals:
+        if p["id"] == prop_id:
+            if p["status"] != "pending":
+                raise HTTPException(409, f"Proposal is already '{p['status']}'")
+            p["status"] = "accepted"
+            p["accepted_at"] = datetime.now(timezone.utc).isoformat()
+            _save_proposals(proposals)
+            entry = append_ledger({
+                "type": "proposal_accepted",
+                "proposal_id": prop_id,
+                "title": p["title"],
+                "proposed_by": p["proposed_by"],
+            })
+            await _notify_daniel(f"✅ Proposal accepted: {p['title']} ({prop_id})")
+            return JSONResponse({
+                "status": "accepted",
+                "proposal": p,
+                "ledger_entry": entry["id"],
+                "entry_hash": entry["entry_hash"],
+            })
+    raise HTTPException(404, f"Proposal '{prop_id}' not found")
+
+
+@app.post("/quasi-board/admin/proposals/{prop_id}/reject")
+async def reject_proposal(prop_id: str, request: Request):
+    _check_admin(request)
+    proposals = _load_proposals()
+    for p in proposals:
+        if p["id"] == prop_id:
+            if p["status"] != "pending":
+                raise HTTPException(409, f"Proposal is already '{p['status']}'")
+            p["status"] = "rejected"
+            p["rejected_at"] = datetime.now(timezone.utc).isoformat()
+            _save_proposals(proposals)
+            return JSONResponse({"status": "rejected", "proposal": p})
+    raise HTTPException(404, f"Proposal '{prop_id}' not found")
 
 
 
