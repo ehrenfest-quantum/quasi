@@ -299,6 +299,63 @@ def _validate_task_id(task_id: str) -> None:
         raise HTTPException(400, f"Invalid task_id format: {task_id!r} — expected QUASI-NNN")
 
 
+CLAIM_TTL_MINUTES = 30
+
+
+def _effective_task_status(task_id: str) -> dict:
+    """Return the effective status of a task based on the ledger.
+
+    Returns one of:
+      {"status": "open"}
+      {"status": "claimed", "agent": str, "expires_at": str}
+      {"status": "done", "agent": str}
+    """
+    from datetime import datetime, timezone, timedelta
+    chain = load_ledger()
+    relevant = [e for e in chain if e.get("task") == task_id]
+
+    last_claim = None
+    last_claim_ts = None
+    last_activity_ts = None
+
+    for entry in relevant:
+        t = entry.get("type")
+        ts_str = entry.get("timestamp")
+        try:
+            ts = datetime.fromisoformat(ts_str)
+        except Exception:
+            continue
+
+        if t == "completion":
+            return {"status": "done", "agent": entry.get("contributor_agent")}
+
+        if t == "claim":
+            last_claim = entry
+            last_claim_ts = ts
+            last_activity_ts = ts
+
+        if t == "submission" and last_claim_ts is not None:
+            # Submission refreshes the TTL window
+            last_activity_ts = ts
+
+    if last_claim is None:
+        return {"status": "open"}
+
+    now = datetime.now(timezone.utc)
+    if last_activity_ts.tzinfo is None:
+        last_activity_ts = last_activity_ts.replace(tzinfo=timezone.utc)
+
+    expires_at = last_activity_ts + timedelta(minutes=CLAIM_TTL_MINUTES)
+    if now > expires_at:
+        return {"status": "open"}
+
+    return {
+        "status": "claimed",
+        "agent": last_claim.get("contributor_agent"),
+        "expires_at": expires_at.isoformat(),
+    }
+
+
 def _check_agent_claimed(task_id: str, agent: str) -> None:
     """Reject submission if this agent has no claim entry for this task."""
     chain = load_ledger()
