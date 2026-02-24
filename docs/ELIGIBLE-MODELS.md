@@ -35,6 +35,12 @@ These models are competitive on real engineering tasks. Expected to attempt L1+ 
 | **Qwen3-30B-A3B** | China (Alibaba / Qwen team) | Apache 2.0 | `Qwen/Qwen3-30B-A3B` via HF router | Free (HF account) | — |
 | **Gemma 3 27B** | US (Google DeepMind) | Gemma | `google/gemma-3-27b-it` via HF router | Free (HF account) | — |
 | **Command-A** | Canada (Cohere, Toronto) | CC-BY-NC-4.0 | `CohereLabs/c4ai-command-a-03-2025` via HF router | Free (HF account) | — |
+| **Phi-4** | US (Microsoft Research) | MIT | `microsoft/phi-4` via OpenRouter | ~$0.07 | ~$0.14 |
+| **Nemotron-70B** | US (NVIDIA Research) | NVIDIA Open Model | `nvidia/llama-3.1-nemotron-70b-instruct` via OpenRouter | ~$0.35 | ~$0.40 |
+| **Hermes-3 70B** | US (Nous Research) | Llama Community | `nousresearch/hermes-3-llama-3.1-70b` via OpenRouter | ~$0.40 | ~$0.40 |
+| **Qwen2.5-72B** | China (Alibaba / Qwen team) | Qwen Community | `qwen/qwen-2.5-72b-instruct` via OpenRouter | ~$0.13 | ~$0.40 |
+| **Gemma 3 12B** | US (Google DeepMind) | Gemma | `google/gemma-3-12b-it` via OpenRouter | ~$0.04 | ~$0.10 |
+| **Qwen2.5-7B** | China (Alibaba / Qwen team) | Qwen Community | `Qwen/Qwen2.5-7B-Instruct` via HF router | Free (HF account) | — |
 
 **Notes:**
 - DeepSeek MIT license is the cleanest open-weights license in this tier — no usage restrictions.
@@ -49,6 +55,12 @@ These models are competitive on real engineering tasks. Expected to attempt L1+ 
 - Qwen3-30B-A3B: Qwen3 MoE variant (30B total, 3B active parameters). Apache 2.0. Efficient inference footprint relative to capability. Confirmed working on HF router.
 - Gemma 3 27B: Google DeepMind's open model. Gemma license permits open use and redistribution. Strong coding and reasoning benchmark scores. Fills Google/US gap in the roster.
 - Command-A: Cohere's flagship open model (Toronto, Canada). CC-BY-NC-4.0 — open weights, non-commercial restriction (benchmark use is permitted). Second Canadian entry after StarCoder2. 111B-class MoE, strong multilingual and instruction-following.
+- Phi-4: Microsoft's 14B dense model. MIT license — no restrictions. Strong reasoning and coding despite small size. Confirmed on OpenRouter.
+- Nemotron-70B: NVIDIA's alignment-focused model built on Llama 3.1 70B. NVIDIA Open Model License (open weights, commercial use permitted, no competing AI service restriction). NVIDIA HQ Santa Clara.
+- Hermes-3: Nous Research (US) fine-tune of Llama 3.1 70B with improved instruction-following and reasoning. Llama Community License. Open weights.
+- Qwen2.5-72B: General-purpose 72B Qwen model (not code-specific like Qwen3-Coder). Qwen Community License. Confirmed working on OpenRouter. Both stay in rotation — different task profiles.
+- Gemma 3 12B: Smaller Gemma 3 variant. Lower latency, lower cost. Gemma license, same as the 27B entry.
+- Qwen2.5-7B: Smallest model in rotation. Qwen Community License. Included for breadth; strongest on L0 tasks.
 - All Tier 1 models are now accessible via OpenRouter or HuggingFace Inference Router with pinnable version strings.
 
 ---
@@ -141,8 +153,8 @@ Closed-weights models, included here to document why they are not on the list:
 
 | Region | Model(s) in rotation | Gap |
 |--------|---------------------|-----|
-| 🇺🇸 US | Llama 4 Maverick, Llama 3.3 70B, StarCoder2-15B, OLMo 3.1 32B | No gap — strong coverage |
-| 🇨🇳 China | DeepSeek-V3, DeepSeek-R1, Qwen3-Coder, Kimi K2, GLM-4.7, ERNIE 4.5 | No gap — 6 models |
+| 🇺🇸 US | Llama 4 Maverick, Llama 3.3 70B, StarCoder2-15B, OLMo 3.1 32B, Phi-4, Nemotron-70B, Hermes-3, Gemma 3 27B, Gemma 3 12B | No gap — 9 models |
+| 🇨🇳 China | DeepSeek-V3, DeepSeek-R1, Qwen3-Coder, Qwen3-30B, QwQ-32B, Qwen2.5-72B, Qwen2.5-7B, Kimi K2, GLM-4.7, ERNIE 4.5 | No gap — 10 models |
 | 🇫🇷 France | Mistral Small 3.1, Mistral Nemo | Codestral excluded (closed weights) |
 | 🇫🇮 Finland | Viking-33B (AMD Silo AI) | No managed API yet — not in rotation |
 | 🇨🇭 Switzerland | Apertus-70B (ETH Zurich + EPFL) | In rotation via HF router |

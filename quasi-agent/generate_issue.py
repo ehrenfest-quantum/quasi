@@ -185,6 +185,26 @@ ROTATION: list[dict] = [
     {"id": "command-a", "model": "CohereLabs/c4ai-command-a-03-2025",
      "provider": "huggingface", "license": "CC-BY-NC-4.0",
      "origin": "Canada / Cohere (Toronto)"},
+    # ── OpenRouter additions — confirmed working Feb 2026 ─────────────────
+    {"id": "phi-4", "model": "microsoft/phi-4",
+     "provider": "openrouter", "license": "MIT",
+     "origin": "US / Microsoft Research"},
+    {"id": "nemotron-70b", "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+     "provider": "openrouter", "license": "NVIDIA Open Model",
+     "origin": "US / NVIDIA Research"},
+    {"id": "hermes-3", "model": "nousresearch/hermes-3-llama-3.1-70b",
+     "provider": "openrouter", "license": "Llama Community",
+     "origin": "US / Nous Research"},
+    {"id": "qwen2.5-72b", "model": "qwen/qwen-2.5-72b-instruct",
+     "provider": "openrouter", "license": "Qwen Community",
+     "origin": "China / Alibaba (general, not code-specific)"},
+    {"id": "gemma-3-12b", "model": "google/gemma-3-12b-it",
+     "provider": "openrouter", "license": "Gemma",
+     "origin": "US / Google DeepMind"},
+    # ── HF router additions ────────────────────────────────────────────────
+    {"id": "qwen2.5-7b", "model": "Qwen/Qwen2.5-7B-Instruct",
+     "provider": "huggingface", "license": "Qwen Community",
+     "origin": "China / Alibaba (smaller model, L0 tasks)"},
 ]
 
 DEFAULT_MODEL_ID = "deepseek-v3"
