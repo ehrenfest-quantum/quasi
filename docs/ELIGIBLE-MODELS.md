@@ -28,6 +28,9 @@ These models are competitive on real engineering tasks. Expected to attempt L1+ 
 | **Llama 4 Maverick** | US (Meta) | Llama Community | `meta-llama/llama-4-maverick` | $0.17 | $0.60 |
 | **Llama 3.3 70B Instruct** | US (Meta) | Llama 3.3 Community | `meta-llama/llama-3.3-70b-instruct` | $0.05 | $0.08 |
 | **StarCoder2-15B** | Canada (ServiceNow Research + BigCode) | BigCode OpenRAIL-M | `bigcode/starcoder2-15b` via HF or Together | Free–low | Free–low |
+| **Kimi K2** | China (Moonshot AI, Beijing) | Modified MIT | `moonshotai/Kimi-K2-Instruct` via HF router | Free (HF account) | — |
+| **GLM-4.7** | China (Zhipu AI, Beijing) | MIT | `zai-org/GLM-4.7` via HF router | Free (HF account) | — |
+| **OLMo 3.1 32B** | US (Allen AI, Seattle) | Apache 2.0 | `allenai/Olmo-3.1-32B-Instruct` via HF router | Free (HF account) | — |
 
 **Notes:**
 - DeepSeek MIT license is the cleanest open-weights license in this tier — no usage restrictions.
@@ -35,7 +38,10 @@ These models are competitive on real engineering tasks. Expected to attempt L1+ 
 - Llama Community License permits commercial use above 700M MAU threshold only for enterprises; free for this benchmark use case.
 - Qwen3-Coder replaces Qwen2.5-Coder-32B: `qwen/qwen-2.5-coder-32b-instruct` on OpenRouter has a confirmed truncation bug (finish_reason: None, response cut mid-token on certain content). Qwen3-Coder (`qwen/qwen3-coder`) routes correctly. Apache 2.0 license — an upgrade over the Qwen Community License.
 - StarCoder2 is ServiceNow Research (Montréal) + BigCode (HuggingFace). 619 programming languages, 4 trillion tokens. Canada's best open-weights code model.
-- All six are available via OpenRouter or HuggingFace with pinnable version strings.
+- Kimi K2: Previously in "Pending" (weights not fully public). Now available on HF router as `moonshotai/Kimi-K2-Instruct`. MoE architecture (1T params, 32B active). Modified MIT license — weights open, commercial use permitted. Strong coding and reasoning.
+- GLM-4.7: Zhipu AI's latest open-weights model (Feb 2026). Replaces GLM-4-9B which had no public API. MIT license. Available on HF router via `zai-org/GLM-4.7`. GLM-4-32B-0414 returns 400 on HF router; GLM-4.7 confirmed working.
+- OLMo 3.1: Allen AI (Seattle) — fully transparent model (weights, data, training code all public). Apache 2.0. The US equivalent of Apertus in terms of openness philosophy. Confirmed working on HF router.
+- All Tier 1 models are now accessible via OpenRouter or HuggingFace Inference Router with pinnable version strings.
 
 ---
 
@@ -48,15 +54,16 @@ European models with coding capability and open weights.
 | **Mistral Small 3.1** | France (Mistral AI) | Apache 2.0 | `mistralai/mistral-small-3.1-24b-instruct` | $0.10 | $0.30 |
 | **Mistral Nemo** | France (Mistral AI) | Apache 2.0 | `mistralai/mistral-nemo` | $0.02 | $0.08 |
 | **Viking-33B** | Finland (AMD Silo AI + TurkuNLP + HPLT) | Apache 2.0 | Self-host (HuggingFace) · Google Cloud Vertex AI | Free (self-host) | — |
-| **Apertus-70B** | Switzerland (ETH Zurich + EPFL + CSCS) | Fully open | HuggingFace Inference Router (`router.huggingface.co`) · CSCS API (`api.research.computer`) | Free (HF account) | — |
+| **Apertus-70B** | Switzerland (ETH Zurich + EPFL + CSCS) | Fully open | `swiss-ai/Apertus-70B-Instruct-2509` via HF router | Free (HF account) | — |
+| **EuroLLM-22B** | EU consortium (Unbabel lead, Lisbon) | Apache 2.0 | `utter-project/EuroLLM-22B-Instruct-2512` via HF router | Free (HF account) | — |
 
 **Notes:**
 - Codestral (Mistral's dedicated code model) is not open weights — excluded.
 - Mistral Large 2 is not open weights — excluded.
 - Mistral Small 3.1 and Nemo are Apache 2.0 with managed APIs via `api.mistral.ai` and OpenRouter.
-- Viking-33B: Apache 2.0, trained on LUMI supercomputer. AMD acquired Silo AI (Finland) in 2024. Medium coding capability. No managed API currently — self-host or Google Cloud Vertex.
-- Apertus-70B: The most transparent large model ever released — weights, training data (15T tokens), training code, and all checkpoints are public. ETH Zurich's "We trade speed for sunlight" principle. Medium coding capability (on par with Llama 3, 2024 class). **API status (Feb 2026):** `swiss-ai/Apertus-70B-Instruct-2509` confirmed working via HuggingFace Inference Router (`router.huggingface.co`) with `HF_TOKEN`. **In the generation rotation.** Also accessible via CSCS Swiss AI API (`api.research.computer`) with a `CSCS_SERVING_API` key from `serving.swissai.cscs.ch`.
-- Viking-33B has no managed API currently. Add to generation rotation when a hosted API with a pinnable version string is available.
+- Viking-33B: Apache 2.0, trained on LUMI supercomputer. AMD acquired Silo AI (Finland) in 2024. Medium coding capability. No managed API currently — self-host or Google Cloud Vertex. Not in generation rotation.
+- Apertus-70B: ETH Zurich's fully transparent model (weights + data + code all public). Confirmed working on HF router. **In the generation rotation.** Also accessible via CSCS API (`api.research.computer`) with `CSCS_SERVING_API` key.
+- EuroLLM-22B: EU-funded consortium (Unbabel, Lisbon). 22B version now available on HF router — replaces the underpowered 9B. Apache 2.0. 24 EU official languages. **In the generation rotation.**
 
 ---
 
@@ -68,23 +75,28 @@ Models from underrepresented regions. Coding capability is weaker, but participa
 |-------|--------|---------|--------|--------------|
 | **Sarvam-30B** | India (Sarvam AI, Bangalore) | Open (HuggingFace) | Sarvam developer API — free beta; self-hostable | Free (beta) |
 | **Sarvam-105B** | India (Sarvam AI) | Open (HuggingFace) | Sarvam developer API — free beta | Free (beta) |
-| **Falcon 3 10B** | UAE (TII, Abu Dhabi) | Apache 2.0 | AI71 platform — free; self-hostable. **Not on OpenRouter (Feb 2026).** | Free |
+| **Swallow-70B** | Japan (Tokyo Institute of Technology) | Llama 3.3 Community | `tokyotech-llm/Llama-3.3-Swallow-70B-Instruct-v0.4` via HF router | Free (HF account) |
+| **SEA-LION 32B** | Singapore (AI Singapore) | Apache 2.0 | `aisingapore/Qwen-SEA-LION-v4-32B-IT` via HF router | Free (HF account) |
+| **DictaLM-3.0 24B** | Israel (Bar-Ilan University / Dicta) | Apache 2.0 | `dicta-il/DictaLM-3.0-24B-Thinking` via HF router | Free (HF account) |
+| **ERNIE 4.5 21B** | China (Baidu, Beijing) | ERNIE Open | `baidu/ERNIE-4.5-21B-A3B-PT` via HF router | Free (HF account) |
+| **Falcon 3 10B** | UAE (TII, Abu Dhabi) | Apache 2.0 | AI71 platform — free; self-hostable. **Not on HF router or OpenRouter (Feb 2026).** | Free |
 | **EXAONE 3.5 32B** | South Korea (LG AI Research) | EXAONE Community | Self-hosted via HuggingFace (no public API currently) | Free (self-host) |
-| **GLM-4-9B** | China (Zhipu AI) | Open (HuggingFace) | Self-hosted; limited international API at bigmodel.cn | Free (self-host) |
-| **Jamba Large 1.7** | Israel (AI21 Labs) | Jamba Open Model License | `ai21/jamba-large-1.7` on OpenRouter | $2.00 | $8.00 |
+| **Jamba Large 1.7** | Israel (AI21 Labs) | Jamba Open Model License | `ai21/jamba-large-1.7` on OpenRouter | $2.00 / $8.00 |
 | **TildeOpen-30B** | Latvia (Tilde AI) | CC-BY-4.0 | Self-host (HuggingFace) | Free |
-| **EuroLLM-9B** | EU consortium (9 partners, lead: Lisbon) | Open | Self-host (HuggingFace) | Free |
 | **InkubaLM-0.4B** | South Africa (Lelapa AI, Johannesburg) | Open | Self-host (HuggingFace) | Free |
 
 **Notes:**
 - Sarvam-30B/105B: released February 18, 2026. India's only models with a public API and open weights. Competitive on math/reasoning vs Gemma 27B class. Not yet benchmarked on quantum/compiler tasks.
-- Falcon 3 10B: Apache 2.0, genuinely free. Coding capability is weak; representative of the UAE open-source effort. Good for L0. **No OpenRouter ID as of Feb 2026** — use AI71 platform (`ai71.ai`) or self-host. Add to generation rotation when a pinnable OpenRouter ID becomes available.
-- EXAONE 3.5: LG AI Research's 32B model, competitive on reasoning benchmarks. Self-host only — requires infrastructure. Worth admitting when hosted by a third party.
-- GLM-4-9B: Zhipu AI open weights on HuggingFace. Chinese-English bilingual. International API portal exists but pricing/ToS unclear from EU — self-host is cleaner.
-- Jamba Large 1.7: Jamba Open Model License (permissive, non-Apache). SSM/Mamba hybrid architecture. Israel's open-weights representative. `ai21/jamba-1-5-mini` was removed from OpenRouter (Feb 2026) — replaced by `ai21/jamba-large-1.7` at $2/$8 per M. Significantly more expensive than Mini was; costs are comparable to Tier 1 models. Tier placement reflects origin/coverage, not price.
-- TildeOpen-30B: CC-BY-4.0 (the most permissive license on this list), trained on EU public compute (LUMI + JUPITER supercomputers), all 34 EU languages. Coding capability weak. Not eligible for generation rotation; included for coverage documentation.
-- EuroLLM-9B: EU-funded consortium of 9 partners. 24 official EU languages. Coding capability weak. Not eligible for generation rotation; included for coverage documentation.
-- InkubaLM-0.4B: Africa's first open-weights model trained from scratch on African languages. 0.4B parameters — a Small Language Model, not competitive on coding. Included to document the African AI frontier and its current gap. Not eligible for generation rotation.
+- Swallow-70B: Tokyo Institute of Technology's Japanese-English bilingual model built on Llama 3.3. **Fills the Japan gap.** Confirmed working on HF router. **In the generation rotation.**
+- SEA-LION 32B: AI Singapore's Southeast Asian model, built on Qwen. Covers 11 Southeast Asian languages. **In the generation rotation.**
+- DictaLM-3.0: Bar-Ilan University / Dicta NLP lab. Hebrew-English bilingual with thinking capability. Apache 2.0. Second Israeli model after Jamba; different institution and architecture. **In the generation rotation.**
+- ERNIE 4.5: Baidu's open-weights model — previously excluded due to "Access wall + weights not publicly downloadable". Now available on HF router with `baidu/ERNIE-4.5-21B-A3B-PT`. **In the generation rotation.** Removed from Excluded list.
+- Falcon 3 10B: Apache 2.0. **No OpenRouter or HF router ID as of Feb 2026** — use AI71 platform (`ai71.ai`) or self-host. Add to generation rotation when a pinnable hosted ID is available.
+- EXAONE 3.5: LG AI Research's 32B model, competitive on reasoning benchmarks. Self-host only — no public API. Worth admitting when hosted by a third party.
+- Jamba Large 1.7: SSM/Mamba hybrid. `ai21/jamba-1-5-mini` removed from OpenRouter Feb 2026 — replaced by `ai21/jamba-large-1.7` at $2/$8/M. Tier placement reflects coverage, not price.
+- TildeOpen-30B: CC-BY-4.0, all 34 EU languages, LUMI + JUPITER compute. Coding capability too weak for generation rotation; included for coverage documentation.
+- EuroLLM-9B: Superseded by EuroLLM-22B which is now in Tier 2. 9B entry removed.
+- InkubaLM-0.4B: Africa's first open-weights model. 0.4B — far below threshold. Documents the African AI gap. Not eligible for generation rotation.
 
 ---
 
@@ -92,7 +104,6 @@ Models from underrepresented regions. Coding capability is weaker, but participa
 
 | Model | Origin | Status | Blocker |
 |-------|--------|--------|---------|
-| **Kimi K2** | China (Moonshot AI) | Partial weights released | Full weights not yet public; MoE architecture partially documented. Revisit when complete weights available. |
 | **Qwen3 Max** | China (Alibaba) | Not open weights | Closed API only. MoE variant weights unreleased. |
 
 ---
@@ -109,7 +120,7 @@ Closed-weights models, included here to document why they are not on the list:
 | Grok 4 | Closed weights |
 | Codestral | Weights not open (Mistral commercial license) |
 | Mistral Large 2 | Weights not open |
-| Baidu ERNIE | Access wall + weights not publicly downloadable |
+| Baidu ERNIE (older) | Access wall + weights not publicly downloadable — superseded by ERNIE 4.5 on HF router |
 | ByteDance Doubao | China-only registration; weights not public |
 | YandexGPT | Sanctions barrier from EU; weights not public |
 | GigaChat | Registration wall; weights not public |
@@ -122,22 +133,23 @@ Closed-weights models, included here to document why they are not on the list:
 
 | Region | Model(s) in rotation | Gap |
 |--------|---------------------|-----|
-| 🇺🇸 US | Llama 4 Maverick, Llama 3.3 70B, StarCoder2-15B (Montréal) | No gap — strong coverage |
-| 🇨🇳 China | DeepSeek-V3, DeepSeek-R1, Qwen2.5-Coder | No gap — Tier 1 |
+| 🇺🇸 US | Llama 4 Maverick, Llama 3.3 70B, StarCoder2-15B, OLMo 3.1 32B | No gap — strong coverage |
+| 🇨🇳 China | DeepSeek-V3, DeepSeek-R1, Qwen3-Coder, Kimi K2, GLM-4.7, ERNIE 4.5 | No gap — 6 models |
 | 🇫🇷 France | Mistral Small 3.1, Mistral Nemo | Codestral excluded (closed weights) |
-| 🇫🇮 Finland | Viking-33B (AMD Silo AI) | No managed API yet; self-host or Google Cloud |
-| 🇨🇭 Switzerland | Apertus-70B (ETH Zurich + EPFL) | Swisscom API; no OpenRouter ID yet |
+| 🇫🇮 Finland | Viking-33B (AMD Silo AI) | No managed API yet — not in rotation |
+| 🇨🇭 Switzerland | Apertus-70B (ETH Zurich + EPFL) | In rotation via HF router |
+| 🇵🇹 Portugal | EuroLLM-22B (EU consortium, Unbabel lead) | In rotation — 22B on HF router |
 | 🇩🇪 Germany | Aleph Alpha / Pharia — no public API | Real gap |
-| 🇮🇳 India | Sarvam-30B, Sarvam-105B | Coding capability still maturing |
-| 🇦🇪 UAE | Falcon 3 10B | No OpenRouter ID Feb 2026; use AI71 platform. Not in generation rotation. |
+| 🇮🇳 India | Sarvam-M | Coding capability still maturing |
+| 🇦🇪 UAE | Falcon 3 10B | No HF router or OpenRouter ID — not in rotation |
 | 🇰🇷 Korea | EXAONE 3.5 | No public API yet — self-host only |
 | 🇨🇦 Canada | StarCoder2 (ServiceNow Research, Montréal) | Listed under US/BigCode; Montréal origin noted |
-| 🇮🇱 Israel | Jamba Large 1.7 | Upgraded from Mini (removed from OpenRouter Feb 2026); now Tier 1 pricing |
+| 🇮🇱 Israel | Jamba Large 1.7, DictaLM-3.0 24B | Two models — AI21 Labs + Bar-Ilan University |
+| 🇯🇵 Japan | Swallow-70B (Tokyo Tech) | Gap closed — in rotation via HF router |
+| 🇸🇬 Singapore | SEA-LION 32B (AI Singapore) | In rotation via HF router |
 | 🇱🇻 Latvia | TildeOpen-30B (Tilde AI) | No API; coding too weak for generation rotation |
-| 🇵🇹 Portugal | EuroLLM (EU consortium, Unbabel lead) | No API; coding too weak for generation rotation |
 | 🌍 Africa | InkubaLM-0.4B (Lelapa AI, Johannesburg) | 0.4B — far below threshold; documents the gap |
-| 🇷🇺 Russia | — | No accessible open-weights coding model from EU |
-| 🇯🇵 Japan | — | No production open-weights model with English coding |
+| 🇷🇺 Russia | — | No accessible open-weights coding model |
 | 🇧🇷 Brazil | — | No domestic LLM API |
 | 🇦🇺 Australia | — | No domestic open-weights LLM |
 
