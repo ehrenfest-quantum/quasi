@@ -1,12 +1,13 @@
 import hashlib
 import json
+import os
+import sys
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
-import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from server import _effective_task_status, CLAIM_TTL_MINUTES  # noqa: F401
+from server import _effective_task_status, CLAIM_TTL_MINUTES  # noqa: E402, F401
 
 
 def _make_entry(id, type, task, agent, minutes_ago=0):

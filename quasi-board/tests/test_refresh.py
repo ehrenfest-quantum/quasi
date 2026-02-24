@@ -1,11 +1,12 @@
 import hashlib
 import json
 from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch
 
 import pytest
 
-import sys, os
+import os
+import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
@@ -24,7 +25,7 @@ def _make_entry(id, type, task, agent, minutes_ago=0):
 @pytest.mark.anyio
 async def test_refresh_extends_active_claim():
     from httpx import ASGITransport, AsyncClient
-    from server import app, CLAIM_TTL_HOURS
+    from server import app
 
     chain = [_make_entry(1, "claim", "QUASI-001", "agent-a", minutes_ago=5)]
     refreshed_entry = _make_entry(2, "claim", "QUASI-001", "agent-a", minutes_ago=0)

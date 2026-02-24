@@ -22,9 +22,11 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+import hmac as _hmac
+import re as _re
 
 DOMAIN = "gawain.valiant-quantum.com"
 ACTOR_URL = f"https://{DOMAIN}/quasi-board"
@@ -463,9 +465,21 @@ def fetch_tasks() -> list[dict]:
         pass
     # Fallback: hardcoded genesis tasks
     return [
-        {"number": 1, "title": "QUASI-001: Ehrenfest CBOR Schema", "html_url": f"https://github.com/{GITHUB_REPO}/issues/1", "body": "Define CBOR/CDDL schema for Ehrenfest base types."},
-        {"number": 2, "title": "QUASI-002: HAL Contract Python Bindings", "html_url": f"https://github.com/{GITHUB_REPO}/issues/2", "body": "Python FFI for the HAL Contract."},
-        {"number": 3, "title": "QUASI-003: quasi-board ActivityPub Prototype", "html_url": f"https://github.com/{GITHUB_REPO}/issues/3", "body": "Federated task feed using ActivityPub."},
+        {
+            "number": 1, "title": "QUASI-001: Ehrenfest CBOR Schema",
+            "html_url": f"https://github.com/{GITHUB_REPO}/issues/1",
+            "body": "Define CBOR/CDDL schema for Ehrenfest base types.",
+        },
+        {
+            "number": 2, "title": "QUASI-002: HAL Contract Python Bindings",
+            "html_url": f"https://github.com/{GITHUB_REPO}/issues/2",
+            "body": "Python FFI for the HAL Contract.",
+        },
+        {
+            "number": 3, "title": "QUASI-003: quasi-board ActivityPub Prototype",
+            "html_url": f"https://github.com/{GITHUB_REPO}/issues/3",
+            "body": "Federated task feed using ActivityPub.",
+        },
     ]
 
 
@@ -524,7 +538,11 @@ async def actor():
         "id": ACTOR_URL,
         "name": "quasi-board",
         "preferredUsername": "quasi-board",
-        "summary": "QUASI Quantum OS — federated task feed. Build the first Quantum OS. Ehrenfest language. Afana compiler. Urns packages. https://github.com/ehrenfest-quantum/quasi",
+        "summary": (
+            "QUASI Quantum OS — federated task feed. Build the first Quantum OS. "
+            "Ehrenfest language. Afana compiler. Urns packages. "
+            "https://github.com/ehrenfest-quantum/quasi"
+        ),
         "url": "https://github.com/ehrenfest-quantum/quasi",
         "inbox": INBOX_URL,
         "outbox": OUTBOX_URL,
@@ -757,7 +775,6 @@ async def inbox(request: Request):
         })
         return JSONResponse({"status": "recorded", "ledger_entry": entry["id"], "entry_hash": entry["entry_hash"]})
 
-
     if activity_type == "Create" and body.get("quasi:type") == "issue_generated":
         gen_entry: dict[str, Any] = {
             "type": "issue_generated",
@@ -957,9 +974,6 @@ async def reject_proposal(prop_id: str, request: Request):
 
 # ── GitHub webhook ────────────────────────────────────────────────────────────
 
-import hmac as _hmac
-import re as _re
-from fastapi import Header
 
 WEBHOOK_SECRET_FILE = Path("/home/vops/quasi-board/.webhook_secret")
 
@@ -1004,14 +1018,14 @@ async def github_webhook(request: Request, x_hub_signature_256: str = Header(def
     if payload.get("action") != "closed" or not pr.get("merged"):
         return JSONResponse({"status": "ignored", "reason": "not a merge"})
 
-    pr_body  = pr.get("body") or ""
+    pr_body = pr.get("body") or ""
     pr_title = pr.get("title", "")
-    pr_url   = pr.get("html_url", "")
+    pr_url = pr.get("html_url", "")
     pr_author = pr.get("user", {}).get("login", "unknown")
     commit_sha = pr.get("merge_commit_sha", "")
 
     meta = _parse_meta(pr_body)
-    agent   = meta.get("Contribution-Agent", pr_author)
+    agent = meta.get("Contribution-Agent", pr_author)
     task_id = meta.get("Task", "")
 
     if not task_id:

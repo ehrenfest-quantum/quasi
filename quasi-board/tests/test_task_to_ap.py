@@ -1,10 +1,11 @@
+import os
+import sys
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
-import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from server import task_to_ap
+from server import task_to_ap  # noqa: E402
 
 
 def _gh_task(number=1, title="Test Task", url="https://github.com/test/1"):

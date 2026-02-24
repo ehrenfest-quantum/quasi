@@ -118,21 +118,34 @@ PROVIDERS: dict[str, dict] = {
 
 ROTATION: list[dict] = [
     # ── Tier 1 — Strong coding ────────────────────────────────────────────
-    {"id": "deepseek-v3",    "model": "deepseek/deepseek-chat-v3-0324",          "provider": "openrouter", "license": "MIT",          "origin": "China / DeepSeek"},
-    {"id": "deepseek-r1",    "model": "deepseek/deepseek-r1",                    "provider": "openrouter", "license": "MIT",          "origin": "China / DeepSeek"},
-    {"id": "qwen3-coder",    "model": "qwen/qwen3-coder",                        "provider": "openrouter", "license": "Apache-2.0",   "origin": "China / Alibaba"},
-    {"id": "llama4",         "model": "meta-llama/llama-4-maverick",             "provider": "openrouter", "license": "Llama Community", "origin": "US / Meta"},
-    {"id": "llama3.3",       "model": "meta-llama/llama-3.3-70b-instruct",       "provider": "openrouter", "license": "Llama Community", "origin": "US / Meta"},
-    {"id": "starcoder2",     "model": "bigcode/starcoder2-15b",                  "provider": "openrouter", "license": "OpenRAIL-M",   "origin": "Canada / BigCode"},
+    {"id": "deepseek-v3", "model": "deepseek/deepseek-chat-v3-0324",
+     "provider": "openrouter", "license": "MIT", "origin": "China / DeepSeek"},
+    {"id": "deepseek-r1", "model": "deepseek/deepseek-r1",
+     "provider": "openrouter", "license": "MIT", "origin": "China / DeepSeek"},
+    {"id": "qwen3-coder", "model": "qwen/qwen3-coder",
+     "provider": "openrouter", "license": "Apache-2.0", "origin": "China / Alibaba"},
+    {"id": "llama4", "model": "meta-llama/llama-4-maverick",
+     "provider": "openrouter", "license": "Llama Community", "origin": "US / Meta"},
+    {"id": "llama3.3", "model": "meta-llama/llama-3.3-70b-instruct",
+     "provider": "openrouter", "license": "Llama Community", "origin": "US / Meta"},
+    {"id": "starcoder2", "model": "bigcode/starcoder2-15b",
+     "provider": "openrouter", "license": "OpenRAIL-M", "origin": "Canada / BigCode"},
     # ── Tier 2 — EU / competitive coding ─────────────────────────────────
-    {"id": "mistral-small",  "model": "mistralai/mistral-small-3.1-24b-instruct","provider": "openrouter", "license": "Apache-2.0",   "origin": "France / Mistral"},
-    {"id": "mistral-nemo",   "model": "mistralai/mistral-nemo",                  "provider": "openrouter", "license": "Apache-2.0",   "origin": "France / Mistral"},
+    {"id": "mistral-small", "model": "mistralai/mistral-small-3.1-24b-instruct",
+     "provider": "openrouter", "license": "Apache-2.0", "origin": "France / Mistral"},
+    {"id": "mistral-nemo", "model": "mistralai/mistral-nemo",
+     "provider": "openrouter", "license": "Apache-2.0", "origin": "France / Mistral"},
     # ── Tier 3 — Regional participation ──────────────────────────────────
-    {"id": "sarvam-m",       "model": "sarvam-m",                                "provider": "sarvam",     "license": "Open",         "origin": "India / Sarvam AI"},
-    {"id": "jamba",          "model": "ai21/jamba-large-1.7",                    "provider": "openrouter", "license": "Jamba Open",   "origin": "Israel / AI21"},
+    {"id": "sarvam-m", "model": "sarvam-m",
+     "provider": "sarvam", "license": "Open", "origin": "India / Sarvam AI"},
+    {"id": "jamba", "model": "ai21/jamba-large-1.7",
+     "provider": "openrouter", "license": "Jamba Open", "origin": "Israel / AI21"},
     # falcon: no OpenRouter ID as of 2026-02-24 — use AI71 platform or self-host
-    # {"id": "falcon",    "model": "tiiuae/falcon3-10b-instruct",             "provider": "openrouter", "license": "Apache-2.0",   "origin": "UAE / TII"},
-    {"id": "apertus",    "model": "swiss-ai/Apertus-70B-Instruct-2509",      "provider": "huggingface", "license": "Fully open",   "origin": "Switzerland / ETH Zurich + EPFL + CSCS"},
+    # {"id": "falcon", "model": "tiiuae/falcon3-10b-instruct",
+    #  "provider": "openrouter", "license": "Apache-2.0", "origin": "UAE / TII"},
+    {"id": "apertus", "model": "swiss-ai/Apertus-70B-Instruct-2509",
+     "provider": "huggingface", "license": "Fully open",
+     "origin": "Switzerland / ETH Zurich + EPFL + CSCS"},
 ]
 
 DEFAULT_MODEL_ID = "deepseek-v3"
@@ -150,6 +163,7 @@ def find_rotation_entry(model_arg: str) -> dict:
     print("To add a model, open a PR against docs/ELIGIBLE-MODELS.md.", file=sys.stderr)
     sys.exit(1)
 
+
 LEVEL_NAMES = {
     0: "L0 — Scaffolding (README, badges, CI config, docs)",
     1: "L1 — Language Foundations (Ehrenfest syntax, parser, AST, type system)",
@@ -161,6 +175,7 @@ LEVEL_NAMES = {
 LABEL_TAXONOMY = "compiler · specification · infrastructure · agent-ux · docs · good-first-issue"
 
 # ── Repo context ──────────────────────────────────────────────────────────────
+
 
 def repo_root() -> Path:
     """Find the repo root from this script's location."""
@@ -276,7 +291,8 @@ Identify what the project needs next at the current frontier level ({level_name}
 Write one GitHub issue. Requirements:
 - Title: concise, imperative, specific (not "improve X" — say exactly what to do)
 - Description: ≥3 sentences explaining context, why this matters, what approach to take
-- Acceptance criteria: ≥2 bullet points, each CI-verifiable (a passing test, a file that exists, a command that succeeds)
+- Acceptance criteria: ≥2 bullet points, each CI-verifiable
+  (a passing test, a file that exists, a command that succeeds)
 - Label: exactly one from the taxonomy above
 
 Output ONLY valid JSON in this exact structure — no prose before or after:
@@ -374,7 +390,7 @@ def open_github_issue(issue: dict, model: str, level: int, github_token: str) ->
 ---
 *Generated by the Pauli-Test issue generation protocol.*
 *Generator model: `{model}` · Level: L{level} · Date: {datetime.now(timezone.utc).date()}*
-*See [docs/ISSUE-GENERATION.md](https://github.com/ehrenfest-quantum/quasi/blob/main/docs/ISSUE-GENERATION.md) for protocol details.*"""
+*See [ISSUE-GENERATION.md](https://github.com/ehrenfest-quantum/quasi/blob/main/docs/ISSUE-GENERATION.md).*"""
 
     payload = json.dumps({
         "title": issue["title"],
@@ -484,7 +500,7 @@ def main() -> None:
     root = repo_root()
     level = args.level
 
-    print(f"\n── QUASI Pauli-Test Issue Generator ──")
+    print("\n── QUASI Pauli-Test Issue Generator ──")
     print(f"   Model:    {entry['model']}")
     print(f"   Provider: {entry['provider']}  ({entry['origin']} · {entry['license']})")
     print(f"   Level:    L{level} — {LEVEL_NAMES[level]}")

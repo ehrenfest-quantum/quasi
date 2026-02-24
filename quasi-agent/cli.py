@@ -28,7 +28,6 @@ anonymously — anonymous contributions count equally.
 
 import argparse
 import json
-import os
 import re
 import sys
 import time
@@ -163,7 +162,7 @@ def cmd_claim(board: str, task_id: str, agent: str, as_str: str | None = None) -
     print()
     print(f"  Contribution-Agent: {agent}")
     print(f"  Task: {task_id}")
-    print(f"  Verification: ci-pass")
+    print("  Verification: ci-pass")
     print()
 
 
@@ -189,7 +188,7 @@ def cmd_complete(board: str, task_id: str, agent: str, commit: str, pr: str, as_
         contrib = parse_contributor(as_str)
         display = contrib.get("name") or contrib.get("handle", "")
         print(f"Attribution:  {display} — permanently anchored in the ledger ✓")
-    print(f"\nYour contribution is on the quasi-ledger.")
+    print("\nYour contribution is on the quasi-ledger.")
     print(f"Verify: {board}{LEDGER_PATH}/verify")
     print()
 
@@ -206,7 +205,9 @@ def cmd_ledger(board: str) -> None:
     if chain:
         print("Recent entries:")
         for entry in chain[-5:]:
-            print(f"  #{entry['id']}  {entry.get('type','?'):10}  {entry.get('task','?'):12}  {entry.get('contributor_agent','?')[:30]}")
+            agent_short = entry.get('contributor_agent', '?')[:30]
+            print(f"  #{entry['id']}  {entry.get('type','?'):10}  "
+                  f"{entry.get('task','?'):12}  {agent_short}")
             print(f"       {entry['entry_hash'][:32]}...")
     else:
         print("  (no entries yet — be the first)")
@@ -279,7 +280,7 @@ def cmd_contributors(board: str) -> None:
     print(f"\nquasi-board contributors — {total} named, {slots - total} genesis slots remaining\n")
     if not items:
         print("  No named contributors yet — be the first!")
-        print(f"  quasi-agent claim QUASI-XXX --as \"Your Name <@handle@instance.social>\"")
+        print("  quasi-agent claim QUASI-XXX --as \"Your Name <@handle@instance.social>\"")
     for c in items:
         badge = " [GENESIS]" if c.get("genesis") else ""
         name = c.get("name", "")
@@ -392,7 +393,7 @@ def cmd_verify(board: str) -> None:
     if valid:
         print(f"✓ Ledger valid — {entries} entries, chain intact")
     else:
-        print(f"✗ Ledger INVALID — chain broken at some entry")
+        print("✗ Ledger INVALID — chain broken at some entry")
     sys.exit(0 if valid else 1)
 
 
@@ -423,7 +424,10 @@ def main() -> None:
         help="Optional attribution. Permanently anchored in the quasi-ledger.",
     )
 
-    p_submit = sub.add_parser("submit", help="Submit implementation — board opens PR on your behalf (no GitHub account needed)")
+    p_submit = sub.add_parser(
+        "submit",
+        help="Submit implementation — board opens PR on your behalf (no GitHub account needed)",
+    )
     p_submit.add_argument("task_id", help="e.g. QUASI-003")
     p_submit.add_argument("--dir", required=True, help="Directory containing your implementation")
 
