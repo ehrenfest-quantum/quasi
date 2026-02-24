@@ -397,6 +397,90 @@ def cmd_verify(board: str) -> None:
     sys.exit(0 if valid else 1)
 
 
+def cmd_completion(shell: str) -> None:
+    """Print shell completion script to stdout."""
+    commands = "list claim complete submit watch ledger contributors verify completion"
+    if shell == "bash":
+        print(f'''_quasi_agent() {{
+    local cur prev commands
+    COMPREPLY=()
+    cur="${{COMP_WORDS[COMP_CWORD]}}"
+    prev="${{COMP_WORDS[COMP_CWORD-1]}}"
+    commands="{commands}"
+
+    case "$prev" in
+        claim|complete|submit)
+            COMPREPLY=( $(compgen -W "--board --agent --as" -- "$cur") )
+            return 0
+            ;;
+        completion)
+            COMPREPLY=( $(compgen -W "bash zsh" -- "$cur") )
+            return 0
+            ;;
+        --board|--agent|--as|--commit|--pr|--message|--interval)
+            return 0
+            ;;
+    esac
+
+    if [[ "$cur" == -* ]]; then
+        COMPREPLY=( $(compgen -W "--board --agent --as --interval --once --commit --pr --message" -- "$cur") )
+    else
+        COMPREPLY=( $(compgen -W "$commands" -- "$cur") )
+    fi
+}}
+complete -F _quasi_agent quasi-agent
+complete -F _quasi_agent cli.py''')
+    elif shell == "zsh":
+        print(f'''#compdef quasi-agent cli.py
+
+_quasi_agent() {{
+    local -a commands
+    commands=(
+        'list:List open tasks'
+        'claim:Claim a task'
+        'complete:Record task completion on ledger'
+        'submit:Submit implementation files'
+        'watch:Poll for new tasks and notify'
+        'ledger:Show the ledger'
+        'contributors:List named contributors'
+        'verify:Verify ledger chain integrity'
+        'completion:Generate shell completion script'
+    )
+
+    _arguments -C \\
+        '--board[Board URL]:url:' \\
+        '--agent[Agent identifier]:agent:' \\
+        '--as[Attribution (name or handle)]:attribution:' \\
+        '1:command:->cmd' \\
+        '*::arg:->args'
+
+    case "$state" in
+        cmd)
+            _describe 'command' commands
+            ;;
+        args)
+            case "$words[1]" in
+                claim)
+                    _arguments '1:task-id:' '--board[Board URL]:' '--agent[Agent]:' '--as[Attribution]:'
+                    ;;
+                complete)
+                    _arguments '1:task-id:' '--commit[Commit SHA]:' '--pr[PR URL]:' '--board[Board URL]:' '--agent[Agent]:' '--as[Attribution]:'
+                    ;;
+                watch)
+                    _arguments '--interval[Poll interval in seconds]:' '--once[Run once and exit]'
+                    ;;
+                completion)
+                    _arguments '1:shell:(bash zsh)'
+                    ;;
+            esac
+            ;;
+    esac
+}}
+
+compdef _quasi_agent quasi-agent
+compdef _quasi_agent cli.py''')
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="quasi-agent — QUASI task client")
     parser.add_argument("--board", default=DEFAULT_BOARD, help="quasi-board URL")
@@ -439,6 +523,9 @@ def main() -> None:
     sub.add_parser("contributors", help="List named contributors from the ledger")
     sub.add_parser("verify", help="Verify ledger chain integrity")
 
+    p_completion = sub.add_parser("completion", help="Generate shell completion script")
+    p_completion.add_argument("shell", choices=["bash", "zsh"], help="Shell type")
+
     args = parser.parse_args()
 
     if not args.cmd:
@@ -463,6 +550,8 @@ def main() -> None:
         cmd_contributors(board)
     elif args.cmd == "verify":
         cmd_verify(board)
+    elif args.cmd == "completion":
+        cmd_completion(args.shell)
 
 
 if __name__ == "__main__":
