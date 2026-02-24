@@ -68,20 +68,20 @@ Models from underrepresented regions. Coding capability is weaker, but participa
 |-------|--------|---------|--------|--------------|
 | **Sarvam-30B** | India (Sarvam AI, Bangalore) | Open (HuggingFace) | Sarvam developer API — free beta; self-hostable | Free (beta) |
 | **Sarvam-105B** | India (Sarvam AI) | Open (HuggingFace) | Sarvam developer API — free beta | Free (beta) |
-| **Falcon 3 10B** | UAE (TII, Abu Dhabi) | Apache 2.0 | AI71 platform — free; OpenRouter; self-hostable | Free |
+| **Falcon 3 10B** | UAE (TII, Abu Dhabi) | Apache 2.0 | AI71 platform — free; self-hostable. **Not on OpenRouter (Feb 2026).** | Free |
 | **EXAONE 3.5 32B** | South Korea (LG AI Research) | EXAONE Community | Self-hosted via HuggingFace (no public API currently) | Free (self-host) |
 | **GLM-4-9B** | China (Zhipu AI) | Open (HuggingFace) | Self-hosted; limited international API at bigmodel.cn | Free (self-host) |
-| **Jamba 1.5 Mini** | Israel (AI21 Labs) | Apache 2.0 | `ai21/jamba-1-5-mini` on OpenRouter | $0.20 | $0.40 |
+| **Jamba Large 1.7** | Israel (AI21 Labs) | Jamba Open Model License | `ai21/jamba-large-1.7` on OpenRouter | $2.00 | $8.00 |
 | **TildeOpen-30B** | Latvia (Tilde AI) | CC-BY-4.0 | Self-host (HuggingFace) | Free |
 | **EuroLLM-9B** | EU consortium (9 partners, lead: Lisbon) | Open | Self-host (HuggingFace) | Free |
 | **InkubaLM-0.4B** | South Africa (Lelapa AI, Johannesburg) | Open | Self-host (HuggingFace) | Free |
 
 **Notes:**
 - Sarvam-30B/105B: released February 18, 2026. India's only models with a public API and open weights. Competitive on math/reasoning vs Gemma 27B class. Not yet benchmarked on quantum/compiler tasks.
-- Falcon 3 10B: Apache 2.0, genuinely free. Coding capability is weak; representative of the UAE open-source effort. Good for L0.
+- Falcon 3 10B: Apache 2.0, genuinely free. Coding capability is weak; representative of the UAE open-source effort. Good for L0. **No OpenRouter ID as of Feb 2026** — use AI71 platform (`ai71.ai`) or self-host. Add to generation rotation when a pinnable OpenRouter ID becomes available.
 - EXAONE 3.5: LG AI Research's 32B model, competitive on reasoning benchmarks. Self-host only — requires infrastructure. Worth admitting when hosted by a third party.
 - GLM-4-9B: Zhipu AI open weights on HuggingFace. Chinese-English bilingual. International API portal exists but pricing/ToS unclear from EU — self-host is cleaner.
-- Jamba 1.5 Mini: Apache 2.0, SSM/Mamba hybrid architecture. Israel's open-weights representative.
+- Jamba Large 1.7: Jamba Open Model License (permissive, non-Apache). SSM/Mamba hybrid architecture. Israel's open-weights representative. `ai21/jamba-1-5-mini` was removed from OpenRouter (Feb 2026) — replaced by `ai21/jamba-large-1.7` at $2/$8 per M. Significantly more expensive than Mini was; costs are comparable to Tier 1 models. Tier placement reflects origin/coverage, not price.
 - TildeOpen-30B: CC-BY-4.0 (the most permissive license on this list), trained on EU public compute (LUMI + JUPITER supercomputers), all 34 EU languages. Coding capability weak. Not eligible for generation rotation; included for coverage documentation.
 - EuroLLM-9B: EU-funded consortium of 9 partners. 24 official EU languages. Coding capability weak. Not eligible for generation rotation; included for coverage documentation.
 - InkubaLM-0.4B: Africa's first open-weights model trained from scratch on African languages. 0.4B parameters — a Small Language Model, not competitive on coding. Included to document the African AI frontier and its current gap. Not eligible for generation rotation.
@@ -129,10 +129,10 @@ Closed-weights models, included here to document why they are not on the list:
 | 🇨🇭 Switzerland | Apertus-70B (ETH Zurich + EPFL) | Swisscom API; no OpenRouter ID yet |
 | 🇩🇪 Germany | Aleph Alpha / Pharia — no public API | Real gap |
 | 🇮🇳 India | Sarvam-30B, Sarvam-105B | Coding capability still maturing |
-| 🇦🇪 UAE | Falcon 3 10B | Weak coding; participation-level only |
+| 🇦🇪 UAE | Falcon 3 10B | No OpenRouter ID Feb 2026; use AI71 platform. Not in generation rotation. |
 | 🇰🇷 Korea | EXAONE 3.5 | No public API yet — self-host only |
 | 🇨🇦 Canada | StarCoder2 (ServiceNow Research, Montréal) | Listed under US/BigCode; Montréal origin noted |
-| 🇮🇱 Israel | Jamba 1.5 Mini | Small model; participation-level |
+| 🇮🇱 Israel | Jamba Large 1.7 | Upgraded from Mini (removed from OpenRouter Feb 2026); now Tier 1 pricing |
 | 🇱🇻 Latvia | TildeOpen-30B (Tilde AI) | No API; coding too weak for generation rotation |
 | 🇵🇹 Portugal | EuroLLM (EU consortium, Unbabel lead) | No API; coding too weak for generation rotation |
 | 🌍 Africa | InkubaLM-0.4B (Lelapa AI, Johannesburg) | 0.4B — far below threshold; documents the gap |

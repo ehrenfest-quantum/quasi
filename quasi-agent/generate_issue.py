@@ -114,8 +114,9 @@ ROTATION: list[dict] = [
     {"id": "mistral-nemo",   "model": "mistralai/mistral-nemo",                  "provider": "openrouter", "license": "Apache-2.0",   "origin": "France / Mistral"},
     # ── Tier 3 — Regional participation ──────────────────────────────────
     {"id": "sarvam-m",       "model": "sarvam-m",                                "provider": "sarvam",     "license": "Open",         "origin": "India / Sarvam AI"},
-    {"id": "jamba",          "model": "ai21/jamba-1-5-mini",                     "provider": "openrouter", "license": "Apache-2.0",   "origin": "Israel / AI21"},
-    {"id": "falcon",         "model": "tiiuae/falcon3-10b-instruct",             "provider": "openrouter", "license": "Apache-2.0",   "origin": "UAE / TII"},
+    {"id": "jamba",          "model": "ai21/jamba-large-1.7",                    "provider": "openrouter", "license": "Jamba Open",   "origin": "Israel / AI21"},
+    # falcon: no OpenRouter ID as of 2026-02-24 — use AI71 platform or self-host
+    # {"id": "falcon",      "model": "tiiuae/falcon3-10b-instruct",             "provider": "openrouter", "license": "Apache-2.0",   "origin": "UAE / TII"},
 ]
 
 DEFAULT_MODEL_ID = "deepseek-v3"
