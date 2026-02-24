@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+.env
+.github_token
+.webhook_secret
+matrix_credentials.json
+*.pem

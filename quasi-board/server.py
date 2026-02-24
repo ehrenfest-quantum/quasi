@@ -28,19 +28,23 @@ from fastapi.responses import JSONResponse
 import hmac as _hmac
 import re as _re
 
-DOMAIN = "gawain.valiant-quantum.com"
+DOMAIN = os.environ.get("QUASI_DOMAIN", "gawain.valiant-quantum.com")
+_DATA_DIR = Path(os.environ.get("QUASI_DATA_DIR", "/home/vops/quasi-board"))
+_LEDGER_DIR = Path(os.environ.get("QUASI_LEDGER_DIR", "/home/vops/quasi-ledger"))
+
 ACTOR_URL = f"https://{DOMAIN}/quasi-board"
 OUTBOX_URL = f"{ACTOR_URL}/outbox"
 INBOX_URL = f"{ACTOR_URL}/inbox"
-LEDGER_FILE = Path("/home/vops/quasi-ledger/ledger.json")
+LEDGER_FILE = _LEDGER_DIR / "ledger.json"
 OPENAPI_SPEC = Path(__file__).parent / "spec" / "openapi.json"
-GITHUB_REPO = "ehrenfest-quantum/quasi"
-GITHUB_TOKEN_FILE = Path("/home/vops/quasi-board/.github_token")
-MATRIX_CREDS_FILE = Path("/home/vops/quasi-board/matrix_credentials.json")
+GITHUB_REPO = os.environ.get("QUASI_GITHUB_REPO", "ehrenfest-quantum/quasi")
+GITHUB_TOKEN_FILE = _DATA_DIR / ".github_token"
+MATRIX_CREDS_FILE = _DATA_DIR / "matrix_credentials.json"
+# Matrix room IDs are server-specific identifiers, not derived from QUASI_DOMAIN
 MATRIX_ROOM_ID = "!CerauaaS111HsAzJXI:gawain.valiant-quantum.com"
-ACTOR_KEY_FILE = Path("/home/vops/quasi-board/keys/actor.pem")
-FOLLOWERS_FILE = Path("/home/vops/quasi-board/followers.json")
-PROPOSALS_FILE = Path("/home/vops/quasi-board/proposals.json")
+ACTOR_KEY_FILE = _DATA_DIR / "keys" / "actor.pem"
+FOLLOWERS_FILE = _DATA_DIR / "followers.json"
+PROPOSALS_FILE = _DATA_DIR / "proposals.json"
 ACTOR_KEY_ID = f"{ACTOR_URL}#main-key"
 
 AP_CONTENT_TYPE = "application/activity+json"
@@ -226,9 +230,9 @@ _HARD_BLOCKED_EXACT = {
 # The quasi-board creates the PR and records a "submission" ledger entry,
 # but merge requires a human to call POST /quasi-board/admin/merges/{pr}/approve.
 _REVIEW_REQUIRED_PREFIXES = (
-    ".github/",     # CI/CD workflows, CODEOWNERS, Actions secrets
-    "quasi-board/", # board server itself — no self-modification without human sign-off
-    "quasi-agent/", # agent CLI
+    ".github/",      # CI/CD workflows, CODEOWNERS, Actions secrets
+    "quasi-board/",  # board server itself — no self-modification without human sign-off
+    "quasi-agent/",  # agent CLI
     "quasi-mcp/",   # MCP server
     "spec/",        # canonical language specification
 )
@@ -256,7 +260,7 @@ def _requires_human_review(files: dict) -> bool:
     """Return True if any file path falls under review-required prefixes."""
     for path in files.keys():
         clean = "/".join(
-            p for p in path.replace("\", "/").split("/")
+            p for p in path.replace("\\", "/").split("/")
             if p not in ("", ".", "..")
         )
         if clean in _REVIEW_REQUIRED_EXACT:
@@ -1259,7 +1263,7 @@ async def reject_merge(pr_number: int, request: Request):
 # ── GitHub webhook ────────────────────────────────────────────────────────────
 
 
-WEBHOOK_SECRET_FILE = Path("/home/vops/quasi-board/.webhook_secret")
+WEBHOOK_SECRET_FILE = _DATA_DIR / ".webhook_secret"
 
 
 def _webhook_secret() -> bytes:
