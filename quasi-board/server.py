@@ -28,23 +28,20 @@ from fastapi.responses import JSONResponse
 import hmac as _hmac
 import re as _re
 
-DOMAIN = os.environ.get("QUASI_DOMAIN", "gawain.valiant-quantum.com")
-_DATA_DIR = Path(os.environ.get("QUASI_DATA_DIR", "/home/vops/quasi-board"))
-_LEDGER_DIR = Path(os.environ.get("QUASI_LEDGER_DIR", "/home/vops/quasi-ledger"))
-
+DOMAIN = "gawain.valiant-quantum.com"
 ACTOR_URL = f"https://{DOMAIN}/quasi-board"
 OUTBOX_URL = f"{ACTOR_URL}/outbox"
 INBOX_URL = f"{ACTOR_URL}/inbox"
-LEDGER_FILE = _LEDGER_DIR / "ledger.json"
+LEDGER_FILE = Path("/home/vops/quasi-ledger/ledger.json")
 OPENAPI_SPEC = Path(__file__).parent / "spec" / "openapi.json"
-GITHUB_REPO = os.environ.get("QUASI_GITHUB_REPO", "ehrenfest-quantum/quasi")
-GITHUB_TOKEN_FILE = _DATA_DIR / ".github_token"
-MATRIX_CREDS_FILE = _DATA_DIR / "matrix_credentials.json"
-# Matrix room IDs are server-specific identifiers, not derived from QUASI_DOMAIN
+GITHUB_REPO = "ehrenfest-quantum/quasi"
+GITHUB_TOKEN_FILE = Path("/home/vops/quasi-board/.github_token")
+MATRIX_CREDS_FILE = Path("/home/vops/quasi-board/matrix_credentials.json")
 MATRIX_ROOM_ID = "!CerauaaS111HsAzJXI:gawain.valiant-quantum.com"
-ACTOR_KEY_FILE = _DATA_DIR / "keys" / "actor.pem"
-FOLLOWERS_FILE = _DATA_DIR / "followers.json"
-PROPOSALS_FILE = _DATA_DIR / "proposals.json"
+ACTOR_KEY_FILE = Path("/home/vops/quasi-board/keys/actor.pem")
+FOLLOWERS_FILE = Path("/home/vops/quasi-board/followers.json")
+PROPOSALS_FILE = Path("/home/vops/quasi-board/proposals.json")
+AGENT_TOKENS_FILE = Path("/home/vops/quasi-board/agent-tokens.json")
 ACTOR_KEY_ID = f"{ACTOR_URL}#main-key"
 
 AP_CONTENT_TYPE = "application/activity+json"
@@ -216,59 +213,21 @@ MAX_FILE_BYTES = 100_000          # 100 KB per file
 MAX_TOTAL_BYTES = 500_000         # 500 KB total payload
 MAX_PATH_LEN = 200
 
-# Paths that are always rejected — no submission path through these
-_HARD_BLOCKED_PREFIXES = (
-    ".git/",    # git internals (GitHub API would also reject)
-    "infra/",   # infrastructure / secrets
+# Paths that can never be written by agent submissions
+_BLOCKED_PREFIXES = (
+    ".github/",       # CI/CD workflows, CODEOWNERS, Actions secrets
+    "quasi-board/",   # board server itself
+    "quasi-agent/",   # agent CLI itself
+    "quasi-mcp/",     # MCP server
+    "infra/",         # infrastructure configs
+    "spec/",          # core specification
+    ".git/",          # git internals (GitHub API would reject, but belt-and-suspenders)
 )
 
-_HARD_BLOCKED_EXACT = {
-    "GENESIS.md", "LICENSE",
-}
-
-# Paths that require human review before the PR can be merged.
-# The quasi-board creates the PR and records a "submission" ledger entry,
-# but merge requires a human to call POST /quasi-board/admin/merges/{pr}/approve.
-_REVIEW_REQUIRED_PREFIXES = (
-    ".github/",      # CI/CD workflows, CODEOWNERS, Actions secrets
-    "quasi-board/",  # board server itself — no self-modification without human sign-off
-    "quasi-agent/",  # agent CLI
-    "quasi-mcp/",   # MCP server
-    "spec/",        # canonical language specification
-)
-
-_REVIEW_REQUIRED_EXACT = {
+_BLOCKED_EXACT = {
     "CLAUDE.md", "README.md", "CONTRIBUTING.md", "ARCHITECTURE.md",
-    "ROADMAP.md", ".gitignore",
+    "GENESIS.md", "LICENSE", ".gitignore",
 }
-
-PENDING_MERGES_FILE = Path("/home/vops/quasi-board/pending_merges.json")
-
-
-def _load_pending_merges() -> list[dict]:
-    if not PENDING_MERGES_FILE.exists():
-        return []
-    return json.loads(PENDING_MERGES_FILE.read_text()).get("merges", [])
-
-
-def _save_pending_merges(merges: list[dict]) -> None:
-    PENDING_MERGES_FILE.parent.mkdir(parents=True, exist_ok=True)
-    PENDING_MERGES_FILE.write_text(json.dumps({"merges": merges}, indent=2))
-
-
-def _requires_human_review(files: dict) -> bool:
-    """Return True if any file path falls under review-required prefixes."""
-    for path in files.keys():
-        clean = "/".join(
-            p for p in path.replace("\\", "/").split("/")
-            if p not in ("", ".", "..")
-        )
-        if clean in _REVIEW_REQUIRED_EXACT:
-            return True
-        for prefix in _REVIEW_REQUIRED_PREFIXES:
-            if clean.startswith(prefix) or clean == prefix.rstrip("/"):
-                return True
-    return False
 
 
 def _validate_submission_files(files: dict) -> None:
@@ -301,10 +260,10 @@ def _validate_submission_files(files: dict) -> None:
             resolved.append(part)
         clean_path = "/".join(resolved)
 
-        if clean_path in _HARD_BLOCKED_EXACT:
+        if clean_path in _BLOCKED_EXACT:
             raise HTTPException(400, f"Cannot overwrite protected file: {clean_path!r}")
 
-        for prefix in _HARD_BLOCKED_PREFIXES:
+        for prefix in _BLOCKED_PREFIXES:
             if clean_path.startswith(prefix) or clean_path == prefix.rstrip("/"):
                 raise HTTPException(400, f"Cannot write to protected path: {clean_path!r}")
 
@@ -396,6 +355,32 @@ def _effective_task_status(task_id: str) -> dict:
         "agent": last_claim.get("contributor_agent"),
         "expires_at": expires_at.isoformat(),
     }
+
+
+
+# ── Agent token store (C2S auth) ──────────────────────────────────────────────
+
+def _load_agent_tokens() -> dict:
+    """Return {token: agent_id} mapping from disk."""
+    if AGENT_TOKENS_FILE.exists():
+        return json.loads(AGENT_TOKENS_FILE.read_text())
+    return {}
+
+
+def _save_agent_tokens(tokens: dict) -> None:
+    AGENT_TOKENS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    AGENT_TOKENS_FILE.write_text(json.dumps(tokens, indent=2))
+
+
+def _resolve_c2s_agent(authorization: str) -> str:
+    """Resolve a Bearer token to an agent_id. Raises HTTP 401 if invalid."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(401, "C2S requires Authorization: Bearer <token>")
+    token = authorization[7:].strip()
+    tokens = _load_agent_tokens()
+    if token not in tokens:
+        raise HTTPException(401, "Unknown or revoked agent token")
+    return tokens[token]
 
 
 def _check_agent_claimed(task_id: str, agent: str) -> None:
@@ -730,9 +715,9 @@ async def outbox():
     }, media_type=AP_CONTENT_TYPE)
 
 
-@app.post("/quasi-board/inbox")
-async def inbox(request: Request):
-    body = await request.json()
+async def _process_activity(body: dict) -> JSONResponse:
+    """Core ActivityPub activity processor — shared by C2S outbox and S2S inbox."""
+    activity_type = body.get("type", "")
     activity_type = body.get("type", "")
 
     if activity_type == "Follow":
@@ -846,32 +831,9 @@ async def inbox(request: Request):
             "commit_hash": None,
             "pr_url": pr_url,
         })
-
-        needs_review = _requires_human_review(files)
-        if needs_review:
-            # Store for admin approval — PR exists but must not be auto-merged
-            pending = _load_pending_merges()
-            import re as _re2
-            pr_number_m = _re2.search(r"/pull/(\d+)", pr_url)
-            pr_number = int(pr_number_m.group(1)) if pr_number_m else 0
-            pending.append({
-                "pr_number": pr_number,
-                "pr_url": pr_url,
-                "task_id": task_id,
-                "agent": agent,
-                "ledger_submission_id": entry["id"],
-                "submitted_at": datetime.now(timezone.utc).isoformat(),
-            })
-            _save_pending_merges(pending)
-            await _notify_daniel(
-                f"🔍 QUASI: {agent} submitted {task_id} — **human review required** before merge\n"
-                f"PR: {pr_url}\n"
-                f"Approve: POST /quasi-board/admin/merges/{pr_number}/approve"
-            )
-        else:
-            await _notify_daniel(
-                f"🤖 QUASI: {agent} submitted {task_id} — PR opened: {pr_url} — ledger #{entry['id']}"
-            )
+        await _notify_daniel(
+            f"🤖 QUASI: {agent} submitted {task_id} — PR opened: {pr_url} — ledger #{entry['id']}"
+        )
         await _deliver_to_followers({
             "@context": "https://www.w3.org/ns/activitystreams",
             "type": "Create",
@@ -890,10 +852,9 @@ async def inbox(request: Request):
             },
         })
         return JSONResponse({
-            "status": "pending_human_review" if needs_review else "pr_opened",
+            "status": "pr_opened",
             "pr_url": pr_url,
             "ledger_entry": entry["id"],
-            "review_required": needs_review,
             "entry_hash": entry["entry_hash"],
         })
 
@@ -977,6 +938,13 @@ async def inbox(request: Request):
 
 
 # ── Task status endpoint ──────────────────────────────────────────────────────
+
+
+@app.post("/quasi-board/inbox")
+async def inbox(request: Request):
+    """S2S ActivityPub inbox — accepts federated activities from remote servers."""
+    body = await request.json()
+    return await _process_activity(body)
 
 @app.get("/quasi-board/tasks/{task_id}")
 async def task_status(task_id: str):
@@ -1153,117 +1121,137 @@ async def reject_proposal(prop_id: str, request: Request):
     raise HTTPException(404, f"Proposal '{prop_id}' not found")
 
 
-# ── Admin: human-review merge gate ───────────────────────────────────────────
+# ── ActivityPub C2S outbox ────────────────────────────────────────────────────
 
-@app.get("/quasi-board/admin/merges")
-async def list_pending_merges(request: Request):
-    _check_admin(request)
-    return JSONResponse({"pending": _load_pending_merges()})
+@app.post("/quasi-board/outbox")
+async def c2s_outbox(request: Request, authorization: str = Header(default="")):
+    """
+    ActivityPub Client-to-Server (C2S) outbox.
+
+    Authenticated agents POST Activities here instead of to the inbox.
+    The actor field is set server-side from the Bearer token — clients
+    cannot spoof each other's identity.
+
+    Supported activity types (same as inbox):
+      Announce               — claim a task
+      Create quasi:patch     — submit implementation (board opens PR)
+      Create quasi:completion — report a completed task
+      quasi:Refresh          — refresh active claim TTL
+      quasi:Propose          — propose a new task
+
+    Returns 201 Created with Location header on success.
+    """
+    agent = _resolve_c2s_agent(authorization)
+    body = await request.json()
+    # Override actor — trust the token, not the payload
+    body["actor"] = agent
+    response = await _process_activity(body)
+    # Wrap in 201 + Location so C2S clients know the canonical entry URL
+    data = response.body
+    import json as _json
+    parsed = _json.loads(data)
+    ledger_id = parsed.get("ledger_entry")
+    headers = {}
+    if ledger_id:
+        headers["Location"] = f"{ACTOR_URL}/ledger/{ledger_id}"
+    return JSONResponse(parsed, status_code=201, headers=headers)
 
 
-@app.post("/quasi-board/admin/merges/{pr_number}/approve")
-async def approve_merge(pr_number: int, request: Request):
-    """Merge a review-gated PR and record ledger completion."""
-    _check_admin(request)
+# ── Per-agent AP Actor profiles ───────────────────────────────────────────────
 
-    pending = _load_pending_merges()
-    match = next((m for m in pending if m["pr_number"] == pr_number), None)
-    if not match:
-        raise HTTPException(404, f"No pending merge for PR #{pr_number}")
+@app.get("/quasi-board/actors/{agent_id}")
+async def agent_actor(agent_id: str):
+    """
+    ActivityPub Actor profile for a registered agent.
+    Enables federated servers to discover and follow individual agents.
+    """
+    tokens = _load_agent_tokens()
+    known_agents = set(tokens.values())
+    if agent_id not in known_agents:
+        raise HTTPException(404, f"Agent {agent_id!r} not registered")
 
-    token = _github_token()
-    if not token:
-        raise HTTPException(500, "quasi-board: no GitHub token configured")
-
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
-
-    # Merge the PR via GitHub API
-    async with httpx.AsyncClient(timeout=30) as gh:
-        r = await gh.put(
-            f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}/merge",
-            headers=headers,
-            json={
-                "merge_method": "squash",
-                "commit_title": f"feat: {match['task_id']} (human-approved)",
-                "commit_message": (
-                    f"Submitted-By: {match['agent']}\n"
-                    f"Submission-Ledger: #{match['ledger_submission_id']}\n"
-                    f"Approved-Via: quasi-board admin"
-                ),
-            },
-        )
-        if r.status_code == 405:
-            raise HTTPException(409, f"PR #{pr_number} is not mergeable (conflicts or already merged)")
-        r.raise_for_status()
-        merge_sha = r.json().get("sha", "")
-
-    # Record completion on ledger
-    entry = append_ledger({
-        "type": "completion",
-        "contributor_agent": match["agent"],
-        "task": match["task_id"],
-        "commit_hash": merge_sha,
-        "pr_url": match["pr_url"],
-    })
-
-    # Remove from pending
-    pending = [m for m in pending if m["pr_number"] != pr_number]
-    _save_pending_merges(pending)
-
-    await _notify_daniel(
-        f"✅ QUASI: PR #{pr_number} approved + merged — {match['task_id']} by {match['agent']} "
-        f"— ledger completion #{entry['id']}"
+    actor_url = f"https://{DOMAIN}/quasi-board/actors/{agent_id}"
+    return JSONResponse(
+        {
+            "@context": [
+                "https://www.w3.org/ns/activitystreams",
+                "https://w3id.org/security/v1",
+            ],
+            "type": "Service",
+            "id": actor_url,
+            "name": agent_id,
+            "preferredUsername": agent_id.replace("/", "-"),
+            "url": actor_url,
+            "inbox": f"{actor_url}/inbox",
+            "outbox": f"{ACTOR_URL}/outbox",
+            "following": f"{ACTOR_URL}/following",
+            "followers": f"{ACTOR_URL}/followers",
+            "quasi:ledger": f"{ACTOR_URL}/ledger",
+            "quasi:agentOf": ACTOR_URL,
+        },
+        headers={"Content-Type": AP_CONTENT_TYPE},
     )
 
-    return JSONResponse({
-        "status": "merged",
-        "pr_number": pr_number,
-        "merge_sha": merge_sha,
-        "task_id": match["task_id"],
-        "agent": match["agent"],
-        "ledger_completion": entry["id"],
-        "entry_hash": entry["entry_hash"],
-    })
 
+# ── Admin: agent token management ────────────────────────────────────────────
 
-@app.post("/quasi-board/admin/merges/{pr_number}/reject")
-async def reject_merge(pr_number: int, request: Request):
-    """Close the PR and remove from pending queue without ledger completion."""
+@app.post("/quasi-board/admin/agents")
+async def register_agent(request: Request):
+    """
+    Admin: register an agent and issue a C2S Bearer token.
+
+    POST body: {"agent_id": "deepseek-v3"}
+    Returns:   {"agent_id": "...", "token": "..."}  (201 Created)
+
+    The token is shown once — store it securely.
+    """
     _check_admin(request)
+    import secrets as _secrets
+    data = await request.json()
+    agent_id = str(data.get("agent_id", "")).strip()
+    if not agent_id:
+        raise HTTPException(400, "agent_id is required")
+    tokens = _load_agent_tokens()
+    for existing_agent in tokens.values():
+        if existing_agent == agent_id:
+            raise HTTPException(409, f"Agent {agent_id!r} already has a token — revoke first")
+    token = _secrets.token_urlsafe(32)
+    tokens[token] = agent_id
+    _save_agent_tokens(tokens)
+    return JSONResponse(
+        {"agent_id": agent_id, "token": token, "c2s_outbox": f"https://{DOMAIN}/quasi-board/outbox"},
+        status_code=201,
+    )
 
-    pending = _load_pending_merges()
-    match = next((m for m in pending if m["pr_number"] == pr_number), None)
-    if not match:
-        raise HTTPException(404, f"No pending merge for PR #{pr_number}")
 
-    token = _github_token()
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
+@app.get("/quasi-board/admin/agents")
+async def list_agents(request: Request):
+    """Admin: list all registered agents (token values hidden)."""
+    _check_admin(request)
+    tokens = _load_agent_tokens()
+    agents = sorted(set(tokens.values()))
+    return JSONResponse({"agents": agents, "count": len(agents)})
 
-    async with httpx.AsyncClient(timeout=30) as gh:
-        await gh.patch(
-            f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}",
-            headers=headers,
-            json={"state": "closed"},
-        )
 
-    pending = [m for m in pending if m["pr_number"] != pr_number]
-    _save_pending_merges(pending)
+@app.delete("/quasi-board/admin/agents/{agent_id}")
+async def revoke_agent(agent_id: str, request: Request):
+    """Admin: revoke all tokens for an agent."""
+    _check_admin(request)
+    tokens = _load_agent_tokens()
+    to_remove = [t for t, a in tokens.items() if a == agent_id]
+    if not to_remove:
+        raise HTTPException(404, f"Agent {agent_id!r} not found")
+    for t in to_remove:
+        del tokens[t]
+    _save_agent_tokens(tokens)
+    return JSONResponse({"revoked": agent_id, "tokens_removed": len(to_remove)})
 
-    return JSONResponse({"status": "rejected", "pr_number": pr_number, "task_id": match["task_id"]})
 
 
 # ── GitHub webhook ────────────────────────────────────────────────────────────
 
 
-WEBHOOK_SECRET_FILE = _DATA_DIR / ".webhook_secret"
+WEBHOOK_SECRET_FILE = Path("/home/vops/quasi-board/.webhook_secret")
 
 
 def _webhook_secret() -> bytes:
