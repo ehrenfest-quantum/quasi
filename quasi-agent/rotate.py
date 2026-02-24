@@ -117,7 +117,7 @@ def count_issues_per_model_level(token: str) -> dict[str, dict[int, int]]:
     for state in ("open", "closed"):
         url: str | None = (
             f"{GITHUB_API_BASE}/issues"
-            f"?per_page={ISSUES_PER_PAGE}&state={state}&labels=pauli-test"
+            f"?per_page={ISSUES_PER_PAGE}&state={state}"
         )
         pages = 0
         while url and pages < MAX_PAGES:
