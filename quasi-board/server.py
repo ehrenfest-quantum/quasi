@@ -15,7 +15,7 @@ import hashlib
 import json
 import os
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from email.utils import formatdate
 from pathlib import Path
 from typing import Any
@@ -24,7 +24,7 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import JSONResponse
 
 DOMAIN = "gawain.valiant-quantum.com"
 ACTOR_URL = f"https://{DOMAIN}/quasi-board"
@@ -41,8 +41,6 @@ FOLLOWERS_FILE = Path("/home/vops/quasi-board/followers.json")
 ACTOR_KEY_ID = f"{ACTOR_URL}#main-key"
 
 AP_CONTENT_TYPE = "application/activity+json"
-CLAIM_TTL_MINUTES = 30
-CLAIM_TTL_HOURS = CLAIM_TTL_MINUTES / 60  # 0.5h — keeps timedelta math unchanged
 
 
 # ── HTTP Signatures ───────────────────────────────────────────────────────────
@@ -281,45 +279,16 @@ def _validate_task_id(task_id: str) -> None:
         raise HTTPException(400, f"Invalid task_id format: {task_id!r} — expected QUASI-NNN")
 
 
-def _effective_task_status(task_id: str) -> dict:
-    """Derive task status from ledger. Claims older than CLAIM_TTL_HOURS are treated as expired."""
-    chain = load_ledger()
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=CLAIM_TTL_HOURS)
-    latest = None
-    for entry in reversed(chain):
-        if entry.get("task") == task_id and entry.get("type") in ("claim", "completion", "submission"):
-            latest = entry
-            break
-    if latest is None:
-        return {"status": "open"}
-    if latest["type"] == "completion":
-        return {"status": "done"}
-    if latest["type"] in ("claim", "submission"):
-        entry_time = datetime.fromisoformat(latest["timestamp"])
-        if entry_time > cutoff:
-            expires_at = entry_time + timedelta(hours=CLAIM_TTL_HOURS)
-            return {
-                "status": "claimed",
-                "agent": latest["contributor_agent"],
-                "expires_at": expires_at.isoformat(),
-            }
-    return {"status": "open"}
-
-
 def _check_agent_claimed(task_id: str, agent: str) -> None:
-    """Reject submission if this agent has no valid (non-expired) claim for this task."""
+    """Reject submission if this agent has no claim entry for this task."""
     chain = load_ledger()
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=CLAIM_TTL_HOURS)
-    for entry in reversed(chain):
-        if entry.get("task") != task_id or entry.get("contributor_agent") != agent:
-            continue
-        if entry.get("type") == "claim":
-            entry_time = datetime.fromisoformat(entry["timestamp"])
-            if entry_time > cutoff:
-                return  # valid claim found
-            raise HTTPException(403, f"Claim on {task_id} expired — re-claim to continue")
-        if entry.get("type") in ("submission", "completion"):
-            return  # already submitted/completed, allow
+    for entry in chain:
+        if (
+            entry.get("type") == "claim"
+            and entry.get("task") == task_id
+            and entry.get("contributor_agent") == agent
+        ):
+            return
     raise HTTPException(403, f"Agent {agent!r} has not claimed {task_id} — call claim first")
 
 
@@ -422,13 +391,7 @@ async def _open_pr_from_files(task_id: str, agent: str, files: dict, message: st
         return r.json()["html_url"]
 
 app = FastAPI(title="quasi-board", version="0.1.0")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://quasi.arvak.io", "https://arvak.io"],
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "Accept"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
 
 
 # ── Ledger ────────────────────────────────────────────────────────────────────
@@ -496,13 +459,10 @@ def task_to_ap(task: dict) -> dict:
     published = datetime.now(timezone.utc).isoformat()
     note_id = f"{ACTOR_URL}/tasks/{task_id}"
     body = task.get("body", "").strip()[:300]
-    quasi_task_id = f"QUASI-{task_id:03d}"
-    status_info = _effective_task_status(quasi_task_id)
     note = {
         "type": "Note",
         "id": note_id,
         "attributedTo": ACTOR_URL,
-        "name": task["title"],
         "to": [AS_PUBLIC],
         "cc": [f"{ACTOR_URL}/followers"],
         "content": (
@@ -512,12 +472,9 @@ def task_to_ap(task: dict) -> dict:
         ),
         "url": task["html_url"],
         "published": published,
-        "quasi:taskId": quasi_task_id,
-        "quasi:status": status_info["status"],
+        "quasi:taskId": f"QUASI-{task_id:03d}",
+        "quasi:status": "open",
     }
-    if status_info["status"] == "claimed":
-        note["quasi:claimedBy"] = status_info["agent"]
-        note["quasi:expiresAt"] = status_info["expires_at"]
     return {
         "type": "Create",
         "id": f"{note_id}/activity",
@@ -625,20 +582,6 @@ async def outbox():
     }, media_type=AP_CONTENT_TYPE)
 
 
-@app.get("/quasi-board/tasks/{task_id}")
-async def task_detail(task_id: str):
-    _validate_task_id(task_id)
-    status_info = _effective_task_status(task_id)
-    response: dict = {
-        "quasi:taskId": task_id,
-        "quasi:status": status_info["status"],
-    }
-    if status_info["status"] == "claimed":
-        response["quasi:claimedBy"] = status_info["agent"]
-        response["quasi:expiresAt"] = status_info["expires_at"]
-    return JSONResponse(response)
-
-
 @app.post("/quasi-board/inbox")
 async def inbox(request: Request):
     body = await request.json()
@@ -672,14 +615,6 @@ async def inbox(request: Request):
         # Agent claiming a task
         task_id = body.get("quasi:taskId", body.get("object", ""))
         agent = body.get("actor", "unknown")
-        # Reject if another agent has an active (non-expired) claim
-        status_info = _effective_task_status(task_id)
-        if status_info["status"] == "claimed" and status_info["agent"] != agent:
-            raise HTTPException(
-                409,
-                f"{task_id} is already claimed by {status_info['agent']} "
-                f"(expires {status_info['expires_at'][:16]})"
-            )
         ledger_entry: dict[str, Any] = {
             "type": "claim",
             "contributor_agent": agent,
@@ -804,27 +739,17 @@ async def inbox(request: Request):
         })
         return JSONResponse({"status": "recorded", "ledger_entry": entry["id"], "entry_hash": entry["entry_hash"]})
 
-    if activity_type == "quasi:Refresh":
-        # Agent extends their active claim by another CLAIM_TTL_HOURS
-        task_id = body.get("quasi:taskId", "")
-        agent = body.get("actor", "unknown")
-        _validate_task_id(task_id)
-        _check_agent_claimed(task_id, agent)
-        entry = append_ledger({
-            "type": "claim",
-            "contributor_agent": agent,
-            "task": task_id,
-            "commit_hash": None,
-            "pr_url": None,
-            "quasi:refresh": True,
-        })
-        expires_at = (datetime.now(timezone.utc) + timedelta(hours=CLAIM_TTL_HOURS)).isoformat()
-        return JSONResponse({
-            "status": "refreshed",
-            "ledger_entry": entry["id"],
-            "entry_hash": entry["entry_hash"],
-            "quasi:expiresAt": expires_at,
-        })
+
+    if activity_type == "Create" and body.get("quasi:type") == "issue_generated":
+        gen_entry: dict[str, Any] = {
+            "type": "issue_generated",
+            "generator_model": str(body.get("quasi:generator_model", "unknown"))[:200],
+            "generator_provider": str(body.get("quasi:generator_provider", "unknown"))[:100],
+            "level": body.get("quasi:level", 0),
+            "issue_url": str(body.get("quasi:issueUrl", ""))[:500],
+        }
+        entry = append_ledger(gen_entry)
+        return JSONResponse({"status": "recorded", "ledger_entry": entry["id"], "entry_hash": entry["entry_hash"]})
 
     return JSONResponse({"status": "accepted"})
 
@@ -865,142 +790,6 @@ async def openapi_spec():
 async def health():
     return {"status": "ok", "domain": DOMAIN, "ledger_entries": len(load_ledger())}
 
-
-# ── HTML status page ─────────────────────────────────────────────────────
-
-@app.get("/quasi-board/status", response_class=HTMLResponse)
-async def status_page():
-    tasks = fetch_tasks()
-    chain = load_ledger()
-    ledger_valid = verify_ledger()
-
-    # Derive task status from ledger (last relevant entry wins)
-    task_statuses: dict[str, str] = {}
-    for entry in chain:
-        tid = entry.get("task", "")
-        etype = entry.get("type", "")
-        if etype == "completion":
-            task_statuses[tid] = "done"
-        elif etype == "submission" and task_statuses.get(tid) != "done":
-            task_statuses[tid] = "submitted"
-        elif etype == "claim" and tid not in task_statuses:
-            task_statuses[tid] = "claimed"
-
-    completed_tasks = {tid for tid, s in task_statuses.items() if s == "done"}
-    genesis_remaining = max(0, 50 - len(completed_tasks))
-
-    n_open = 0
-    n_claimed = 0
-    n_done = len(completed_tasks)
-
-    # Build task rows
-    task_rows = ""
-    for t in tasks:
-        task_id = f"QUASI-{t['number']:03d}"
-        title = t.get("title", task_id)
-        url = t.get("html_url", "#")
-        st = task_statuses.get(task_id, "open")
-        if st == "open":
-            n_open += 1
-            badge = '<span style="color:#4ec9b0;">open</span>'
-        elif st == "claimed":
-            n_claimed += 1
-            badge = '<span style="color:#dcdcaa;">claimed</span>'
-        elif st == "submitted":
-            n_claimed += 1
-            badge = '<span style="color:#ce9178;">submitted</span>'
-        else:
-            badge = '<span style="color:#608b4e;">done</span>'
-        # Escape HTML in title
-        safe_title = title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        task_rows += (
-            f"<tr>"
-            f"<td>{task_id}</td>"
-            f'<td><a href="{url}" style="color:#569cd6;">{safe_title}</a></td>'
-            f"<td>{badge}</td>"
-            f"</tr>\n"
-        )
-
-    # Recent ledger entries (last 10)
-    recent = chain[-10:] if chain else []
-    recent.reverse()
-    ledger_rows = ""
-    for e in recent:
-        eid = e.get("id", "")
-        etype = e.get("type", "")
-        agent = e.get("contributor_agent", "")
-        # Escape agent name
-        safe_agent = str(agent).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        task = e.get("task", "")
-        ts = e.get("timestamp", "")[:19]
-        ledger_rows += (
-            f"<tr>"
-            f"<td>{eid}</td>"
-            f"<td>{etype}</td>"
-            f"<td>{safe_agent}</td>"
-            f"<td>{task}</td>"
-            f"<td>{ts}</td>"
-            f"</tr>\n"
-        )
-
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    integrity = "intact" if ledger_valid else "BROKEN"
-    integrity_color = "#608b4e" if ledger_valid else "#f44747"
-
-    html = f"""\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="refresh" content="60">
-<title>quasi-board — QUASI Quantum OS</title>
-</head>
-<body style="margin:0; padding:2em; font-family:monospace; background:#1a1a2e; color:#e0e0e0; line-height:1.6;">
-<h1 style="color:#569cd6; margin-bottom:0.2em;">quasi-board</h1>
-<p style="color:#888; margin-top:0;">QUASI Quantum OS &mdash; federated task feed</p>
-<p style="color:#666; font-size:0.85em;">Last updated: {now} &middot; Ledger integrity: <span style="color:{integrity_color};">{integrity}</span></p>
-
-<h2 style="color:#dcdcaa;">Summary</h2>
-<table style="border-collapse:collapse; margin-bottom:1.5em;">
-<tr>
-<td style="padding:0.3em 1.5em 0.3em 0;"><strong style="color:#4ec9b0;">{n_open}</strong> Open</td>
-<td style="padding:0.3em 1.5em 0.3em 0;"><strong style="color:#dcdcaa;">{n_claimed}</strong> Claimed/Submitted</td>
-<td style="padding:0.3em 1.5em 0.3em 0;"><strong style="color:#608b4e;">{n_done}</strong> Completed</td>
-<td style="padding:0.3em 0;"><strong style="color:#c586c0;">{genesis_remaining}</strong> Genesis slots remaining</td>
-</tr>
-</table>
-
-<h2 style="color:#dcdcaa;">Open Tasks</h2>
-<table style="border-collapse:collapse; width:100%; max-width:60em; margin-bottom:1.5em;">
-<tr style="border-bottom:1px solid #444; text-align:left;">
-<th style="padding:0.4em 1em 0.4em 0;">ID</th>
-<th style="padding:0.4em 1em 0.4em 0;">Title</th>
-<th style="padding:0.4em 0;">Status</th>
-</tr>
-{task_rows}</table>
-
-<h2 style="color:#dcdcaa;">Recent Ledger Entries</h2>
-<table style="border-collapse:collapse; width:100%; max-width:60em; margin-bottom:1.5em;">
-<tr style="border-bottom:1px solid #444; text-align:left;">
-<th style="padding:0.4em 1em 0.4em 0;">#</th>
-<th style="padding:0.4em 1em 0.4em 0;">Type</th>
-<th style="padding:0.4em 1em 0.4em 0;">Agent</th>
-<th style="padding:0.4em 1em 0.4em 0;">Task</th>
-<th style="padding:0.4em 0;">Timestamp</th>
-</tr>
-{ledger_rows}</table>
-
-<h2 style="color:#dcdcaa;">Links</h2>
-<ul style="list-style:none; padding:0;">
-<li><a href="https://github.com/{GITHUB_REPO}" style="color:#569cd6;">GitHub Repository</a></li>
-<li><a href="{ACTOR_URL}/openapi.json" style="color:#569cd6;">OpenAPI Spec</a></li>
-<li><a href="{ACTOR_URL}" style="color:#569cd6;">ActivityPub Actor</a></li>
-<li><a href="{ACTOR_URL}/ledger" style="color:#569cd6;">Ledger API</a></li>
-</ul>
-</body>
-</html>"""
-    return HTMLResponse(html)
 
 
 # ── GitHub webhook ────────────────────────────────────────────────────────────
