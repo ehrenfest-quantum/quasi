@@ -260,7 +260,7 @@ def _requires_human_review(files: dict) -> bool:
     """Return True if any file path falls under review-required prefixes."""
     for path in files.keys():
         clean = "/".join(
-            p for p in path.replace("\", "/").split("/")
+            p for p in path.replace("\\", "/").split("/")
             if p not in ("", ".", "..")
         )
         if clean in _REVIEW_REQUIRED_EXACT:
