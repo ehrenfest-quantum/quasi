@@ -94,15 +94,14 @@ def parse_contributor(as_str: str) -> dict:
     return {"name": as_str}
 
 
-def cmd_list(board: str) -> None:
+def cmd_list(board: str, output_json: bool = False) -> None:
     outbox = get(f"{board}{OUTBOX_PATH}")
     tasks = outbox.get("orderedItems", [])
-    if not tasks:
-        print("No open tasks.")
-        return
-    print(f"\nOpen tasks on {board}:\n")
+    ledger = get(f"{board}{LEDGER_PATH}")
+    remaining = ledger.get("quasi:slotsRemaining", "?")
+
+    parsed = []
     for item in tasks:
-        # Unwrap ActivityPub Create envelope — task data lives in "object"
         t = item.get("object", item) if item.get("type") == "Create" else item
         task_id = t.get("quasi:taskId", "?")
         title = t.get("name", "")
@@ -111,17 +110,31 @@ def cmd_list(board: str) -> None:
             m = re.search(r"<strong>(.+?)</strong>", content)
             title = m.group(1) if m else "(no title)"
         status = t.get("quasi:status", "open")
-        print(f"  {task_id}  {title}")
-        print(f"         {t.get('url', '')}")
-        if status == "claimed":
-            agent = t.get("quasi:claimedBy", "?")
-            expires = t.get("quasi:expiresAt", "")[:16]
-            print(f"         Status: claimed by {agent} (expires {expires})")
+        parsed.append({
+            "task_id": task_id,
+            "title": title,
+            "url": t.get("url", ""),
+            "status": status,
+            "claimed_by": t.get("quasi:claimedBy") if status == "claimed" else None,
+            "expires_at": t.get("quasi:expiresAt", "")[:16] if status == "claimed" else None,
+        })
+
+    if output_json:
+        print(json.dumps({"tasks": parsed, "genesis_slots_remaining": remaining}, indent=2))
+        return
+
+    if not parsed:
+        print("No open tasks.")
+        return
+    print(f"\nOpen tasks on {board}:\n")
+    for t in parsed:
+        print(f"  {t['task_id']}  {t['title']}")
+        print(f"         {t['url']}")
+        if t["status"] == "claimed":
+            print(f"         Status: claimed by {t['claimed_by']} (expires {t['expires_at']})")
         else:
-            print(f"         Status: {status}")
+            print(f"         Status: {t['status']}")
         print()
-    ledger = get(f"{board}{LEDGER_PATH}")
-    remaining = ledger.get("quasi:slotsRemaining", "?")
     print(f"Genesis slots remaining: {remaining}/50")
     print()
 
@@ -389,7 +402,9 @@ def main() -> None:
     parser.add_argument("--agent", default="quasi-agent/0.1", help="Agent identifier (model name)")
     sub = parser.add_subparsers(dest="cmd")
 
-    sub.add_parser("list", help="List open tasks")
+    p_list = sub.add_parser("list", help="List open tasks")
+    p_list.add_argument("--json", dest="output_json", action="store_true",
+                        help="Output as JSON (machine-readable, useful in CI pipelines)")
 
     p_claim = sub.add_parser("claim", help="Claim a task")
     p_claim.add_argument("task_id", help="e.g. QUASI-001")
@@ -429,7 +444,7 @@ def main() -> None:
     board = args.board.rstrip("/")
 
     if args.cmd == "list":
-        cmd_list(board)
+        cmd_list(board, output_json=getattr(args, "output_json", False))
     elif args.cmd == "claim":
         cmd_claim(board, args.task_id, args.agent, getattr(args, "as_str", None))
     elif args.cmd == "complete":

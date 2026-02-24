@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    name: Lint & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --quiet flake8 pytest
+          if [ -f quasi-board/requirements.txt ]; then pip install --quiet -r quasi-board/requirements.txt; fi
+
+      - name: Lint (flake8)
+        run: |
+          flake8 quasi-agent/ quasi-board/ \
+            --max-line-length=120 \
+            --extend-ignore=E203,W503 \
+            --exclude=__pycache__,.git
+
+      - name: Test quasi-board
+        run: |
+          if [ -d quasi-board/tests ]; then
+            pytest quasi-board/tests/ -v --tb=short
+          else
+            echo "No tests yet — skipping"
+          fi
+
+      - name: Smoke-test quasi-agent CLI
+        run: |
+          python3 quasi-agent/cli.py --help
+          python3 quasi-agent/generate_issue.py --list-models
