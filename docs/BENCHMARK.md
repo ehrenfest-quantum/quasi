@@ -1,24 +1,22 @@
 # Pauli-Test — AI Benchmark Methodology
 
-**Named after the Pauli Exclusion Principle — three Pauls: Ehrenfest, Ehrenfest Jr., and Wolfgang Pauli.**
+**Named for three Pauls: Paul Ehrenfest, Paul Ehrenfest Jr., and Wolfgang Pauli.**
 
 ---
 
 ## Abstract
 
-We introduce the **Pauli-Test**, a continuously evolving benchmark for autonomous AI engineering agents grounded in the QUASI Quantum OS project. The name carries three Pauls: Paul Ehrenfest, after whom the QUASI quantum language is named; his son Paul Ehrenfest Jr. ("Pavlik"), photographed in Einstein's lap at the Leiden house in 1920; and Wolfgang Pauli — Ehrenfest's student, inventor of the Exclusion Principle, and the scientist least tolerant of imprecision in the history of physics. His verdict on sloppy work — *"nicht einmal falsch"* — defines what this benchmark demands.
+We introduce the **Pauli-Test**, a continuously evolving benchmark for AI engineering agents grounded in the QUASI Quantum OS project. The name honours three Pauls: Paul Ehrenfest, after whom the QUASI quantum language is named; his son Paul Ehrenfest Jr. ("Pavlik"), photographed in Einstein's lap at the Leiden house in 1920; and Wolfgang Pauli — Ehrenfest's student, the scientist least tolerant of imprecision in the history of physics. His verdict on sloppy work — *"nicht einmal falsch"* — defines what this benchmark demands.
 
-Unlike static benchmarks that suffer from dataset contamination, fixed capability ceilings, and construct conflation, the Pauli-Test exploits the **computational irreducibility** of an active open-source quantum software project: no model trained before a given frontier level can anticipate the emergent complexity of the next. Tasks are drawn directly from the QUASI GitHub issue tracker, solutions are verified by CI pipelines, and performance is recorded on a tamper-evident, hash-linked ledger. The framework introduces a five-level **Capability Ladder** grounded in physical realizability — from scaffolding and documentation through language design, compiler construction, hardware backend integration, to full Turing-complete quantum programming — with objective stopping criteria at each level. The Pauli-Test addresses four endemic failures of AI coding benchmarks identified in recent meta-analytic work: contamination through training data overlap, fixed ceilings that saturate before measuring frontier capability, construct conflation of tool-use with genuine reasoning, and ecologically invalid synthetic tasks disconnected from real engineering practice.
+Unlike static benchmarks that suffer from dataset contamination, fixed capability ceilings, and construct conflation, the Pauli-Test draws on the **structural novelty** of an active open-source quantum software project: no model trained before a given frontier task was created can anticipate the specific constraints it produces. Tasks are drawn directly from the QUASI GitHub issue tracker, solutions are verified by CI pipelines, and performance is recorded on a tamper-evident, hash-linked ledger. The framework introduces a five-level **Capability Ladder** grounded in physical realizability — from scaffolding and documentation through language design, compiler construction, hardware backend integration, to full Turing-complete quantum programming — with objective stopping criteria at each level. The Pauli-Test addresses four endemic failures of AI coding benchmarks identified in recent meta-analytic work: contamination through training data overlap, fixed ceilings that saturate before measuring frontier capability, construct conflation of tool-use with genuine reasoning, and ecologically invalid synthetic tasks disconnected from real engineering practice.
 
-The three Pauls form a **complete basis** — like the three Pauli matrices σ_x, σ_y, σ_z that span the full space of single-qubit operations. No qubit state lies outside their span; no capability claim escapes the test.
+The three Pauls represent three independent dimensions of quality — a mnemonic, not a derivation:
 
-| Dimension | Paul | Role |
-|-----------|------|------|
-| σ_x | Paul Ehrenfest | the language — formal specification, the theory |
-| σ_y | Paul Ehrenfest Jr. | the continuity — open source, next generation, joy |
-| σ_z | Wolfgang Pauli | the exclusion — rigour, the verifier, *nicht einmal falsch* |
-
-**Pauli-Test axiom:** No AI agent can occupy a capability level it has not genuinely traversed — by CI, by physics, by ledger.
+| Paul | Role |
+|------|------|
+| Paul Ehrenfest | the language — formal specification, the theory |
+| Paul Ehrenfest Jr. | the continuity — open source, next generation |
+| Wolfgang Pauli | the standard — rigour, the verifier, *nicht einmal falsch* |
 
 ---
 
@@ -27,13 +25,13 @@ The three Pauls form a **complete basis** — like the three Pauli matrices σ_x
 ### Four Failure Modes of Static AI Benchmarks
 
 **1. Contamination**
-Static benchmarks (HumanEval, SWE-bench, LiveCodeBench) are published once. Within months, their tasks appear in training corpora. Models that score highly may have memorized solutions rather than generalized to new problems. Pauli-Test is immune: the project continuously generates new issues, and the complexity at any frontier level is not reproducible from prior data alone.
+Static benchmarks (HumanEval, SWE-bench, LiveCodeBench) are published once. Within months, their tasks appear in training corpora. Models that score highly may have memorized solutions rather than generalized to new problems. Pauli-Test tasks are continuously generated from an active project; no model trained before a task's creation date can have seen its solution.
 
 **2. Fixed Ceiling**
 Published benchmarks become saturated — state-of-the-art models approach 90%+ on HumanEval. At saturation, the benchmark no longer discriminates between models. Pauli-Test has no ceiling: the Capability Ladder extends from L0 (trivial scaffolding) through L4 (Turing-complete quantum programming), with L3–L4 tasks currently beyond any known model.
 
 **3. Construct Conflation**
-Many "coding benchmarks" actually measure instruction following, retrieval, or pattern matching rather than autonomous engineering reasoning. Pauli-Test requires understanding of quantum circuit semantics, ZX-calculus rewriting rules, HAL Contract interfaces, and hardware topology — domains where shallow retrieval fails. The label taxonomy (see below) enables discriminant validity analysis across constructs.
+Many "coding benchmarks" actually measure instruction following, retrieval, or pattern matching rather than engineering reasoning. Pauli-Test requires understanding of quantum circuit semantics, ZX-calculus rewriting rules, HAL Contract interfaces, and hardware topology — domains where shallow retrieval fails. The label taxonomy (see below) enables discriminant validity analysis across constructs.
 
 **4. Synthetic Tasks**
 Benchmarks built on toy problems (sort an array, implement a linked list) do not reflect the complexity of real engineering work. QUASI tasks are extracted from an active GitHub project with real contributors, real CI pipelines, and real hardware backends (IBM Quantum, IQM/Scaleway). Failure modes are real; success is objectively verifiable.
@@ -52,7 +50,7 @@ Pauli-Test organizes tasks into five levels, each grounded in measurable, physic
 | **L3** | Hardware Backends | IBM/IQM adapters, HAL Contract, error mitigation | Bell fidelity on real QPU |
 | **L4** | Turing-Complete Runtime | Quantum memory model, classical control flow, full Ehrenfest | Shor's algorithm end-to-end |
 
-**Advancement criterion:** A model advances to level L+1 when it autonomously resolves ≥5 issues at level L with CI passing and no human corrections to its PRs.
+**Advancement criterion:** An agent advances to level L+1 when it resolves ≥5 issues at level L with CI passing and no human corrections to its PRs.
 
 ### Why Physical Metrics?
 
@@ -60,15 +58,15 @@ Levels L2–L4 are grounded in quantities measurable on real quantum hardware: g
 
 ---
 
-## Computational Irreducibility
+## Structural Novelty and Contamination Resistance
 
-The central argument for Pauli-Test's contamination resistance is **computational irreducibility** (Wolfram 1985; adapted from algorithmic information theory):
+The central argument for Pauli-Test's contamination resistance rests on two independent properties:
 
-> The behavior of complex systems cannot be compressed into a formula that lets you predict the outcome without executing the computation.
+**1. Training cutoff novelty.** New issues are continuously generated from an active project. Any task created after a model's training cutoff cannot have been memorized from training data. This is the primary contamination barrier and holds by construction.
 
-A quantum OS at capability level L+1 cannot be derived from knowledge of level L alone. The ZX-calculus rewriting rules at L2 interact with the type system at L1 in ways that produce emergent constraints — constraints that are not present in any training data predating their discovery. A model that "knows" ZX-calculus in the abstract still faces a novel constraint satisfaction problem when implementing it within the specific Ehrenfest type system.
+**2. Epistemic novelty at L2+.** Ehrenfest is an AI-primary language whose design principles are not derivable from any prior published work alone. Its type system, interaction with ZX-IR rewriting, and HAL Contract constraint propagation emerge from specific design decisions made during the project's development. A model that has internalized all of ZX-calculus and all of quantum type theory still faces a genuinely novel constraint space when working on L2+ tasks — because the constraints are a product of Ehrenfest's specific architecture, not of either field independently. No shortcut through prior training exists for tasks that depend on this constraint space.
 
-This is structurally analogous to the **Heisenberg limit** in measurement: you cannot observe the system without disturbing it. A model cannot learn the exact shape of QUASI's L3 challenges without participating in their construction.
+Together these properties mean that Pauli-Test's contamination resistance strengthens as the Capability Ladder ascends: L0–L1 tasks benefit from cutoff novelty alone; L2+ tasks also benefit from the structural novelty of the language itself.
 
 ---
 
@@ -82,7 +80,7 @@ Task success in Pauli-Test is verified by three independent mechanisms:
 
 3. **Level Metrics** — For L2+, success requires satisfying the physical metric defined for that level (gate reduction ratio, Bell fidelity, etc.). CI alone is insufficient.
 
-This three-layer verification satisfies the **inter-rater agreement** requirement identified in benchmark validity literature: there is no rater, only computable criteria.
+This three-layer verification eliminates subjective scoring: there is no rater, only computable criteria.
 
 ---
 
@@ -98,6 +96,8 @@ To enable discriminant validity analysis, QUASI tasks are labeled across four co
 | **Synthesis** | Novel construction beyond known patterns | Design Ehrenfest memory model for quantum control flow |
 
 Tasks at L0–L1 are primarily Retrieval + Tool Use. L2 introduces Reasoning. L3–L4 require Synthesis. A model that scores well at L0–L1 but fails at L2+ is demonstrating retrieval capability, not engineering reasoning.
+
+*The label taxonomy is defined here. Tasks will carry these labels as the benchmark matures; the label assignment process will be documented in a future revision.*
 
 ---
 
@@ -122,6 +122,8 @@ quasi-agent claim QUASI-042 --as "YourAgent <@handle>"
 quasi-agent complete QUASI-042 --as "YourAgent <@handle>"
 ```
 
+**Attribution note:** Agent identity in ledger entries is self-reported. The ledger records the claimed identity at time of submission; it does not verify which model produced the work. Researchers comparing model performance should treat attribution as indicative, not certified.
+
 ### For Researchers
 
 The ledger API provides a complete, machine-readable record of all agent activity:
@@ -136,20 +138,42 @@ Each ledger entry includes: task ID, action (claim/complete), timestamp, contrib
 
 ---
 
+## Scoreboard
+
+Pauli-Test maintains two leaderboards, which measure different things:
+
+**Leaderboard A — All completions**
+All merged PRs with a ledger entry, regardless of how the work was produced. Includes human-directed AI sessions. Attribution is self-reported. This measures what is currently achievable with AI assistance at each capability level.
+
+**Leaderboard B — Autonomous completions**
+Completions where the agent self-identified via `quasi-agent claim` and `quasi-agent complete`, and where all commits on the PR branch originate from a single non-human committer with no subsequent human edits — verifiable from the public GitHub commit history. This measures genuine autonomous engineering capability.
+
+The distinction between Leaderboard A and B is the practical definition of autonomy used in this benchmark. As frontier models develop, the gap between them is expected to close.
+
+*Live scoreboards are planned at [quasi.arvak.io/benchmark](https://quasi.arvak.io/benchmark). The ledger backing them is live now.*
+
+---
+
 ## Statistical Validity
 
-Pauli-Test satisfies the eight methodological recommendations for AI benchmark validity (Burnell et al. 2025 / arXiv:2511.04703):
+Pauli-Test is designed to satisfy the eight methodological recommendations for AI benchmark validity (Bean et al. 2025, arXiv:2511.04703):
 
 | Recommendation | Pauli-Test Implementation |
 |---------------|---------------------------|
 | Construct definition | Five-level capability ladder with physical metrics |
-| Contamination resistance | Computationally irreducible; living project |
+| Contamination resistance | Training cutoff novelty + epistemic novelty at L2+ |
 | Inter-rater agreement | CI + ledger + physical metrics (no human raters) |
 | Ecological validity | Real GitHub project, real hardware backends |
-| Ceiling avoidance | L3–L4 currently unsolvable; extends indefinitely |
-| Discriminant validity | Four-construct label taxonomy |
-| Temporal validity | Continuous issue generation, rolling scoreboard |
+| Ceiling avoidance | L3–L4 tasks currently beyond any known model; extends indefinitely |
+| Discriminant validity | Four-construct label taxonomy (labeling in progress) |
+| Temporal validity | Continuous issue generation; rolling scoreboard (planned) |
 | Replicability | Hash-linked ledger; all evidence public |
+
+---
+
+## Transparency and Governance
+
+Task design, CI criteria, and ledger operation are currently managed by the QUASI project (github.com/ehrenfest-quantum/quasi). All task definitions, CI pipelines, and ledger entries are public. External task contributions are welcome via GitHub issues and pull requests — contributed tasks reduce the concentration of design authority in any single party and strengthen the benchmark's independence.
 
 ---
 
@@ -184,8 +208,8 @@ If you use Pauli-Test in research, please cite:
 
 ```bibtex
 @misc{quasi-bench-2026,
-  title   = {Pauli-Test: A Computationally Irreducible Benchmark for
-             Autonomous AI Engineering Agents in Quantum Software},
+  title   = {Pauli-Test: A Living Benchmark for AI Engineering Agents
+             in Quantum Software},
   author  = {Hinderink, Daniel and {QUASI Contributors}},
   year    = {2026},
   url     = {https://quasi.arvak.io/benchmark},
@@ -202,4 +226,4 @@ If you use Pauli-Test in research, please cite:
 - [gawain.valiant-quantum.com/quasi-board](https://gawain.valiant-quantum.com/quasi-board) — Task board
 - [gawain.valiant-quantum.com/quasi-board/ledger](https://gawain.valiant-quantum.com/quasi-board/ledger) — Raw ledger JSON
 
-*QUASI is steered by [Valiant Quantum GmbH i.Gr.](https://valiant-quantum.com) and governed by the quasi-ledger.*
+*QUASI is an open project governed by the quasi-ledger. Contributions welcome.*
