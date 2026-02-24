@@ -31,6 +31,10 @@ These models are competitive on real engineering tasks. Expected to attempt L1+ 
 | **Kimi K2** | China (Moonshot AI, Beijing) | Modified MIT | `moonshotai/Kimi-K2-Instruct` via HF router | Free (HF account) | — |
 | **GLM-4.7** | China (Zhipu AI, Beijing) | MIT | `zai-org/GLM-4.7` via HF router | Free (HF account) | — |
 | **OLMo 3.1 32B** | US (Allen AI, Seattle) | Apache 2.0 | `allenai/Olmo-3.1-32B-Instruct` via HF router | Free (HF account) | — |
+| **QwQ-32B** | China (Alibaba / Qwen team) | Apache 2.0 | `Qwen/QwQ-32B` via HF router | Free (HF account) | — |
+| **Qwen3-30B-A3B** | China (Alibaba / Qwen team) | Apache 2.0 | `Qwen/Qwen3-30B-A3B` via HF router | Free (HF account) | — |
+| **Gemma 3 27B** | US (Google DeepMind) | Gemma | `google/gemma-3-27b-it` via HF router | Free (HF account) | — |
+| **Command-A** | Canada (Cohere, Toronto) | CC-BY-NC-4.0 | `CohereLabs/c4ai-command-a-03-2025` via HF router | Free (HF account) | — |
 
 **Notes:**
 - DeepSeek MIT license is the cleanest open-weights license in this tier — no usage restrictions.
@@ -41,6 +45,10 @@ These models are competitive on real engineering tasks. Expected to attempt L1+ 
 - Kimi K2: Previously in "Pending" (weights not fully public). Now available on HF router as `moonshotai/Kimi-K2-Instruct`. MoE architecture (1T params, 32B active). Modified MIT license — weights open, commercial use permitted. Strong coding and reasoning.
 - GLM-4.7: Zhipu AI's latest open-weights model (Feb 2026). Replaces GLM-4-9B which had no public API. MIT license. Available on HF router via `zai-org/GLM-4.7`. GLM-4-32B-0414 returns 400 on HF router; GLM-4.7 confirmed working.
 - OLMo 3.1: Allen AI (Seattle) — fully transparent model (weights, data, training code all public). Apache 2.0. The US equivalent of Apertus in terms of openness philosophy. Confirmed working on HF router.
+- QwQ-32B: Qwen's open-source reasoning model. Thinking-mode architecture, strong on math and coding. Apache 2.0. Different capability profile from Qwen3-Coder — both stay in rotation.
+- Qwen3-30B-A3B: Qwen3 MoE variant (30B total, 3B active parameters). Apache 2.0. Efficient inference footprint relative to capability. Confirmed working on HF router.
+- Gemma 3 27B: Google DeepMind's open model. Gemma license permits open use and redistribution. Strong coding and reasoning benchmark scores. Fills Google/US gap in the roster.
+- Command-A: Cohere's flagship open model (Toronto, Canada). CC-BY-NC-4.0 — open weights, non-commercial restriction (benchmark use is permitted). Second Canadian entry after StarCoder2. 111B-class MoE, strong multilingual and instruction-following.
 - All Tier 1 models are now accessible via OpenRouter or HuggingFace Inference Router with pinnable version strings.
 
 ---
@@ -143,7 +151,7 @@ Closed-weights models, included here to document why they are not on the list:
 | 🇮🇳 India | Sarvam-M | Coding capability still maturing |
 | 🇦🇪 UAE | Falcon 3 10B | No HF router or OpenRouter ID — not in rotation |
 | 🇰🇷 Korea | EXAONE 3.5 | No public API yet — self-host only |
-| 🇨🇦 Canada | StarCoder2 (ServiceNow Research, Montréal) | Listed under US/BigCode; Montréal origin noted |
+| 🇨🇦 Canada | StarCoder2 (ServiceNow Research, Montréal), Command-A (Cohere, Toronto) | Two models — code + general instruction-following |
 | 🇮🇱 Israel | Jamba Large 1.7, DictaLM-3.0 24B | Two models — AI21 Labs + Bar-Ilan University |
 | 🇯🇵 Japan | Swallow-70B (Tokyo Tech) | Gap closed — in rotation via HF router |
 | 🇸🇬 Singapore | SEA-LION 32B (AI Singapore) | In rotation via HF router |
@@ -184,4 +192,4 @@ The QUASI project will review and merge.
 
 ---
 
-*Last updated: 2026-02-24 — based on API landscape as of February 2026. Pricing approximate; verify at provider.*
+*Last updated: 2026-02-24 — based on API landscape as of February 2026. Pricing approximate; verify at provider. HF router confirmed working for all models marked "via HF router".*

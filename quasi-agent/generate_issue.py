@@ -172,6 +172,19 @@ ROTATION: list[dict] = [
     {"id": "apertus", "model": "swiss-ai/Apertus-70B-Instruct-2509",
      "provider": "huggingface", "license": "Fully open",
      "origin": "Switzerland / ETH Zurich + EPFL + CSCS"},
+    # ── Tier 1 additions — strong reasoning / coding (HF router) ─────────
+    {"id": "qwq-32b", "model": "Qwen/QwQ-32B",
+     "provider": "huggingface", "license": "Apache-2.0",
+     "origin": "China / Alibaba (Qwen — reasoning model)"},
+    {"id": "qwen3-30b", "model": "Qwen/Qwen3-30B-A3B",
+     "provider": "huggingface", "license": "Apache-2.0",
+     "origin": "China / Alibaba (Qwen3 MoE, 30B total / 3B active)"},
+    {"id": "gemma-3-27b", "model": "google/gemma-3-27b-it",
+     "provider": "huggingface", "license": "Gemma",
+     "origin": "US / Google DeepMind"},
+    {"id": "command-a", "model": "CohereLabs/c4ai-command-a-03-2025",
+     "provider": "huggingface", "license": "CC-BY-NC-4.0",
+     "origin": "Canada / Cohere (Toronto)"},
 ]
 
 DEFAULT_MODEL_ID = "deepseek-v3"
