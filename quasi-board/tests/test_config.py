@@ -16,8 +16,6 @@ import importlib
 import sys
 from pathlib import Path
 
-import pytest
-
 
 def _reload_server(monkeypatch, tmp_path, env_overrides: dict | None = None):
     """Set env vars, then reload ``server`` with a writable data directory.

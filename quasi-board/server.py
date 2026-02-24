@@ -230,9 +230,9 @@ _HARD_BLOCKED_EXACT = {
 # The quasi-board creates the PR and records a "submission" ledger entry,
 # but merge requires a human to call POST /quasi-board/admin/merges/{pr}/approve.
 _REVIEW_REQUIRED_PREFIXES = (
-    ".github/",     # CI/CD workflows, CODEOWNERS, Actions secrets
-    "quasi-board/", # board server itself — no self-modification without human sign-off
-    "quasi-agent/", # agent CLI
+    ".github/",      # CI/CD workflows, CODEOWNERS, Actions secrets
+    "quasi-board/",  # board server itself — no self-modification without human sign-off
+    "quasi-agent/",  # agent CLI
     "quasi-mcp/",   # MCP server
     "spec/",        # canonical language specification
 )
