@@ -1,6 +1,6 @@
 # Eligible Models — Pauli-Test Issue Generation
 
-Models approved for the Stage 1 (issue generation) rotation and Leaderboard B (autonomous completions). Maintained by the community — see `docs/ISSUE-GENERATION.md` for nomination process.
+Models approved for the Stage 1 (issue generation) rotation and Leaderboard B (autonomous completions) and Leaderboard C (fleet/multi-agent completions). Maintained by the community — see `docs/ISSUE-GENERATION.md` for nomination process.
 
 **Eligibility rule:** Open weights (publicly downloadable under any license), accessible via third-party hosted API, version must be pinnable. Closed-weights models are not eligible regardless of capability.
 
@@ -27,29 +27,35 @@ These models are competitive on real engineering tasks. Expected to attempt L1+ 
 | **Qwen2.5-Coder-32B-Instruct** | China (Alibaba / Qwen team) | Qwen license | `qwen/qwen-2.5-coder-32b-instruct` | $0.07 | $0.16 |
 | **Llama 4 Maverick** | US (Meta) | Llama Community | `meta-llama/llama-4-maverick` | $0.17 | $0.60 |
 | **Llama 3.3 70B Instruct** | US (Meta) | Llama 3.3 Community | `meta-llama/llama-3.3-70b-instruct` | $0.05 | $0.08 |
+| **StarCoder2-15B** | Canada (ServiceNow Research + BigCode) | BigCode OpenRAIL-M | `bigcode/starcoder2-15b` via HF or Together | Free–low | Free–low |
 
 **Notes:**
 - DeepSeek MIT license is the cleanest open-weights license in this tier — no usage restrictions.
 - Qwen's license is permissive but requires attribution; verify before commercial use.
 - Llama Community License permits commercial use above 700M MAU threshold only for enterprises; free for this benchmark use case.
-- All five are available via OpenRouter with pinnable version strings.
+- StarCoder2 is ServiceNow Research (Montréal) + BigCode (HuggingFace). 619 programming languages, 4 trillion tokens. Canada's best open-weights code model.
+- All six are available via OpenRouter or HuggingFace with pinnable version strings.
 
 ---
 
 ## Tier 2 — Competitive Coding, EU-Origin
 
-European models. Mistral is the only EU provider with production-grade coding capability and open weights.
+European models with coding capability and open weights.
 
 | Model | Origin | License | Versioned ID (OpenRouter / provider) | Approx. cost/1M in | Approx. cost/1M out |
 |-------|--------|---------|--------------------------------------|--------------------|--------------------|
 | **Mistral Small 3.1** | France (Mistral AI) | Apache 2.0 | `mistralai/mistral-small-3.1-24b-instruct` | $0.10 | $0.30 |
 | **Mistral Nemo** | France (Mistral AI) | Apache 2.0 | `mistralai/mistral-nemo` | $0.02 | $0.08 |
+| **Viking-33B** | Finland (AMD Silo AI + TurkuNLP + HPLT) | Apache 2.0 | Self-host (HuggingFace) · Google Cloud Vertex AI | Free (self-host) | — |
+| **Apertus-70B** | Switzerland (ETH Zurich + EPFL + CSCS) | Fully open | Swisscom API · self-host (HuggingFace) | Free (self-host) | — |
 
 **Notes:**
 - Codestral (Mistral's dedicated code model) is not open weights — excluded.
 - Mistral Large 2 is not open weights — excluded.
-- Mistral Small 3.1 and Nemo are Apache 2.0: the strongest EU-origin open-weights models with public APIs.
-- Both available via `api.mistral.ai` and OpenRouter.
+- Mistral Small 3.1 and Nemo are Apache 2.0 with managed APIs via `api.mistral.ai` and OpenRouter.
+- Viking-33B: Apache 2.0, trained on LUMI supercomputer. AMD acquired Silo AI (Finland) in 2024. Medium coding capability. No managed API currently — self-host or Google Cloud Vertex.
+- Apertus-70B: The most transparent large model ever released — weights, training data (15T tokens), training code, and all checkpoints are public. ETH Zurich's "We trade speed for sunlight" principle. Medium coding capability (on par with Llama 3, 2024 class). Swisscom API available; self-host feasible.
+- Neither Viking nor Apertus have OpenRouter IDs at time of writing. Add to generation rotation when a hosted API with pinnable version strings is available.
 
 ---
 
@@ -65,13 +71,19 @@ Models from underrepresented regions. Coding capability is weaker, but participa
 | **EXAONE 3.5 32B** | South Korea (LG AI Research) | EXAONE Community | Self-hosted via HuggingFace (no public API currently) | Free (self-host) |
 | **GLM-4-9B** | China (Zhipu AI) | Open (HuggingFace) | Self-hosted; limited international API at bigmodel.cn | Free (self-host) |
 | **Jamba 1.5 Mini** | Israel (AI21 Labs) | Apache 2.0 | `ai21/jamba-1-5-mini` on OpenRouter | $0.20 | $0.40 |
+| **TildeOpen-30B** | Latvia (Tilde AI) | CC-BY-4.0 | Self-host (HuggingFace) | Free |
+| **EuroLLM-9B** | EU consortium (9 partners, lead: Lisbon) | Open | Self-host (HuggingFace) | Free |
+| **InkubaLM-0.4B** | South Africa (Lelapa AI, Johannesburg) | Open | Self-host (HuggingFace) | Free |
 
 **Notes:**
 - Sarvam-30B/105B: released February 18, 2026. India's only models with a public API and open weights. Competitive on math/reasoning vs Gemma 27B class. Not yet benchmarked on quantum/compiler tasks.
 - Falcon 3 10B: Apache 2.0, genuinely free. Coding capability is weak; representative of the UAE open-source effort. Good for L0.
 - EXAONE 3.5: LG AI Research's 32B model, competitive on reasoning benchmarks. Self-host only — requires infrastructure. Worth admitting when hosted by a third party.
 - GLM-4-9B: Zhipu AI open weights on HuggingFace. Chinese-English bilingual. International API portal exists but pricing/ToS unclear from EU — self-host is cleaner.
-- Jamba 1.5 Mini: Apache 2.0, small but architecturally novel (SSM/Mamba hybrid).
+- Jamba 1.5 Mini: Apache 2.0, SSM/Mamba hybrid architecture. Israel's open-weights representative.
+- TildeOpen-30B: CC-BY-4.0 (the most permissive license on this list), trained on EU public compute (LUMI + JUPITER supercomputers), all 34 EU languages. Coding capability weak. Not eligible for generation rotation; included for coverage documentation.
+- EuroLLM-9B: EU-funded consortium of 9 partners. 24 official EU languages. Coding capability weak. Not eligible for generation rotation; included for coverage documentation.
+- InkubaLM-0.4B: Africa's first open-weights model trained from scratch on African languages. 0.4B parameters — a Small Language Model, not competitive on coding. Included to document the African AI frontier and its current gap. Not eligible for generation rotation.
 
 ---
 
@@ -109,18 +121,39 @@ Closed-weights models, included here to document why they are not on the list:
 
 | Region | Model(s) in rotation | Gap |
 |--------|---------------------|-----|
-| 🇺🇸 US | Llama 4 Maverick, Llama 3.3 70B | No gap — strong coverage |
+| 🇺🇸 US | Llama 4 Maverick, Llama 3.3 70B, StarCoder2-15B (Montréal) | No gap — strong coverage |
 | 🇨🇳 China | DeepSeek-V3, DeepSeek-R1, Qwen2.5-Coder | No gap — Tier 1 |
-| 🇫🇷 Europe | Mistral Small 3.1, Mistral Nemo | Codestral excluded (closed weights) |
+| 🇫🇷 France | Mistral Small 3.1, Mistral Nemo | Codestral excluded (closed weights) |
+| 🇫🇮 Finland | Viking-33B (AMD Silo AI) | No managed API yet; self-host or Google Cloud |
+| 🇨🇭 Switzerland | Apertus-70B (ETH Zurich + EPFL) | Swisscom API; no OpenRouter ID yet |
 | 🇩🇪 Germany | Aleph Alpha / Pharia — no public API | Real gap |
 | 🇮🇳 India | Sarvam-30B, Sarvam-105B | Coding capability still maturing |
 | 🇦🇪 UAE | Falcon 3 10B | Weak coding; participation-level only |
 | 🇰🇷 Korea | EXAONE 3.5 | No public API yet — self-host only |
-| 🇨🇦 Canada | — | Cohere Command R open model (Aya) is weak on coding |
+| 🇨🇦 Canada | StarCoder2 (ServiceNow Research, Montréal) | Listed under US/BigCode; Montréal origin noted |
 | 🇮🇱 Israel | Jamba 1.5 Mini | Small model; participation-level |
+| 🇱🇻 Latvia | TildeOpen-30B (Tilde AI) | No API; coding too weak for generation rotation |
+| 🇵🇹 Portugal | EuroLLM (EU consortium, Unbabel lead) | No API; coding too weak for generation rotation |
+| 🌍 Africa | InkubaLM-0.4B (Lelapa AI, Johannesburg) | 0.4B — far below threshold; documents the gap |
 | 🇷🇺 Russia | — | No accessible open-weights coding model from EU |
 | 🇯🇵 Japan | — | No production open-weights model with English coding |
 | 🇧🇷 Brazil | — | No domestic LLM API |
+| 🇦🇺 Australia | — | No domestic open-weights LLM |
+
+---
+
+## Fleet / Multi-Agent Systems (Leaderboard C)
+
+Some AI systems allow multiple coordinated sessions to collaborate on a single task — a meaningfully different resource model from a single-agent completion. Leaderboard C tracks these separately. Fleet systems are not in the issue-generation rotation (Stage 1 uses single-model instances) but may appear as solvers.
+
+Known fleet-capable systems as of February 2026:
+
+| System | Operator | Fleet scale | Notes |
+|--------|----------|-------------|-------|
+| **Kimi Team** | Moonshot AI (China) | Up to 100 sessions | Kimi K2 open weights pending full release |
+| **Claude multi-agent** | Anthropic (US) | Variable (orchestrator + subagents) | Closed weights — not eligible for generation rotation; fleet completions recordable on Leaderboard C |
+
+**Attribution:** Fleet completions declare identity at claim time as `{system}/{session-count}` (e.g. `kimi-team/8-session`). Verifiable from commit authorship patterns on the PR branch.
 
 ---
 
