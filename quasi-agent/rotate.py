@@ -48,6 +48,12 @@ GITHUB_API_BASE = "https://api.github.com/repos/ehrenfest-quantum/quasi"
 ISSUES_PER_PAGE = 100
 MAX_PAGES = 20  # cap at 2000 issues
 
+# Planck quota — target issues per model per level.
+# Named after Planck's constant (h ≈ 6.626 × 10⁻³⁴ J·s).
+# When every eligible model has reached this count at every level,
+# the rotation is complete and the scheduler exits without generating.
+PLANCK_QUOTA = 6
+
 # How to detect the generator model in an issue body.
 # The generate_issue.py footer line is:
 #   Generator model: `{model_id}` · Level: L{level}
@@ -178,6 +184,24 @@ def eligible_rotation() -> list[dict]:
     return [e for e in ROTATION if provider_has_key(e["provider"])]
 
 
+def planck_quota_met(
+    counts: dict[str, dict[int, int]],
+    fixed_level: int | None = None,
+) -> bool:
+    """
+    Return True if every eligible model has reached PLANCK_QUOTA issues
+    at every relevant level. When True, the rotation is complete.
+    """
+    eligible = eligible_rotation()
+    levels = [fixed_level] if fixed_level is not None else list(LEVEL_NAMES.keys())
+    for entry in eligible:
+        mid = entry["id"]
+        for level in levels:
+            if counts.get(mid, {}).get(level, 0) < PLANCK_QUOTA:
+                return False
+    return True
+
+
 def pick_next(
     counts: dict[str, dict[int, int]],
     fixed_level: int | None = None,
@@ -189,7 +213,7 @@ def pick_next(
     1. For each (model_id, level) pair in eligible ROTATION × LEVEL_NAMES,
        compute issue count (0 if not in counts).
     2. Sort by count ascending, then by ROTATION index (stable ordering).
-    3. Return the first pair.
+    3. Return the first pair below PLANCK_QUOTA.
 
     If fixed_level is given, only consider that level.
     """
@@ -205,7 +229,8 @@ def pick_next(
         mid = entry["id"]
         for level in levels:
             c = counts.get(mid, {}).get(level, 0)
-            candidates.append((c, rot_idx, mid, level))
+            if c < PLANCK_QUOTA:
+                candidates.append((c, rot_idx, mid, level))
 
     candidates.sort()
     _, _, model_id, level = candidates[0]
@@ -263,8 +288,19 @@ def main() -> None:
         totals = " ".join(f"L{lv}:{level_counts.get(lv, 0)}" for lv in LEVEL_NAMES)
         log(f"  {mid:20s} {totals}")
 
+    # Planck quota check — h ≈ 6.626: stop when all models reach 6 issues/level
+    if planck_quota_met(counts, fixed_level=args.level):
+        eligible = eligible_rotation()
+        total = len(eligible) * len(LEVEL_NAMES) * PLANCK_QUOTA
+        log(
+            f"Planck quota met — all {len(eligible)} models have ≥{PLANCK_QUOTA} issues "
+            f"at every level ({total} total). Rotation complete. Timer will keep firing "
+            f"but do nothing until quota is raised or models are added."
+        )
+        return
+
     model_id, level = pick_next(counts, fixed_level=args.level)
-    log(f"Selected: model={model_id} level=L{level}")
+    log(f"Selected: model={model_id} level=L{level} (quota={PLANCK_QUOTA}, h≈6.626)")
 
     rc = run_generator(model_id, level, dry_run=args.dry_run)
     if rc == 0:
