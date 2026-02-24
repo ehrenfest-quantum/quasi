@@ -17,7 +17,7 @@ Environment variables (set only the keys for providers you want to use):
     SARVAM_API_KEY       api.sarvam.ai — Sarvam-30B/105B (India)
     MISTRAL_API_KEY      api.mistral.ai — direct Mistral endpoint
     HF_TOKEN             HuggingFace Inference Router (router.huggingface.co)
-    SWISSAI_TOKEN        CSCS Swiss AI API (api.swissai.cscs.ch) — Apertus-70B
+    CSCS_SERVING_API     CSCS Swiss AI API (api.swissai.cscs.ch) — Apertus-70B
                          Register at https://serving.swissai.cscs.ch
     QUASI_GENERATOR_MODEL  Optional model override (short ID or full model string)
     GITHUB_TOKEN         Required to open a real GitHub issue (not needed for --dry-run)
@@ -86,10 +86,10 @@ PROVIDERS: dict[str, dict] = {
     },
     # Swiss National Supercomputing Centre (CSCS) — hosts Apertus-70B
     # Register at https://serving.swissai.cscs.ch to obtain a token.
-    # HF_TOKEN is NOT accepted here; a separate SWISSAI_TOKEN is required.
+    # Env var name matches their official docs and CLI repo.
     "swissai": {
         "url": "https://api.swissai.cscs.ch/v1/chat/completions",
-        "env": "SWISSAI_TOKEN",
+        "env": "CSCS_SERVING_API",
         "headers": {},
         "verify_header": None,
     },
