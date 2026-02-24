@@ -16,7 +16,9 @@ Environment variables (set only the keys for providers you want to use):
     OPENROUTER_API_KEY   openrouter.ai — covers most models
     SARVAM_API_KEY       api.sarvam.ai — Sarvam-30B/105B (India)
     MISTRAL_API_KEY      api.mistral.ai — direct Mistral endpoint
-    HF_TOKEN             HuggingFace Inference API — Viking, Apertus, etc.
+    HF_TOKEN             HuggingFace Inference Router (router.huggingface.co)
+    SWISSAI_TOKEN        CSCS Swiss AI API (api.swissai.cscs.ch) — Apertus-70B
+                         Register at https://serving.swissai.cscs.ch
     QUASI_GENERATOR_MODEL  Optional model override (short ID or full model string)
     GITHUB_TOKEN         Required to open a real GitHub issue (not needed for --dry-run)
 
@@ -82,6 +84,15 @@ PROVIDERS: dict[str, dict] = {
         "headers": {},
         "verify_header": None,
     },
+    # Swiss National Supercomputing Centre (CSCS) — hosts Apertus-70B
+    # Register at https://serving.swissai.cscs.ch to obtain a token.
+    # HF_TOKEN is NOT accepted here; a separate SWISSAI_TOKEN is required.
+    "swissai": {
+        "url": "https://api.swissai.cscs.ch/v1/chat/completions",
+        "env": "SWISSAI_TOKEN",
+        "headers": {},
+        "verify_header": None,
+    },
 }
 
 # ── Eligible model rotation ───────────────────────────────────────────────────
@@ -116,7 +127,9 @@ ROTATION: list[dict] = [
     {"id": "sarvam-m",       "model": "sarvam-m",                                "provider": "sarvam",     "license": "Open",         "origin": "India / Sarvam AI"},
     {"id": "jamba",          "model": "ai21/jamba-large-1.7",                    "provider": "openrouter", "license": "Jamba Open",   "origin": "Israel / AI21"},
     # falcon: no OpenRouter ID as of 2026-02-24 — use AI71 platform or self-host
-    # {"id": "falcon",      "model": "tiiuae/falcon3-10b-instruct",             "provider": "openrouter", "license": "Apache-2.0",   "origin": "UAE / TII"},
+    # {"id": "falcon",    "model": "tiiuae/falcon3-10b-instruct",             "provider": "openrouter", "license": "Apache-2.0",   "origin": "UAE / TII"},
+    # apertus: CSCS Swiss AI API — needs SWISSAI_TOKEN (register at serving.swissai.cscs.ch)
+    # {"id": "apertus",   "model": "swiss-ai/Apertus-70B-Instruct-2509",      "provider": "swissai",    "license": "Fully open",   "origin": "Switzerland / ETH Zurich + EPFL + CSCS"},
 ]
 
 DEFAULT_MODEL_ID = "deepseek-v3"
