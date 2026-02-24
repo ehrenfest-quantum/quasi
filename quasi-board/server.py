@@ -912,19 +912,62 @@ async def inbox(request: Request):
 
 # ── Task status endpoint ──────────────────────────────────────────────────────
 
+def _fetch_github_issue(issue_number: int) -> dict | None:
+    """Fetch a single GitHub issue by number. Returns None on error."""
+    try:
+        resp = httpx.get(
+            f"https://api.github.com/repos/{GITHUB_REPO}/issues/{issue_number}",
+            headers={"Accept": "application/vnd.github+json"},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception:
+        pass
+    return None
+
+
 @app.get("/quasi-board/tasks/{task_id}")
 async def task_status(task_id: str):
-    _validate_task_id(task_id)
-    effective = _effective_task_status(task_id)
+    # Accept both "QUASI-007" and plain numbers ("7", "007")
+    import re as _re
+    m = _re.fullmatch(r"(?:QUASI-)?(\d{1,6})", task_id)
+    if not m:
+        raise HTTPException(400, f"Invalid task id {task_id!r} — expected QUASI-NNN or a plain number")
+    issue_number = int(m.group(1))
+    canonical_id = f"QUASI-{issue_number:03d}"
+
+    effective = _effective_task_status(canonical_id)
+
+    # All ledger entries for this task
+    chain = load_ledger()
+    task_entries = [e for e in chain if e.get("task") == canonical_id]
+
     result: dict[str, Any] = {
-        "quasi:taskId": task_id,
+        "quasi:taskId": canonical_id,
         "quasi:status": effective["status"],
+        "quasi:ledgerEntries": task_entries,
     }
     if effective["status"] == "claimed":
         result["quasi:claimedBy"] = effective.get("agent")
         result["quasi:expiresAt"] = effective.get("expires_at")
     elif effective["status"] == "done":
         result["quasi:claimedBy"] = effective.get("agent")
+
+    # Enrich with GitHub issue data when available
+    issue = _fetch_github_issue(issue_number)
+    if issue:
+        result["task"] = {
+            "number": issue["number"],
+            "title": issue["title"],
+            "body": issue.get("body", ""),
+            "html_url": issue["html_url"],
+            "state": issue["state"],
+            "labels": [lb["name"] for lb in issue.get("labels", [])],
+            "created_at": issue["created_at"],
+            "updated_at": issue["updated_at"],
+        }
+
     return JSONResponse(result)
 
 
