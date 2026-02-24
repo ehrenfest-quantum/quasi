@@ -172,25 +172,32 @@ You will receive:
 1. The issue title, body, and acceptance criteria
 2. Relevant current repo files for context
 
-Your task: produce the exact file changes needed to satisfy the acceptance criteria.
+Your task: produce the MINIMAL edits needed to satisfy the acceptance criteria.
 
 Respond with ONLY a JSON object (no markdown fences, no prose before or after):
 {
   "reasoning": "one sentence explaining what you changed and why",
-  "files": {
-    "path/to/file.md": "complete new file content",
-    "another/file.py": "complete new file content"
+  "edits": [
+    {
+      "file": "path/to/file.md",
+      "find": "exact string to search for (must exist verbatim in the file)",
+      "replace": "replacement string"
+    }
+  ],
+  "new_files": {
+    "path/to/new/file.md": "complete content for NEW files that do not yet exist"
   }
 }
 
 Rules:
-- Include ONLY files that need to change. Do not include unchanged files.
-- Provide the COMPLETE new content of each file (not a diff). Preserve ALL existing content — do not drop sections, headings, or text that is unrelated to the change.
-- File paths are relative to the repo root.
-- If the issue is already fully satisfied by the current code, set "files" to {} and explain in "reasoning".
-- Do not add explanatory comments to files unless the issue asks for them.
+- Use "edits" for modifying EXISTING files. Each edit is a find/replace on the file.
+  - "find" must be an exact verbatim substring of the current file content — not paraphrased.
+  - "replace" is what it becomes. Can be empty string to delete.
+  - Multiple edits on the same file are applied in order.
+- Use "new_files" only for files that do not yet exist.
+- If the issue is already fully satisfied, set "edits" to [] and explain in "reasoning".
+- Do not modify lines unrelated to the issue.
 - Keep changes minimal — only what satisfies the acceptance criteria.
-- For README.md changes: keep every existing section intact. Only add or modify the specific lines relevant to the issue.
 """
 
 
@@ -265,31 +272,30 @@ def apply_and_pr(
     issue_num = issue["number"]
     model_id = model_entry["id"]
     branch = f"fix/issue-{issue_num}-{model_id}"
-    files = result.get("files", {})
+    edits = result.get("edits", [])
+    new_files = result.get("new_files", {})
     reasoning = result.get("reasoning", "")
 
-    if not files:
+    if not edits and not new_files:
         print(f"Model says no changes needed: {reasoning}")
         return None
 
-    print(f"\nFiles to change: {list(files.keys())}")
+    changed_paths = list({e["file"] for e in edits}) + list(new_files.keys())
+    print(f"\nFiles to change: {changed_paths}")
     print(f"Reasoning: {reasoning}")
 
     if dry_run:
-        print("\n── Dry run — file contents ──")
-        for path, content in files.items():
-            print(f"\n=== {path} ===")
+        print("\n── Dry run — edits ──")
+        for edit in edits:
+            print(f"\n=== {edit['file']} ===")
+            print(f"  FIND:    {edit['find'][:120]!r}")
+            print(f"  REPLACE: {edit['replace'][:120]!r}")
+        for path, content in new_files.items():
+            print(f"\n=== NEW: {path} ===")
             print(content[:500])
             if len(content) > 500:
                 print(f"... ({len(content)} total chars)")
         return None
-
-    # Apply changes
-    for rel_path, content in files.items():
-        full_path = REPO_DIR / rel_path
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        full_path.write_text(content, encoding="utf-8")
-        print(f"  Written: {rel_path}")
 
     # Git operations
     def run(cmd: list[str]) -> str:
@@ -299,7 +305,8 @@ def apply_and_pr(
             raise RuntimeError(f"git command failed: {' '.join(cmd)}")
         return r.stdout.strip()
 
-    # Ensure we're on main and up to date
+    # Ensure we're on main and up to date (stash any local dev changes)
+    subprocess.run(["git", "stash"], cwd=REPO_DIR, capture_output=True)
     run(["git", "checkout", "main"])
     run(["git", "pull", "--rebase", "origin", "main"])
     # Create or reset branch
@@ -309,7 +316,22 @@ def apply_and_pr(
         run(["git", "checkout", branch])
         run(["git", "reset", "--hard", "origin/main"])
 
-    for rel_path in files:
+    # Re-apply changes on the fresh branch
+    for edit in edits:
+        rel_path = edit["file"]
+        find_str = edit["find"]
+        replace_str = edit["replace"]
+        full_path = REPO_DIR / rel_path
+        if full_path.exists():
+            original = full_path.read_text(encoding="utf-8")
+            if find_str in original:
+                full_path.write_text(original.replace(find_str, replace_str, 1), encoding="utf-8")
+    for rel_path, content in new_files.items():
+        full_path = REPO_DIR / rel_path
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_text(content, encoding="utf-8")
+
+    for rel_path in changed_paths:
         run(["git", "add", rel_path])
 
     commit_msg = (
