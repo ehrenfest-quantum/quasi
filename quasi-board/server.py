@@ -49,7 +49,16 @@ AP_CONTENT_TYPE = "application/activity+json"
 
 # Prometheus-compatible metrics for quasi-board
 @app.get("/quasi-board/metrics", response_class=PlainTextResponse)
-def metrics():
+def metrics() -> PlainTextResponse:
+    """Return Prometheus-compatible metrics for quasi-board.
+
+    Returns:
+        PlainTextResponse: Prometheus-formatted metrics including:
+            - Task counts by status (open/claimed/done)
+            - Total ledger entries
+            - Remaining genesis slots
+            - Active claims count
+    """
     """Return Prometheus-compatible metrics."""
     tasks = json.loads((Path(__file__).parent / 'testdata/outbox.json').read_text()).get('orderedItems', [])
     task_status_counts = {'open': 0, 'claimed': 0, 'done': 0}
@@ -85,7 +94,14 @@ quasi_claims_active {claims_active}\n"""
 
 # ── HTTP Signatures ───────────────────────────────────────────────────────────
 
-def _load_or_create_keys():
+def _load_or_create_keys() -> tuple[Any, str]:
+    """Load or generate RSA-2048 key pair for HTTP signatures.
+
+    Returns:
+        tuple: (private_key, public_key_pem) where:
+            private_key: cryptography.hazmat.primitives.asymmetric.rsa.RSAPrivateKey
+            public_key_pem: PEM-encoded public key as str
+    """
     """Load RSA-2048 key pair from disk, generating if absent. Returns (private_key, public_key_pem)."""
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.hazmat.primitives import serialization
