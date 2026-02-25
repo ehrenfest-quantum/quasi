@@ -24,7 +24,7 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 import hmac as _hmac
 import re as _re
 from fastapi.responses import Response
@@ -46,6 +46,41 @@ AGENT_TOKENS_FILE = Path("/home/vops/quasi-board/agent-tokens.json")
 ACTOR_KEY_ID = f"{ACTOR_URL}#main-key"
 
 AP_CONTENT_TYPE = "application/activity+json"
+
+# Prometheus-compatible metrics for quasi-board
+@app.get("/quasi-board/metrics", response_class=PlainTextResponse)
+def metrics():
+    """Return Prometheus-compatible metrics."""
+    tasks = json.loads((Path(__file__).parent / 'testdata/outbox.json').read_text()).get('orderedItems', [])
+    task_status_counts = {'open': 0, 'claimed': 0, 'done': 0}
+    for item in tasks:
+        t = item.get('object', item) if item.get('type') == 'Create' else item
+        status = t.get('quasi:status', 'open')
+        if status in task_status_counts:
+            task_status_counts[status] += 1
+    ledger = json.loads((Path(__file__).parent / 'testdata/ledger.json').read_text())
+    ledger_entries_total = len(ledger.get('entries', []))
+    genesis_slots_remaining = 50 - len(ledger.get('contributors', []))
+    claims_active = sum(1 for task in tasks if task.get('quasi:status') == 'claimed')
+    metrics_text = f"""
+# HELP quasi_tasks_total Count of tasks by status
+# TYPE quasi_tasks_total gauge
+"""
+    for status, count in task_status_counts.items():
+        metrics_text += f'quasi_tasks_total{{status="{status}"}} {count}\n'
+    metrics_text += f"""
+# HELP quasi_ledger_entries_total Total number of ledger entries
+# TYPE quasi_ledger_entries_total gauge
+quasi_ledger_entries_total {ledger_entries_total}\n"""
+    metrics_text += f"""
+# HELP quasi_genesis_slots_remaining Remaining genesis slots (50 - named contributors)
+# TYPE quasi_genesis_slots_remaining gauge
+quasi_genesis_slots_remaining {genesis_slots_remaining}\n"""
+    metrics_text += f"""
+# HELP quasi_claims_active Number of currently active (claimed) tasks
+# TYPE quasi_claims_active gauge
+quasi_claims_active {claims_active}\n"""
+    return metrics_text
 
 
 # ── HTTP Signatures ───────────────────────────────────────────────────────────
