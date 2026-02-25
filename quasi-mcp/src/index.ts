@@ -14,7 +14,7 @@ const watchTasks = async ({ since }: { since: string }) => {
 
 export { watchTasks };#!/usr/bin/env node
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright 2026 Valiant Quantum (Daniel Hinderink)
+// Copyright 2026 Daniel Hinderink
 /**
  * @quasi/mcp-server
  *
