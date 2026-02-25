@@ -1,25 +1,12 @@
-import axios from 'axios';
-
-const watchTasks = async ({ since }: { since: string }) => {
-  const response = await axios.get('https://gawain.valiant-quantum.com/quasi-board/outbox');
-  const tasks = response.data.orderedItems;
-  const newTasks = tasks.filter((task: any) => task.published > since);
-  return newTasks.map((task: any) => ({
-    taskId: task['quasi:taskId'],
-    title: task.name,
-    url: task.url,
-    published: task.published,
-  }));
-};
-
-export { watchTasks };#!/usr/bin/env node
+#!/usr/bin/env node
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2026 Valiant Quantum (Daniel Hinderink)
 /**
  * @quasi/mcp-server
  *
  * MCP server for the QUASI task board. Exposes the quasi-board ActivityPub
- * instance as Claude Code tools — list tasks, claim, complete, query ledger.
+ * instance as Claude Code tools — list tasks, claim, complete, query ledger,
+ * propose new tasks, and validate Ehrenfest programs.
  *
  * Default board: https://gawain.valiant-quantum.com
  * Override:      QUASI_BOARD_URL env var
@@ -39,6 +26,7 @@ const BOARD_URL = (process.env.QUASI_BOARD_URL ?? "https://gawain.valiant-quantu
 const OUTBOX_PATH = "/quasi-board/outbox";
 const INBOX_PATH = "/quasi-board/inbox";
 const LEDGER_PATH = "/quasi-board/ledger";
+const PROPOSALS_PATH = "/quasi-board/proposals";
 
 // ── HTTP helpers ─────────────────────────────────────────────────────────────
 
@@ -63,10 +51,212 @@ async function post(path: string, body: Record<string, unknown>): Promise<Record
   return res.json() as Promise<Record<string, unknown>>;
 }
 
+// ── Ehrenfest v0.1 validator ────────────────────────────────────────────────
+//
+// Structural validator for Ehrenfest programs, ported from spec/tools/validate.py.
+// Validates against the v0.1 CDDL schema without requiring CBOR decoding — works
+// directly on the JSON/dict representation that an AI agent would construct.
+
+const VALID_OBSERVABLE_TYPES = new Set(["SZ", "SX", "E", "rho", "F"]);
+const VALID_PAULI_AXES = new Set([0, 1, 2, 3]);
+
+interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+  summary: string;
+}
+
+function validateEhrenfest(p: unknown): ValidationResult {
+  const errors: string[] = [];
+
+  function check(cond: boolean, msg: string): void {
+    if (!cond) errors.push(msg);
+  }
+
+  if (typeof p !== "object" || p === null || Array.isArray(p)) {
+    return { valid: false, errors: ["root must be a map/object"], summary: "Invalid: not an object" };
+  }
+
+  const prog = p as Record<string, unknown>;
+
+  // Top-level fields
+  const required = ["version", "system", "hamiltonian", "evolution", "observables", "noise"];
+  const missing = required.filter((k) => !(k in prog));
+  check(missing.length === 0, `missing required top-level fields: ${missing.join(", ")}`);
+  if (missing.length > 0) {
+    return { valid: false, errors, summary: `Invalid: missing fields ${missing.join(", ")}` };
+  }
+
+  // version
+  check(typeof prog.version === "number" && Number.isInteger(prog.version), "version must be uint");
+  check(prog.version === 1, `version must be 1 for v0.1, got ${prog.version}`);
+
+  // system
+  const sys = prog.system as Record<string, unknown>;
+  check(typeof sys === "object" && sys !== null, "system must be a map");
+  if (typeof sys === "object" && sys !== null) {
+    check("n_qubits" in sys, "system.n_qubits is required");
+    check(
+      typeof sys.n_qubits === "number" && Number.isInteger(sys.n_qubits) && (sys.n_qubits as number) > 0,
+      "system.n_qubits must be a positive uint"
+    );
+    if ("cooling_profile" in sys) {
+      const cp = sys.cooling_profile as Record<string, unknown>;
+      check(typeof cp === "object" && cp !== null, "cooling_profile must be a map");
+      if (typeof cp === "object" && cp !== null) {
+        check("target_temp_mk" in cp, "cooling_profile.target_temp_mk is required");
+        check(typeof cp.target_temp_mk === "number", "cooling_profile.target_temp_mk must be a float");
+      }
+    }
+  }
+
+  const nQubits = (typeof sys === "object" && sys !== null && typeof sys.n_qubits === "number")
+    ? sys.n_qubits as number : 0;
+
+  // hamiltonian
+  const h = prog.hamiltonian as Record<string, unknown>;
+  check(typeof h === "object" && h !== null, "hamiltonian must be a map");
+  if (typeof h === "object" && h !== null) {
+    check("terms" in h, "hamiltonian.terms is required");
+    check("constant_offset" in h, "hamiltonian.constant_offset is required");
+    const terms = h.terms;
+    check(Array.isArray(terms) && (terms as unknown[]).length >= 1, "hamiltonian.terms must be a non-empty array");
+    check(typeof h.constant_offset === "number", "hamiltonian.constant_offset must be a float");
+
+    if (Array.isArray(terms)) {
+      for (let i = 0; i < terms.length; i++) {
+        const term = terms[i] as Record<string, unknown>;
+        check(typeof term === "object" && term !== null, `hamiltonian.terms[${i}] must be a map`);
+        if (typeof term !== "object" || term === null) continue;
+        check("coefficient" in term, `hamiltonian.terms[${i}].coefficient is required`);
+        check("paulis" in term, `hamiltonian.terms[${i}].paulis is required`);
+        check(Array.isArray(term.paulis), `hamiltonian.terms[${i}].paulis must be an array`);
+        if (Array.isArray(term.paulis)) {
+          for (let j = 0; j < term.paulis.length; j++) {
+            const op = term.paulis[j] as Record<string, unknown>;
+            check(typeof op === "object" && op !== null, `paulis[${j}] must be a map`);
+            if (typeof op !== "object" || op === null) continue;
+            check("qubit" in op && "axis" in op, `paulis[${j}] must have qubit and axis`);
+            if (nQubits > 0) {
+              check(
+                typeof op.qubit === "number" && (op.qubit as number) >= 0 && (op.qubit as number) < nQubits,
+                `paulis[${j}].qubit=${op.qubit} out of range [0, ${nQubits})`
+              );
+            }
+            check(VALID_PAULI_AXES.has(op.axis as number), `paulis[${j}].axis=${op.axis} must be 0/1/2/3`);
+          }
+        }
+      }
+    }
+  }
+
+  // evolution
+  const evo = prog.evolution as Record<string, unknown>;
+  check(typeof evo === "object" && evo !== null, "evolution must be a map");
+  if (typeof evo === "object" && evo !== null) {
+    for (const field of ["total_us", "steps", "dt_us"]) {
+      check(field in evo, `evolution.${field} is required`);
+    }
+    check(
+      typeof evo.steps === "number" && Number.isInteger(evo.steps) && (evo.steps as number) >= 1,
+      "evolution.steps must be a positive uint"
+    );
+    check(
+      typeof evo.total_us === "number" && (evo.total_us as number) > 0,
+      "evolution.total_us must be a positive float"
+    );
+    check(
+      typeof evo.dt_us === "number" && (evo.dt_us as number) > 0,
+      "evolution.dt_us must be a positive float"
+    );
+    // dt consistency check (1% tolerance)
+    if (typeof evo.total_us === "number" && typeof evo.steps === "number" && typeof evo.dt_us === "number") {
+      const expected = (evo.total_us as number) / (evo.steps as number);
+      if (expected > 0) {
+        check(
+          Math.abs((evo.dt_us as number) - expected) / expected < 0.01,
+          `evolution.dt_us=${evo.dt_us} inconsistent with total_us/steps=${expected.toFixed(6)}`
+        );
+      }
+    }
+  }
+
+  // observables
+  const obs = prog.observables;
+  check(Array.isArray(obs) && (obs as unknown[]).length >= 1, "observables must be a non-empty array");
+  if (Array.isArray(obs)) {
+    for (let i = 0; i < obs.length; i++) {
+      const o = obs[i] as Record<string, unknown>;
+      check(typeof o === "object" && o !== null, `observables[${i}] must be a map`);
+      if (typeof o !== "object" || o === null) continue;
+      check("type" in o, `observables[${i}].type is required`);
+      check(VALID_OBSERVABLE_TYPES.has(o.type as string), `observables[${i}].type=${o.type} must be one of SZ, SX, E, rho, F`);
+      if (o.type === "SZ" || o.type === "SX") {
+        check("qubit" in o, `observables[${i}] (type=${o.type}) requires qubit field`);
+        if (nQubits > 0) {
+          check(
+            typeof o.qubit === "number" && (o.qubit as number) >= 0 && (o.qubit as number) < nQubits,
+            `observables[${i}].qubit=${o.qubit} out of range [0, ${nQubits})`
+          );
+        }
+      }
+      if (o.type === "rho") {
+        check(
+          "qubits" in o && Array.isArray(o.qubits) && (o.qubits as unknown[]).length >= 1,
+          `observables[${i}] (type=rho) requires non-empty qubits array`
+        );
+      }
+    }
+  }
+
+  // noise
+  const noise = prog.noise as Record<string, unknown>;
+  check(typeof noise === "object" && noise !== null, "noise must be a map");
+  if (typeof noise === "object" && noise !== null) {
+    check("t1_us" in noise, "noise.t1_us is REQUIRED");
+    check("t2_us" in noise, "noise.t2_us is REQUIRED");
+    check(
+      typeof noise.t1_us === "number" && (noise.t1_us as number) > 0,
+      "noise.t1_us must be a positive float"
+    );
+    check(
+      typeof noise.t2_us === "number" && (noise.t2_us as number) > 0,
+      "noise.t2_us must be a positive float"
+    );
+    if (typeof noise.t1_us === "number" && typeof noise.t2_us === "number") {
+      check(
+        (noise.t2_us as number) <= 2 * (noise.t1_us as number),
+        `noise.t2_us=${noise.t2_us} violates physical bound T2 <= 2*T1=${noise.t1_us}`
+      );
+    }
+    if ("gate_fidelity_min" in noise) {
+      check(
+        typeof noise.gate_fidelity_min === "number" && (noise.gate_fidelity_min as number) >= 0 && (noise.gate_fidelity_min as number) <= 1,
+        `noise.gate_fidelity_min must be in [0.0, 1.0]`
+      );
+    }
+    if ("readout_fidelity_min" in noise) {
+      check(
+        typeof noise.readout_fidelity_min === "number" && (noise.readout_fidelity_min as number) >= 0 && (noise.readout_fidelity_min as number) <= 1,
+        `noise.readout_fidelity_min must be in [0.0, 1.0]`
+      );
+    }
+  }
+
+  const nTerms = (typeof h === "object" && h !== null && Array.isArray(h.terms)) ? (h.terms as unknown[]).length : 0;
+  const obsType = (Array.isArray(obs) && obs.length > 0) ? String((obs[0] as Record<string, unknown>).type) : "?";
+  const valid = errors.length === 0;
+  const summary = valid
+    ? `Valid Ehrenfest v0.1 program (${nQubits}q, ${nTerms} Hamiltonian terms, primary observable: ${obsType})`
+    : `Invalid: ${errors.length} error(s) found`;
+
+  return { valid, errors, summary };
+}
+
 // ── Server ───────────────────────────────────────────────────────────────────
 
 const server = new Server(
-  { name: "quasi", version: "0.1.0" },
+  { name: "quasi", version: "0.2.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -129,6 +319,58 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       description:
         "Fetch the full quasi-ledger: all contribution entries (claims + completions), chain validity status, and genesis slot consumption. The ledger is a SHA256 hash-linked chain — each entry commits to all previous entries.",
       inputSchema: { type: "object", properties: {}, required: [] },
+    },
+    {
+      name: "propose_task",
+      description:
+        "Propose a new task for the QUASI project. Sends a quasi:Propose activity to the board. Proposals are reviewed by maintainers and may be converted into official tasks. Use this when you identify a gap, improvement, or new feature that would benefit QUASI.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          title: {
+            type: "string",
+            description: "Short title for the proposed task (max 200 chars)",
+          },
+          description: {
+            type: "string",
+            description: "Detailed description of what should be built and why (max 2000 chars)",
+          },
+          agent: {
+            type: "string",
+            description: "Your model identifier, e.g. claude-sonnet-4-6",
+          },
+          estimated_effort: {
+            type: "string",
+            description: "Estimated effort level, e.g. 'Easy ~1h', 'Medium ~3h', 'Large ~8h'",
+          },
+          rationale: {
+            type: "string",
+            description: "Why this task matters for the project (max 500 chars)",
+          },
+        },
+        required: ["title", "description", "agent"],
+      },
+    },
+    {
+      name: "list_proposals",
+      description:
+        "List all task proposals submitted by agents. Shows proposal IDs, titles, who proposed them, and their current status (pending/accepted/rejected).",
+      inputSchema: { type: "object", properties: {}, required: [] },
+    },
+    {
+      name: "validate_ehrenfest",
+      description:
+        "Validate an Ehrenfest program against the v0.1 CDDL schema. Pass the program as a JSON object with fields: version, system, hamiltonian, evolution, observables, noise. Returns validation result with any errors. Use this to check your Ehrenfest programs before submitting them. See spec/ehrenfest-v0.1.cddl for the full schema.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          program: {
+            type: "object",
+            description: "The Ehrenfest program object to validate. Must contain: version (uint, must be 1), system ({n_qubits: uint}), hamiltonian ({terms: [{coefficient, paulis: [{qubit, axis}]}], constant_offset}), evolution ({total_us, steps, dt_us}), observables ([{type: 'SZ'|'SX'|'E'|'rho'|'F', ...}]), noise ({t1_us, t2_us})",
+          },
+        },
+        required: ["program"],
+      },
     },
   ],
 }));
@@ -251,6 +493,91 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       ].join("\n");
 
       return { content: [{ type: "text", text }] };
+    }
+
+    // ── propose_task ────────────────────────────────────────────────────────
+    if (name === "propose_task") {
+      const { title, description, agent, estimated_effort, rationale } = args as {
+        title: string;
+        description: string;
+        agent: string;
+        estimated_effort?: string;
+        rationale?: string;
+      };
+
+      const result = await post(INBOX_PATH, {
+        "@context": [
+          "https://www.w3.org/ns/activitystreams",
+          { quasi: "https://quasi.dev/ns#" },
+        ],
+        type: "quasi:Propose",
+        actor: agent,
+        object: {
+          type: "quasi:TaskProposal",
+          "quasi:title": title,
+          "quasi:description": description,
+          "quasi:estimatedEffort": estimated_effort ?? "",
+          "quasi:rationale": rationale ?? "",
+        },
+        published: new Date().toISOString(),
+      });
+
+      const text = [
+        `✓ Task proposed: "${title}"`,
+        `Proposal ID: ${result.id}`,
+        `Status: pending review`,
+        "",
+        "The maintainer will review your proposal. If accepted, it becomes",
+        "an official task that you or another agent can claim and implement.",
+      ].join("\n");
+
+      return { content: [{ type: "text", text }] };
+    }
+
+    // ── list_proposals ──────────────────────────────────────────────────────
+    if (name === "list_proposals") {
+      const data = await get(PROPOSALS_PATH);
+      const items = (data.items as Record<string, unknown>[]) ?? [];
+
+      if (items.length === 0) {
+        return { content: [{ type: "text", text: "No proposals yet. Use propose_task to submit one." }] };
+      }
+
+      const lines = items.map((p) =>
+        [
+          `  ${p.id}  [${p.status}]  ${p.title}`,
+          `    By: ${p.proposed_by}  |  ${p.proposed_at}`,
+          p.estimated_effort ? `    Effort: ${p.estimated_effort}` : null,
+        ].filter(Boolean).join("\n")
+      );
+
+      const text = [
+        `Task proposals (${items.length} total):`,
+        "",
+        lines.join("\n\n"),
+      ].join("\n");
+
+      return { content: [{ type: "text", text }] };
+    }
+
+    // ── validate_ehrenfest ──────────────────────────────────────────────────
+    if (name === "validate_ehrenfest") {
+      const { program } = args as { program: unknown };
+
+      const result = validateEhrenfest(program);
+
+      const parts = [result.summary];
+      if (!result.valid) {
+        parts.push("");
+        parts.push("Errors:");
+        for (const err of result.errors) {
+          parts.push(`  - ${err}`);
+        }
+        parts.push("");
+        parts.push("Reference: spec/ehrenfest-v0.1.cddl");
+      }
+
+      return { content: [{ type: "text", text: parts.join("\n") }] };
     }
 
     return {

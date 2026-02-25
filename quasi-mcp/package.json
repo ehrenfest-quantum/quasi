@@ -1,7 +1,7 @@
 {
   "name": "quasi-mcp-server",
   "version": "0.1.0",
-  "description": "QUASI task board MCP server — list tasks, claim, complete, query the ledger",
+  "description": "QUASI task board MCP server — list tasks, claim, complete, propose, validate Ehrenfest programs, query the ledger",
   "type": "module",
   "bin": {
     "quasi-mcp-server": "dist/index.js"
