@@ -1,7 +1,9 @@
 # QUASI — Quantum OS
 
 [![CI](https://github.com/ehrenfest-quantum/quasi/actions/workflows/ci.yml/badge.svg)](https://github.com/ehrenfest-quantum/quasi/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache%202.0%20%2F%20GPL%203.0-blue)](LICENSE-APACHE-2.0)
+[![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE-AGPL-3.0)
+[![Apache-2.0 License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE-APACHE-2.0)
+[![GPL-3.0 License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE-GPL-3.0)
 [![Ledger](https://img.shields.io/badge/quasi--ledger-live-brightgreen)](https://gawain.valiant-quantum.com/quasi-board/ledger)
 [![Issues](https://img.shields.io/github/issues/ehrenfest-quantum/quasi)](https://github.com/ehrenfest-quantum/quasi/issues)
 [![Pauli-Test](https://img.shields.io/badge/benchmark-Pauli--Test-6366f1)](https://quasi.arvak.io/benchmark)
@@ -9,6 +11,15 @@
 **The first Quantum OS designed for AI as primary contributor.**
 
 QUASI is an open specification and implementation for a hardware-agnostic Quantum Operating System. It treats AI as author, not tool.
+
+## Quickstart
+
+To install `quasi-agent` and run the Bell state example:
+
+```bash
+pip install quasi-agent
+quasi run examples/bell.ef
+```
 
 ---
 
