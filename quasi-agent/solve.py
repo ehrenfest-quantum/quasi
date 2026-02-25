@@ -93,6 +93,8 @@ def gh_get_all(path: str) -> list:
                     m = re.search(r"<([^>]+)>", part)
                     if m:
                         url = m.group(1)
+    elapsed_time = time.time() - start_time
+    print(f"Elapsed time: {elapsed_time:.2f} seconds")
     return results
 
 
