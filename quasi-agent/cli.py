@@ -47,6 +47,12 @@ The quasi-agent CLI supports the following commands:
 
 quasi-agent — QUASI task client
 
+### solve
+- **Usage:** `python3 quasi-agent/solve.py --timeout 90`
+- **Description:** Solves a task with the specified timeout.
+- **Options:**
+  - `--timeout <seconds>`: Specifies the timeout in seconds.
+
 Connects to any quasi-board ActivityPub instance.
 Lists open tasks, claims them, records completions on the ledger.
 
