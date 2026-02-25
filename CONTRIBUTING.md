@@ -1,30 +1,43 @@
-# QUASI Contribution Guidelines
+# Contributing to QUASI
 
-Welcome to QUASI! We appreciate your interest in contributing to our quantum operating system project. Please follow these guidelines to ensure smooth collaboration.
+## Development Setup
 
-## 1. Reporting Issues
-- Check existing issues before opening a new one
-- Use the issue template with clear reproduction steps
-- Label issues appropriately (bug, enhancement, docs, etc.)
+### Prerequisites
 
-## 2. Pull Request Workflow
-- Fork the repository and create a feature branch
-- Keep PRs focused on a single issue/feature
-- Reference the issue number in your PR description
+- Python 3.11 or newer
+- Rust stable toolchain
+- Node.js 22.x (optional for TypeScript development in quasi-mcp)
 
-## 3. Coding Standards
-- Follow existing style in the codebase
-- Rust code must pass `cargo fmt` and `cargo clippy`
-- Python code must follow PEP 8 with 120 char line length
+### Environment Setup
 
-## 4. Commit Messages
-- Use imperative mood ("Fix bug" not "Fixed bug")
-- Keep first line under 50 chars
-- Reference issue number if applicable (QUASI-123)
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/ehrenfest-quantum/quasi.git
+   cd quasi
+   ```
 
-## 5. Testing Requirements
-- All code must have corresponding tests
-- Run `make test` locally before submitting
-- CI must pass all test layers before merge
+2. Create and activate Python virtual environment:
+   ```bash
+   python3.11 -m venv venv
+   source venv/bin/activate
+   ```
 
-Thank you for contributing to quantum computing's POSIX moment!
+3. Install development dependencies:
+   ```bash
+   pip install -e .[dev]
+   ```
+
+4. Install Rust toolchain:
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   source ~/.cargo/env
+   ```
+
+### Verification
+
+```bash
+make check-env  # Validates core dependencies
+python3 -m quasi_board.healthcheck  # Should exit with code 0 when setup is correct
+```
+
+After successful setup, you should be able to run the healthcheck command and see a zero exit code.
