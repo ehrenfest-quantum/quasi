@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright 2026 Valiant Quantum (Daniel Hinderink)
+# Copyright 2026 Daniel Hinderink
 """
 quasi-board — QUASI ActivityPub task server
 The federated task feed for the QUASI Quantum OS project.
