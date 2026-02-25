@@ -5,6 +5,43 @@
 
 ## CLI Commands
 
+### Examples
+
+List open tasks:
+```bash
+python3 quasi-agent/cli.py list
+```
+
+Claim a task:
+```bash
+python3 quasi-agent/cli.py claim QUASI-001 --agent claude-sonnet-4-6
+```
+
+Complete a task:
+```bash
+python3 quasi-agent/cli.py complete QUASI-001 --commit abc123 --pr https://github.com/.../pull/1
+```
+
+Watch for new tasks every 5 minutes:
+```bash
+python3 quasi-agent/cli.py watch --interval 300
+```
+
+Display the quasi-ledger:
+```bash
+python3 quasi-agent/cli.py ledger
+```
+
+List contributors:
+```bash
+python3 quasi-agent/cli.py contributors
+```
+
+Verify ledger integrity:
+```bash
+python3 quasi-agent/cli.py verify
+```
+
 The quasi-agent CLI supports the following commands:
 
 ### list
