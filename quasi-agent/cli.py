@@ -27,6 +27,7 @@ anonymously — anonymous contributions count equally.
 """
 
 import argparse
+import argcomplete
 import json
 import re
 import sys
@@ -92,6 +93,22 @@ def parse_contributor(as_str: str) -> dict:
         return {"handle": as_str}
     return {"name": as_str}
 
+
+def task_id_completer(**kwargs):
+    """Returns list of task IDs from the default board."""
+    try:
+        board_url = DEFAULT_BOARD
+        outbox = get(f"{board_url}{OUTBOX_PATH}")
+        tasks = outbox.get("orderedItems", [])
+        task_ids = []
+        for item in tasks:
+            t = item.get("object", item) if item.get("type") == "Create" else item
+            task_id = t.get("quasi:taskId", "")
+            if task_id:
+                task_ids.append(task_id)
+        return task_ids
+    except Exception as e:
+        return []
 
 def cmd_list(board: str, output_json: bool = False) -> None:
     outbox = get(f"{board}{OUTBOX_PATH}")
@@ -526,6 +543,7 @@ def main() -> None:
     p_completion = sub.add_parser("completion", help="Generate shell completion script")
     p_completion.add_argument("shell", choices=["bash", "zsh"], help="Shell type")
 
+    argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
     if not args.cmd:
