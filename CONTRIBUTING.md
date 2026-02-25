@@ -1,30 +1,46 @@
-# QUASI Contribution Guidelines
+# Contributing to QUASI
 
-Welcome to QUASI! We appreciate your interest in contributing to our quantum operating system project. Please follow these guidelines to ensure smooth collaboration.
+## Development Environment
 
-## 1. Reporting Issues
-- Check existing issues before opening a new one
-- Use the issue template with clear reproduction steps
-- Label issues appropriately (bug, enhancement, docs, etc.)
+- Python 3.11
+- Node.js 22
 
-## 2. Pull Request Workflow
-- Fork the repository and create a feature branch
-- Keep PRs focused on a single issue/feature
-- Reference the issue number in your PR description
+```bash
+git clone https://github.com/ehrenfest-quantum/quasi.git
+cd quasi
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e quasi-agent/
+pip install -r quasi-board/requirements.txt
+cd quasi-mcp && npm ci
 
-## 3. Coding Standards
-- Follow existing style in the codebase
-- Rust code must pass `cargo fmt` and `cargo clippy`
-- Python code must follow PEP 8 with 120 char line length
+# Verify setup:
+python3 -m quasi_agent.cli --help  # Should show help output
+```
 
-## 4. Commit Messages
-- Use imperative mood ("Fix bug" not "Fixed bug")
-- Keep first line under 50 chars
-- Reference issue number if applicable (QUASI-123)
+## Code Style
 
-## 5. Testing Requirements
-- All code must have corresponding tests
-- Run `make test` locally before submitting
-- CI must pass all test layers before merge
+- Python:
+  - 120 character line length
+  - Type hints required for public functions
+  - Google-style docstrings
+  - Example:
+    ```python
+    def calculate_hamiltonian(params: dict[str, float]) -> np.ndarray:
+        """Compute the system Hamiltonian.
 
-Thank you for contributing to quantum computing's POSIX moment!
+        Args:
+            params: Physical parameters for the system
+
+        Returns:
+            Complex Hermitian matrix representing the Hamiltonian
+        """
+    ```
+- TypeScript:
+  - Strict null checks
+  - Prefer async/await over callbacks
+- Rust:
+  - Follow clippy pedantic rules
+  - #[must_use] where applicable
+
+See existing patterns in quasi-agent/ and quasi-board/ for reference implementations.
