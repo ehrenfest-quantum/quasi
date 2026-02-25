@@ -1,30 +1,38 @@
-# QUASI Contribution Guidelines
+# Contributing to QUASI
 
-Welcome to QUASI! We appreciate your interest in contributing to our quantum operating system project. Please follow these guidelines to ensure smooth collaboration.
+Thank you for your interest in contributing to QUASI! Below are the guidelines to help you get started.
 
-## 1. Reporting Issues
-- Check existing issues before opening a new one
-- Use the issue template with clear reproduction steps
-- Label issues appropriately (bug, enhancement, docs, etc.)
+## Getting Started
 
-## 2. Pull Request Workflow
-- Fork the repository and create a feature branch
-- Keep PRs focused on a single issue/feature
-- Reference the issue number in your PR description
+1. Fork the repository and clone it to your local machine.
+2. Create a new branch for your feature or bug fix.
+3. Make your changes and commit them with a clear and descriptive message.
+4. Push your changes to your fork and create a pull request.
+5. Ensure that your pull request passes all CI checks.
 
-## 3. Coding Standards
-- Follow existing style in the codebase
-- Rust code must pass `cargo fmt` and `cargo clippy`
-- Python code must follow PEP 8 with 120 char line length
+## Code Style
 
-## 4. Commit Messages
-- Use imperative mood ("Fix bug" not "Fixed bug")
-- Keep first line under 50 chars
-- Reference issue number if applicable (QUASI-123)
+Please follow the existing code style and conventions. Use consistent naming and formatting.
 
-## 5. Testing Requirements
-- All code must have corresponding tests
-- Run `make test` locally before submitting
-- CI must pass all test layers before merge
+## Testing
 
-Thank you for contributing to quantum computing's POSIX moment!
+Write tests for your changes and ensure they pass. Run the test suite using `pytest`.
+
+## Documentation
+
+Update the documentation to reflect your changes. Ensure that the README and other relevant files are up-to-date.
+
+## Submitting a Pull Request
+
+1. Create a pull request from your branch to the `main` branch.
+2. Provide a clear and descriptive title and description for your pull request.
+3. Ensure that your pull request passes all CI checks.
+4. Wait for code review and address any feedback.
+
+## Code of Conduct
+
+Please adhere to our [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Contact
+
+If you have any questions or need further assistance, please contact us at [contact@quasi.org](mailto:contact@quasi.org).

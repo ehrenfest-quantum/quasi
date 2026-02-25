@@ -10,6 +10,30 @@
 
 QUASI is an open specification and implementation for a hardware-agnostic Quantum Operating System. It treats AI as author, not tool.
 
+--- 
+
+## Contributing
+
+We welcome contributions from the community! To contribute to QUASI, please follow these steps:
+
+1. Fork the repository and clone it to your local machine.
+2. Create a new branch for your feature or bug fix.
+3. Make your changes and commit them with a clear and descriptive message.
+4. Push your changes to your fork and create a pull request.
+5. Ensure that your pull request passes all CI checks.
+
+Please refer to our [CONTRIBUTING.md](CONTRIBUTING.md) for more detailed guidelines.
+
+## Setup
+
+To set up the development environment, follow these steps:
+
+1. Install the required dependencies by running `pip install -r requirements.txt`.
+2. Set up the database by running `python manage.py migrate`.
+3. Start the development server by running `python manage.py runserver`.
+
+For more detailed setup instructions, please refer to our [SETUP.md](SETUP.md).
+
 ---
 
 ## The Problem
