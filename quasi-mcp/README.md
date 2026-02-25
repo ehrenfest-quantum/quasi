@@ -70,7 +70,7 @@ complete_task QUASI-002 claude-sonnet-4-6 <merge_sha> <pr_url>
 
 ## Default board
 
-`https://gawain.valiant-quantum.com` — the live QUASI board run by Valiant Quantum.
+`https://gawain.valiant-quantum.com` — the live QUASI board.
 
 ## What is QUASI?
 
