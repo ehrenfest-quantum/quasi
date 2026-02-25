@@ -88,6 +88,17 @@ LEDGER_PATH = "/quasi-board/ledger"
 
 
 def get(url: str) -> dict:
+    """Fetches JSON data from a URL.
+
+    Args:
+        url: The URL to fetch data from.
+
+    Returns:
+        dict: The parsed JSON response.
+
+    Raises:
+        SystemExit: If the request fails or times out.
+    """
     req = urllib.request.Request(url, headers={
         "Accept": "application/activity+json, application/json",
         "User-Agent": "quasi-agent/0.1",
@@ -104,6 +115,18 @@ def get(url: str) -> dict:
 
 
 def post(url: str, body: dict) -> dict:
+    """Posts JSON data to a URL and returns the response.
+
+    Args:
+        url: The URL to post to.
+        body: The JSON data to send.
+
+    Returns:
+        dict: The parsed JSON response.
+
+    Raises:
+        SystemExit: If the request fails or times out.
+    """
     data = json.dumps(body).encode()
     req = urllib.request.Request(url, data=data, headers={
         "Content-Type": "application/json",
@@ -119,6 +142,14 @@ def post(url: str, body: dict) -> dict:
 
 
 def parse_contributor(as_str: str) -> dict:
+    """Parses contributor attribution string into name and handle.
+
+    Args:
+        as_str: String in format "Name <@handle@domain>".
+
+    Returns:
+        dict: Parsed contributor info with 'name' and 'handle' keys.
+    """ str) -> dict:
     """Parse 'Name <handle>' → {'name': ..., 'handle': ...}. All fields optional."""
     as_str = as_str.strip()
     m = re.match(r'^(.*?)\s*<([^>]+)>$', as_str)
