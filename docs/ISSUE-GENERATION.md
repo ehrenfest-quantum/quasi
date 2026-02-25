@@ -44,7 +44,7 @@ If the same model writes and solves the issue, it is evaluating itself. A model 
 | Criterion | Rule |
 |-----------|------|
 | **Open weights** | Model weights must be publicly released under any license (Apache 2.0, MIT, Llama Community License, research license, etc.). Closed-weights models are not eligible. |
-| **Third-party hosted** | The model must be accessible via a third-party hosted API. Valiant Quantum does not operate inference infrastructure. Eligible providers include OpenRouter, Together.ai, Fireworks.ai, Groq, Hugging Face Inference API, Replicate, and equivalent services. |
+| **Third-party hosted** | The model must be accessible via a third-party hosted API. QUASI does not operate inference infrastructure. Eligible providers include OpenRouter, Together.ai, Fireworks.ai, Groq, Hugging Face Inference API, Replicate, and equivalent services. |
 | **Versioned model ID** | The exact model version used must be pinned (e.g. `deepseek-ai/deepseek-v3` at a specific revision). Unversioned or floating aliases are not eligible — results must be reproducible. |
 | **Coding capability** | The model must demonstrate basic code comprehension at L0 level before being admitted to the rotation. A simple admittance task is defined below. |
 
