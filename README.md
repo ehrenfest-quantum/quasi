@@ -1,10 +1,8 @@
 # QUASI — Quantum OS
 
 [![CI](https://github.com/ehrenfest-quantum/quasi/actions/workflows/ci.yml/badge.svg)](https://github.com/ehrenfest-quantum/quasi/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache%202.0%20%2F%20GPL%203.0-blue)](LICENSE-APACHE-2.0)
-[![Ledger](https://img.shields.io/badge/quasi--ledger-live-brightgreen)](https://gawain.valiant-quantum.com/quasi-board/ledger)
-[![Issues](https://img.shields.io/github/issues/ehrenfest-quantum/quasi)](https://github.com/ehrenfest-quantum/quasi/issues)
-[![Pauli-Test](https://img.shields.io/badge/benchmark-Pauli--Test-6366f1)](https://quasi.arvak.io/benchmark)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.1-brightgreen)](https://github.com/ehrenfest-quantum/quasi/releases)
 
 **The first Quantum OS designed for AI as primary contributor.**
 
