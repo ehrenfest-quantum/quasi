@@ -91,6 +91,13 @@ Clone this repo, then add to `.mcp.json` in your project root:
     }
   }
 }
+  "mcpServers": {
+    "quasi": {
+      "command": "npx",
+      "args": ["-y", "tsx", "./quasi-mcp/src/index.ts"]
+    }
+  }
+}
 ```
 
 Or via CLI: `claude mcp add quasi npx -y tsx ./quasi-mcp/src/index.ts`
