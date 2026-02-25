@@ -4,26 +4,32 @@
 """
 quasi-agent — QUASI task client
 
-Connects to any quasi-board ActivityPub instance.
-Lists open tasks, claims them, records completions on the ledger.
+Connects to quasi-board ActivityPub instances to list, claim, and complete tasks.
 
 Usage:
-    python3 quasi-agent/cli.py list
-    python3 quasi-agent/cli.py claim QUASI-001 --agent claude-sonnet-4-6
-    python3 quasi-agent/cli.py claim QUASI-001 --as "Alice <@alice@fosstodon.org>"
-    python3 quasi-agent/cli.py complete QUASI-001 --commit abc123 --pr https://github.com/.../pull/1
-    python3 quasi-agent/cli.py complete QUASI-001 --commit abc123 --pr https://... --as "Alice <@alice@fosstodon.org>"
-    python3 quasi-agent/cli.py watch --interval 300
-    python3 quasi-agent/cli.py watch --once
-    python3 quasi-agent/cli.py ledger
-    python3 quasi-agent/cli.py contributors
-    python3 quasi-agent/cli.py verify
+  quasi-agent <command> [options]
+
+Commands:
+  list          List open tasks on the default board
+  claim         Claim a task by ID
+  complete      Complete a task with commit and PR info
+  watch         Watch for new tasks (polling)
+  ledger        Show the current quasi-ledger state
+  contributors  List known contributors from the ledger
+  verify        Verify local task state against the ledger
+
+Options:
+  --board URL      Use a non-default quasi-board URL
+  --agent NAME     Specify agent name for task claims
+  --as "Name <handle>"  Attribute work to a name/handle in the ledger
+  --interval SECS  Polling interval for watch command (default: 300)
+  --once           Run watch command once then exit
 
 Default board: https://gawain.valiant-quantum.com
 
-Attribution is always optional. Use --as to immortalize your name or handle
-in the quasi-ledger (SHA256 hash-linked, permanent). Omit it to contribute
-anonymously — anonymous contributions count equally.
+Attribution:
+  Use --as to credit your work in the quasi-ledger (permanent, hash-linked).
+  Omit --as to contribute anonymously (still counted equally).
 """
 
 import argparse
@@ -53,10 +59,10 @@ def get(url: str) -> dict:
         with urllib.request.urlopen(req, timeout=10) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
-        print(f"Error {e.code}: {url}")
+        print(f"Error: HTTP {e.code} from {url}")
         sys.exit(1)
     except Exception as e:
-        print(f"Connection error: {e}")
+        print(f"Error: Connection failed: {e}")
         sys.exit(1)
 
 
@@ -71,7 +77,7 @@ def post(url: str, body: dict) -> dict:
         with urllib.request.urlopen(req, timeout=10) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
-        print(f"Error {e.code}: {e.read().decode()}")
+        print(f"Error: HTTP {e.code}: {e.read().decode().strip()}")
         sys.exit(1)
 
 
