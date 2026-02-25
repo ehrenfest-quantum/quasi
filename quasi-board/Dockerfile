@@ -1,25 +1,13 @@
-FROM python:3.12-slim
-
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
-RUN useradd -m -u 1000 quasi
-RUN mkdir -p /data/board/keys /data/ledger && chown -R quasi:quasi /data
+FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY quasi-board/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY --chown=quasi:quasi . .
-
-USER quasi
-
-ENV QUASI_DOMAIN=localhost \
-    QUASI_DATA_DIR=/data/board \
-    QUASI_LEDGER_DIR=/data/ledger
+COPY quasi-board/server.py .
+COPY quasi-board/spec ./spec
 
 EXPOSE 8420
 
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD curl -f http://localhost:8420/quasi-board/health || exit 1
-
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8420"]
+CMD ["python", "server.py"]
