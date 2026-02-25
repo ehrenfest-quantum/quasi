@@ -70,6 +70,7 @@ anonymously — anonymous contributions count equally.
 """
 
 import argparse
+import textwrap
 import argcomplete
 import json
 import re
@@ -81,10 +82,61 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 DEFAULT_BOARD = "https://gawain.valiant-quantum.com"
+
+def format_help(text: str) -> str:
+    """Dedent and wrap help text."""
+    return textwrap.fill(textwrap.dedent(text).strip(), width=72)
 ACTOR_PATH = "/quasi-board"
 OUTBOX_PATH = "/quasi-board/outbox"
 INBOX_PATH = "/quasi-board/inbox"
 LEDGER_PATH = "/quasi-board/ledger"
+
+def create_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog='quasi-agent',
+        description='QUASI task client — connects to any quasi-board ActivityPub instance',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""
+            Default board: https://gawain.valiant-quantum.com
+            Attribution is always optional. Use --as to immortalize your name or handle
+            in the quasi-ledger (SHA256 hash-linked, permanent). Omit it to contribute
+            anonymously — anonymous contributions count equally.
+        """)
+    )
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+
+    list_parser = subparsers.add_parser('list', help='List open tasks from the quasi-board')
+    list_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
+
+    claim_parser = subparsers.add_parser('claim', help='Claim a task')
+    claim_parser.add_argument('task_id', help='Task ID to claim (e.g., QUASI-001)')
+    claim_parser.add_argument('--agent', required=True, help='Agent name claiming the task')
+    claim_parser.add_argument('--as', dest='attribution', metavar='"Name <handle>"', help='Attribute claim to specified name/handle')
+    claim_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
+
+    complete_parser = subparsers.add_parser('complete', help='Mark a task as complete')
+    complete_parser.add_argument('task_id', help='Task ID to complete (e.g., QUASI-001)')
+    complete_parser.add_argument('--commit', required=True, help='Commit hash for the completion')
+    complete_parser.add_argument('--pr', required=True, help='Pull request URL')
+    complete_parser.add_argument('--as', dest='attribution', metavar='"Name <handle>"', help='Attribute completion to specified name/handle')
+    complete_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
+
+    watch_parser = subparsers.add_parser('watch', help='Watch for new tasks at specified interval')
+    watch_parser.add_argument('--interval', type=int, default=300, help='Watch interval in seconds (default: %(default)s)')
+    watch_parser.add_argument('--once', action='store_true', help='Run watch command once')
+    watch_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
+
+    ledger_parser = subparsers.add_parser('ledger', help='Display the current state of the quasi-ledger')
+    ledger_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
+
+    contributors_parser = subparsers.add_parser('contributors', help='List contributors from the quasi-ledger')
+    contributors_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
+
+    verify_parser = subparsers.add_parser('verify', help='Verify the integrity of the quasi-ledger')
+    verify_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
+
+    argcomplete.autocomplete(parser)
+    return parser
 
 
 def get(url: str) -> dict:
@@ -616,4 +668,24 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    parser = create_parser()
+    args = parser.parse_args()
+
+    if args.command == 'list':
+        # ... existing list command logic ...
+    elif args.command == 'claim':
+        # ... existing claim command logic ...
+    elif args.command == 'complete':
+        # ... existing complete command logic ...
+    elif args.command == 'watch':
+        # ... existing watch command logic ...
+    elif args.command == 'ledger':
+        # ... existing ledger command logic ...
+    elif args.command == 'contributors':
+        # ... existing contributors command logic ...
+    elif args.command == 'verify':
+        # ... existing verify command logic ...
+    else:
+        parser.print_help()
+        sys.exit(1)
     main()
