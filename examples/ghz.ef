@@ -1,0 +1,4 @@
+// GHZ state (3 qubits)
+// Expected output: maximally entangled GHZ state
+QASM
+...

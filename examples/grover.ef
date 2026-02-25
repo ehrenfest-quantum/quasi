@@ -1,0 +1,4 @@
+// Grover search (2 qubits)
+// Expected output: amplitude amplification for a marked state
+QASM
+...
