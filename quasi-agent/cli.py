@@ -8,16 +8,16 @@ Connects to any quasi-board ActivityPub instance.
 Lists open tasks, claims them, records completions on the ledger.
 
 Usage:
-    python3 quasi-agent/cli.py list
-    python3 quasi-agent/cli.py claim QUASI-001 --agent claude-sonnet-4-6
-    python3 quasi-agent/cli.py claim QUASI-001 --as "Alice <@alice@fosstodon.org>"
-    python3 quasi-agent/cli.py complete QUASI-001 --commit abc123 --pr https://github.com/.../pull/1
-    python3 quasi-agent/cli.py complete QUASI-001 --commit abc123 --pr https://... --as "Alice <@alice@fosstodon.org>"
-    python3 quasi-agent/cli.py watch --interval 300
-    python3 quasi-agent/cli.py watch --once
-    python3 quasi-agent/cli.py ledger
-    python3 quasi-agent/cli.py contributors
-    python3 quasi-agent/cli.py verify
+quasi-agent list
+quasi-agent claim QUASI-001 --agent claude-sonnet-4-6
+quasi-agent claim QUASI-001 --as "Alice <@alice@fosstodon.org>"
+quasi-agent complete QUASI-001 --commit abc123 --pr https://github.com/.../pull/1
+quasi-agent complete QUASI-001 --commit abc123 --pr https://... --as "Alice <@alice@fosstodon.org>"
+quasi-agent watch --interval 300
+quasi-agent watch --once
+quasi-agent ledger
+quasi-agent contributors
+quasi-agent verify
 
 Default board: https://gawain.valiant-quantum.com
 
