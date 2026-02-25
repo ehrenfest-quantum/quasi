@@ -1,0 +1,27 @@
+Urn = {
+  "version": uint,           ; urn format version, must be 1
+  "manifest": UrnManifest,
+  "program": EhrenfestProgram,   ; from ehrenfest-v0.1.cddl
+  "interface": UrnInterface,
+  "noise_requirements": NoiseRequirements,  ; reuse from Ehrenfest noise type
+  ? "dependencies": [* UrnDependency],
+  ? "provenance": ProvenanceCertificate,
+}
+
+UrnManifest = {
+  "name": tstr,             ; lowercase, hyphenated, e.g. "grover-search"
+  "version": tstr,          ; semver string, e.g. "0.1.0"
+  "description": tstr,
+  "license": tstr,          ; SPDX identifier
+  ? "author": tstr,
+  ? "homepage": uri,
+}
+
+UrnInterface = {
+  ? "parameters": [* UrnParameter],  ; named float inputs (variational angles etc.)
+  "observables": [+ ObservableType], ; what the urn measures
+}
+
+ObservableType = SigmaZ / SigmaX / Energy / Density / Fidelity
+
+Energy = {
