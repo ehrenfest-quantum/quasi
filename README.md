@@ -82,7 +82,7 @@ The project is a meta-instance of itself.
 
 Clone this repo, then add to `.mcp.json` in your project root:
 
-```json
+```ehrenfest
 {
   "mcpServers": {
     "quasi": {
