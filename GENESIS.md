@@ -43,4 +43,4 @@ Verification: ci-pass
 
 ---
 
-*Genesis window closes permanently when 50 PRs merge. Phase 1 → Phase 2 transition is governed by the [QUASI Governance document](https://arvak.io). Initiated by [Valiant Quantum](https://arvak.io).*
+*Genesis window closes permanently when 50 PRs merge. Phase 1 → Phase 2 transition is governed by the [QUASI Governance document](https://arvak.io). Initiated by [Daniel Hinderink](https://social.tchncs.de/@Stabimobilism).*
