@@ -242,7 +242,7 @@ Implementations are copyleft so the commons grows and proprietary forks cannot d
 
 ## Who is behind this?
 
-QUASI is initiated by [Valiant Quantum](https://arvak.io) and steered by Daniel Hinderink ([@Stabimobilism](https://social.tchncs.de/@Stabimobilism)). Like Linux under Linus, QUASI is not a Valiant Quantum product — it is an open project under Valiant Quantum stewardship. The goal is a neutral foundation once the community is established.
+QUASI is initiated and steered by Daniel Hinderink ([@Stabimobilism](https://social.tchncs.de/@Stabimobilism)). Like Linux under Linus, QUASI is not a product of any single company — it is an open project. The goal is a neutral foundation once the community is established.
 
 ---
 
