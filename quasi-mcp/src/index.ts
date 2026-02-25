@@ -1,4 +1,18 @@
-#!/usr/bin/env node
+import axios from 'axios';
+
+const watchTasks = async ({ since }: { since: string }) => {
+  const response = await axios.get('https://gawain.valiant-quantum.com/quasi-board/outbox');
+  const tasks = response.data.orderedItems;
+  const newTasks = tasks.filter((task: any) => task.published > since);
+  return newTasks.map((task: any) => ({
+    taskId: task['quasi:taskId'],
+    title: task.name,
+    url: task.url,
+    published: task.published,
+  }));
+};
+
+export { watchTasks };#!/usr/bin/env node
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2026 Valiant Quantum (Daniel Hinderink)
 /**
