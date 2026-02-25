@@ -88,6 +88,19 @@ LEDGER_PATH = "/quasi-board/ledger"
 
 
 def get(url: str) -> dict:
+    """Fetches JSON data from a given URL.
+
+    Sends an HTTP GET request with appropriate headers for ActivityPub interactions.
+
+    Args:
+        url (str): The URL to fetch data from.
+
+    Returns:
+        dict: The parsed JSON response.
+
+    Raises:
+        SystemExit: If an HTTP error or connection error occurs.
+    """
     req = urllib.request.Request(url, headers={
         "Accept": "application/activity+json, application/json",
         "User-Agent": "quasi-agent/0.1",
@@ -104,6 +117,18 @@ def get(url: str) -> dict:
 
 
 def post(url: str, body: dict) -> dict:
+    """Sends a JSON payload via HTTP POST to a given URL.
+
+    Args:
+        url (str): The URL to send the POST request to.
+        body (dict): The JSON payload to send.
+
+    Returns:
+        dict: The parsed JSON response.
+
+    Raises:
+        SystemExit: If an HTTP error occurs.
+    """
     data = json.dumps(body).encode()
     req = urllib.request.Request(url, data=data, headers={
         "Content-Type": "application/json",
