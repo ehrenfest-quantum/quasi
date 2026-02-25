@@ -7,7 +7,9 @@ quasi-agent — QUASI task client
 Connects to any quasi-board ActivityPub instance.
 Lists open tasks, claims them, records completions on the ledger.
 
-Usage:
+Usage: quasi-agent <command> [options]
+
+Commands:
     python3 quasi-agent/cli.py list
     python3 quasi-agent/cli.py claim QUASI-001 --agent claude-sonnet-4-6
     python3 quasi-agent/cli.py claim QUASI-001 --as "Alice <@alice@fosstodon.org>"
