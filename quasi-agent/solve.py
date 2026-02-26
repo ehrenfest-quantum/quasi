@@ -263,6 +263,11 @@ def call_model(entry: dict, prompt: str) -> dict:
     # Repair common model output issues before giving up
     repaired = content
 
+    # 0. Strip JS-style line comments (// ...) that some models add
+    repaired = re.sub(r"//[^
+"]*(?=
+|$)", "", repaired)
+
     # 1. Replace Python triple-quoted strings with JSON-safe equivalent
     repaired = re.sub(
         r'\"\"\"(.*?)\"\"\"',
