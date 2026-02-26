@@ -47,8 +47,11 @@ ACTOR_KEY_ID = f"{ACTOR_URL}#main-key"
 AP_CONTENT_TYPE = "application/activity+json"
 
 
+app = FastAPI(title="quasi-board", version="0.1.0")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
+
 # Prometheus-compatible metrics for quasi-board
-@app.get("/quasi-board/metrics", response_class=PlainTextResponse)  # noqa: F821
+@app.get("/quasi-board/metrics", response_class=PlainTextResponse)
 def metrics() -> PlainTextResponse:
     """Return Prometheus-compatible metrics for quasi-board.
 
@@ -552,8 +555,6 @@ async def _open_pr_from_files(task_id: str, agent: str, files: dict, message: st
         r.raise_for_status()
         return r.json()["html_url"]
 
-app = FastAPI(title="quasi-board", version="0.1.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
 
 
 # ── Ledger ────────────────────────────────────────────────────────────────────
@@ -1383,3 +1384,4 @@ async def github_webhook(request: Request, x_hub_signature_256: str = Header(def
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8420)
+
