@@ -119,7 +119,7 @@ LABEL_CONTEXT = {
     "agent-ux": ["quasi-agent/cli.py", "quasi-agent/generate_issue.py"],
 }
 
-MAX_FILE_CHARS = 4000
+MAX_FILE_CHARS = 16000
 
 
 def read_repo_file(rel_path: str) -> str | None:
