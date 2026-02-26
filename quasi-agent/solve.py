@@ -278,11 +278,14 @@ def call_model(entry: dict, prompt: str) -> dict:
         result, in_str, esc_next = [], False, False
         for ch in s:
             if esc_next:
-                result.append(ch); esc_next = False
+                result.append(ch)
+                esc_next = False
             elif ch == '\\' and in_str:
-                result.append(ch); esc_next = True
+                result.append(ch)
+                esc_next = True
             elif ch == '"':
-                in_str = not in_str; result.append(ch)
+                in_str = not in_str
+                result.append(ch)
             elif in_str and ch == '\n':
                 result.append('\\n')
             elif in_str and ch == '\r':
