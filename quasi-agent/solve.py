@@ -257,6 +257,41 @@ def call_model(entry: dict, prompt: str) -> dict:
 
     try:
         return json.loads(content)
+    except json.JSONDecodeError:
+        pass
+
+    # Repair common model output issues before giving up
+    repaired = content
+
+    # 1. Replace Python triple-quoted strings with JSON-safe equivalent
+    repaired = re.sub(
+        r'\"\"\"(.*?)\"\"\"',
+        lambda m: json.dumps(m.group(1)),
+        repaired,
+        flags=re.DOTALL,
+    )
+
+    # 2. Try ast.literal_eval for Python-style single-quote dicts
+    if "'" in repaired:
+        try:
+            import ast as _ast
+            parsed = _ast.literal_eval(repaired)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            pass
+
+    # 3. Fix invalid JSON backslash escapes (e.g. \\( in regex patterns)
+    # In JSON, only \\" \\\\ \\/ \\b \\f \\n \\r \\t \\uXXXX are valid
+    import re as _re2
+    repaired3 = _re2.sub(r"\\([^\"\\\\bfnrtu\/])", r"\\\\\\1", repaired)
+    try:
+        return json.loads(repaired3)
+    except json.JSONDecodeError:
+        pass
+
+    try:
+        return json.loads(repaired)
     except json.JSONDecodeError as e:
         print(f"Model output was not valid JSON: {e}", file=sys.stderr)
         print("Raw output:", file=sys.stderr)
