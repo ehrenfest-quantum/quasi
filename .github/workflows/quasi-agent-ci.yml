@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel in-progress runs for the same branch/PR
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Layer 0: Ehrenfest Spec / CBOR Schema ──────────────────────────────────
+  python:
+    name: "Layer 0 · Ehrenfest spec"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install cbor2
+
+      - name: Validate CBOR examples against schema
+        run: python3 spec/tools/validate.py spec/examples/
+
+      - name: Check for generator drift
+        run: |
+          cp spec/examples/transverse_ising_2q.cbor.hex   /tmp/ising.bak
+          cp spec/examples/rabi_oscillation_1q.cbor.hex   /tmp/rabi.bak
+          cp spec/examples/heisenberg_4q.cbor.hex         /tmp/heisenberg.bak
+          python3 spec/tools/generate_examples.py
+          diff spec/examples/transverse_ising_2q.cbor.hex /tmp/ising.bak       || (echo "❌ CBOR drift in transverse_ising_2q" && exit 1)
+          diff spec/examples/rabi_oscillation_1q.cbor.hex /tmp/rabi.bak        || (echo "❌ CBOR drift in rabi_oscillation_1q"  && exit 1)
+          diff spec/examples/heisenberg_4q.cbor.hex       /tmp/heisenberg.bak  || (echo "❌ CBOR drift in heisenberg_4q"        && exit 1)
+          echo "✅ All CBOR examples match generator output"
+
+  # ── Layer 1: quasi-board (ActivityPub + ledger) ────────────────────────────
+  board:
+    name: "Layer 1 · quasi-board"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        working-directory: quasi-board
+        run: pip install -r requirements.txt pytest pytest-anyio anyio[asyncio]
+
+      - name: Lint (flake8)
+        run: |
+          pip install --quiet flake8
+          flake8 quasi-board/ \n            --max-line-length=120 \n            --extend-ignore=E203,W503 \n            --exclude=__pycache__,.git
+
+      - name: Run pytest
+        working-directory: quasi-board
+        run: pytest tests/ -v --tb=short
+
+  # ── Layer 2: quasi-mcp (TypeScript build + type-check) ────────────────────
+  mcp:
+    name: "Layer 2 · quasi-mcp"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: quasi-mcp/package-lock.json
+
+      - name: Install deps
+        working-directory: quasi-mcp
+        run: npm ci --ignore-scripts
+
+      - name: Type-check (tsc --noEmit)
+        working-directory: quasi-mcp
+        run: npx tsc --noEmit
+
+      - name: Build
+        working-directory: quasi-mcp
+        run: npm run build
+
+  # ── Layer 3: quasi-agent (Python lint + smoke-test) ───────────────────────
+  agent:
+    name: "Layer 3 · quasi-agent"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install --quiet flake8 argcomplete requests
+
+      - name: Lint (flake8)
+        run: |
+          flake8 quasi-agent/ \n            --max-line-length=120 \n            --extend-ignore=E203,W503 \n            --exclude=__pycache__,.git
+
+      - name: Syntax check
+        run: |
+          python -m py_compile quasi-agent/cli.py
+          python -m py_compile quasi-agent/generate_issue.py
+          echo "✅ Syntax OK"
+
+      - name: Smoke-test CLI entry-points
+        run: |
+          python3 quasi-agent/cli.py --help > /dev/null
+          python3 quasi-agent/generate_issue.py --list-models
+          echo "✅ CLI loads cleanly"
+
+  # ── Summary gate ───────────────────────────────────────────────────────────
+  # Branch protection should require THIS job only.
+  # It passes when all four layer jobs pass.
+  all-layers:
+    name: "All layers passed"
+    needs: [python, board, mcp, agent]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check all layers
+        run: |
+          if [[ "${{ needs.spec.result }}"  != "success" || "${{ needs.board.result }}" != "success" || "${{ needs.mcp.result }}"   != "success" || "${{ needs.agent.result }}" != "success" ]]; then
+            echo "❌ One or more layers failed:"\n            echo "  spec:  ${{ needs.spec.result }}"\n            echo "  board: ${{ needs.board.result }}"\n            echo "  mcp:   ${{ needs.mcp.result }}"\n            echo "  agent: ${{ needs.agent.result }}"\n            exit 1
+          fi\n          echo "✅ All four layers passed — Pauli-Test objective criterion met"
