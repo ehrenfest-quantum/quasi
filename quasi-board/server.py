@@ -50,6 +50,7 @@ AP_CONTENT_TYPE = "application/activity+json"
 app = FastAPI(title="quasi-board", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
 
+
 # Prometheus-compatible metrics for quasi-board
 @app.get("/quasi-board/metrics", response_class=PlainTextResponse)
 def metrics() -> PlainTextResponse:
@@ -554,7 +555,6 @@ async def _open_pr_from_files(task_id: str, agent: str, files: dict, message: st
                 return existing_prs.json()[0]["html_url"]
         r.raise_for_status()
         return r.json()["html_url"]
-
 
 
 # ── Ledger ────────────────────────────────────────────────────────────────────
