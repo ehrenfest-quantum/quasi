@@ -44,10 +44,6 @@ PROPOSALS_FILE = Path("/home/vops/quasi-board/proposals.json")
 AGENT_TOKENS_FILE = Path("/home/vops/quasi-board/agent-tokens.json")
 ACTOR_KEY_ID = f"{ACTOR_URL}#main-key"
 
-@app.get("/health")
-async def health_check():
-    return JSONResponse({'status': 'ok'}, status_code=200)
-
 AP_CONTENT_TYPE = "application/activity+json"
 
 
@@ -361,7 +357,6 @@ def _effective_task_status(task_id: str) -> dict:
     }
 
 
-
 # ── Agent token store (C2S auth) ──────────────────────────────────────────────
 
 def _load_agent_tokens() -> dict:
@@ -505,6 +500,12 @@ async def _open_pr_from_files(task_id: str, agent: str, files: dict, message: st
         return r.json()["html_url"]
 
 app = FastAPI(title="quasi-board", version="0.1.0")
+
+
+@app.get("/health")
+async def health_check():
+    return JSONResponse({'status': 'ok'}, status_code=200)
+
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
 
 
@@ -980,6 +981,7 @@ async def inbox(request: Request):
     body = await request.json()
     return await _process_activity(body)
 
+
 @app.get("/quasi-board/tasks/{task_id}")
 async def task_status(task_id: str):
     _validate_task_id(task_id)
@@ -1279,7 +1281,6 @@ async def revoke_agent(agent_id: str, request: Request):
         del tokens[t]
     _save_agent_tokens(tokens)
     return JSONResponse({"revoked": agent_id, "tokens_removed": len(to_remove)})
-
 
 
 # ── GitHub webhook ────────────────────────────────────────────────────────────
