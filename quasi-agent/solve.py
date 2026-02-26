@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+        "timeout_ms": int(TIMEOUT * 1000),# LLM call timeout (seconds)
+TIMEOUT = 90#!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 QUASI Contributors
 """
