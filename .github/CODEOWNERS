@@ -1,0 +1,6 @@
+# CI/CD workflows require maintainer approval — models must not modify these
+/.github/workflows/ @hiq-lab
+
+# Ledger and board infrastructure — maintainer only
+/quasi-board/server.py @hiq-lab
+/quasi-board/requirements.txt @hiq-lab
