@@ -24,7 +24,31 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+
 jobs:
+  # ... existing jobs ...
+  # Run quasi-agent tests in a dedicated job
+  quasi-agent-ci:
+    name: 'Quasi-Agent Tests'
+    needs: [agent]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install --upgrade pip && pip install -r quasi-agent/requirements.txt
+      - name: Run pytest
+        run: |
+          pip install --quiet pytest
+          pytest quasi-agent/cli.py --exitfirst
+          pytest quasi-agent/generate_issue.py --exitfirst
+          echo "✅ quasi-agent tests passed"
+
   # ── Layer 0: Ehrenfest Spec / CBOR Schema ──────────────────────────────────
   python:
     name: "Layer 0 · Ehrenfest spec"
@@ -153,7 +177,7 @@ jobs:
     name: "All layers passed"
     needs: [spec, board, mcp, agent]
     runs-on: ubuntu-latest
-    if: always()
+    # Runs only if quasi-agent-ci is present and PR targets quasi-agent
     steps:
       - name: Check all layers
         run: |
