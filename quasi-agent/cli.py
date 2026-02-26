@@ -128,6 +128,14 @@ DEFAULT_BOARD = "https://gawain.valiant-quantum.com"
 
 
 def format_help(text: str) -> str:
+    """Dedent and wrap help text.
+
+    Args:
+        text (str): The text to format.
+
+    Returns:
+        str: The formatted text.
+    """
     """Dedent and wrap help text."""
     return textwrap.fill(textwrap.dedent(text).strip(), width=72)
 
@@ -139,6 +147,15 @@ LEDGER_PATH = "/quasi-board/ledger"
 
 
 def create_parser() -> argparse.ArgumentParser:
+    """Create and configure the argument parser for the quasi-agent CLI.
+
+    Returns:
+        argparse.ArgumentParser: Configured argument parser with subcommands and options.
+
+    Side effects:
+        - Sets up argument completion via argcomplete.autocomplete.
+        - Configures help text and epilog with default board information.
+    """
     parser = argparse.ArgumentParser(
         prog='quasi-agent',
         description='QUASI task client — connects to any quasi-board ActivityPub instance',
@@ -193,6 +210,20 @@ def create_parser() -> argparse.ArgumentParser:
 
 
 def get(url: str) -> dict:
+    """Fetch data from the specified URL using HTTP GET.
+
+    Args:
+        url (str): The URL to fetch data from.
+
+    Returns:
+        dict: The JSON response from the URL.
+
+    Raises:
+        SystemExit: If there is an HTTP error or connection issue.
+
+    Side effects:
+        - Prints error messages to stderr on failure.
+    """
     """Fetches data from the specified URL.
 
     Args:
@@ -221,6 +252,21 @@ def get(url: str) -> dict:
 
 
 def post(url: str, body: dict) -> dict:
+    """Post data to the specified URL using HTTP POST.
+
+    Args:
+        url (str): The URL to post data to.
+        body (dict): The data to post.
+
+    Returns:
+        dict: The JSON response from the URL.
+
+    Raises:
+        SystemExit: If there is an HTTP error or connection issue.
+
+    Side effects:
+        - Prints error messages to stderr on failure.
+    """
     """Posts data to the specified URL.
 
     Args:
@@ -249,6 +295,22 @@ def post(url: str, body: dict) -> dict:
 
 
 def parse_contributor(as_str: str) -> dict:
+    """Parse 'Name <handle>' string into a contributor dictionary.
+
+    Args:
+        as_str (str): The attribution string in format 'Name <handle>' or bare handle/name.
+
+    Returns:
+        dict: A dictionary with 'name' and/or 'handle' keys based on input.
+
+    Examples:
+        >>> parse_contributor('Alice <@alice@fosstodon.org>')
+        {'name': 'Alice', 'handle': '@alice@fosstodon.org'}
+        >>> parse_contributor('@bob@matrix.org')
+        {'handle': '@bob@matrix.org'}
+        >>> parse_contributor('Charlie')
+        {'name': 'Charlie'}
+    """
     """Parse 'Name <handle>' → {'name': ..., 'handle': ...}. All fields optional."""
     as_str = as_str.strip()
     m = re.match(r'^(.*?)\s*<([^>]+)>$', as_str)
@@ -267,7 +329,19 @@ def parse_contributor(as_str: str) -> dict:
     return {"name": as_str}
 
 
-def task_id_completer(**kwargs):
+def task_id_completer(**kwargs) -> list[str]:
+    """Return a list of task IDs from the default board for argument completion.
+
+    Args:
+        **kwargs: Additional keyword arguments (unused).
+
+    Returns:
+        list: A list of task IDs as strings.
+
+    Side effects:
+        - Makes network requests to the quasi-board outbox.
+        - Prints error messages to stderr on failure.
+    """
     """Returns list of task IDs from the default board."""
     try:
         board_url = DEFAULT_BOARD
@@ -285,6 +359,20 @@ def task_id_completer(**kwargs):
 
 
 def cmd_list(board: str, output_json: bool = False) -> None:
+    """List open tasks from the quasi-board.
+
+    Args:
+        board (str): The quasi-board URL to query.
+        output_json (bool): If True, output JSON format instead of human-readable.
+
+    Returns:
+        None: Prints results to stdout.
+
+    Side effects:
+        - Makes network requests to the quasi-board outbox and ledger.
+        - Prints task information to stdout.
+        - Prints error messages to stderr on failure.
+    """
     outbox = get(f"{board}{OUTBOX_PATH}")
     tasks = outbox.get("orderedItems", [])
     ledger = get(f"{board}{LEDGER_PATH}")
@@ -330,6 +418,22 @@ def cmd_list(board: str, output_json: bool = False) -> None:
 
 
 def cmd_claim(board: str, task_id: str, agent: str, as_str: str | None = None) -> None:
+    """Claim a task on the quasi-board.
+
+    Args:
+        board (str): The quasi-board URL to post to.
+        task_id (str): The task ID to claim (e.g., QUASI-001).
+        agent (str): The agent name claiming the task.
+        as_str (str | None): Optional attribution string in format 'Name <handle>'.
+
+    Returns:
+        None: Prints confirmation to stdout.
+
+    Side effects:
+        - Makes network request to the quasi-board inbox.
+        - Prints claim confirmation and next steps to stdout.
+        - Prints error messages to stderr on failure.
+    """
     body: dict = {
         "@context": "https://www.w3.org/ns/activitystreams",
         "type": "Announce",
@@ -358,6 +462,24 @@ def cmd_claim(board: str, task_id: str, agent: str, as_str: str | None = None) -
 
 
 def cmd_complete(board: str, task_id: str, agent: str, commit: str, pr: str, as_str: str | None = None) -> None:
+    """Record completion of a task on the quasi-board.
+
+    Args:
+        board (str): The quasi-board URL to post to.
+        task_id (str): The task ID to complete (e.g., QUASI-001).
+        agent (str): The agent name completing the task.
+        commit (str): The commit hash for the completion.
+        pr (str): The pull request URL.
+        as_str (str | None): Optional attribution string in format 'Name <handle>'.
+
+    Returns:
+        None: Prints confirmation to stdout.
+
+    Side effects:
+        - Makes network request to the quasi-board inbox.
+        - Prints completion confirmation to stdout.
+        - Prints error messages to stderr on failure.
+    """
     body: dict = {
         "@context": "https://www.w3.org/ns/activitystreams",
         "type": "Create",
@@ -385,6 +507,19 @@ def cmd_complete(board: str, task_id: str, agent: str, commit: str, pr: str, as_
 
 
 def cmd_ledger(board: str) -> None:
+    """Display the current state of the quasi-ledger.
+
+    Args:
+        board (str): The quasi-board URL to query.
+
+    Returns:
+        None: Prints the ledger to stdout.
+
+    Side effects:
+        - Makes network requests to the quasi-board ledger.
+        - Prints ledger information to stdout.
+        - Prints error messages to stderr on failure.
+    """
     data = get(f"{board}{LEDGER_PATH}")
     chain = data.get("chain", [])
     valid = data.get("quasi:valid", False)
@@ -464,6 +599,19 @@ def cmd_submit(board: str, task_id: str, agent: str, directory: str) -> None:
 
 
 def cmd_contributors(board: str) -> None:
+    """List contributors from the quasi-ledger.
+
+    Args:
+        board (str): The quasi-board URL to query.
+
+    Returns:
+        None: Prints contributors to stdout.
+
+    Side effects:
+        - Makes network requests to the quasi-board ledger.
+        - Prints contributor information to stdout.
+        - Prints error messages to stderr on failure.
+    """
     data = get(f"{board}/quasi-board/contributors")
     items = data.get("items", [])
     total = data.get("quasi:namedContributors", len(items))
@@ -578,6 +726,19 @@ def cmd_watch(board: str, interval: int, once: bool) -> None:
 
 
 def cmd_verify(board: str) -> None:
+    """Verify the integrity of the quasi-ledger.
+
+    Args:
+        board (str): The quasi-board URL to query.
+
+    Returns:
+        None: Prints verification result to stdout.
+
+    Side effects:
+        - Makes network requests to the quasi-board ledger.
+        - Prints verification information to stdout.
+        - Prints error messages to stderr on failure.
+    """
     result = get(f"{board}{LEDGER_PATH}/verify")
     valid = result.get("valid", False)
     entries = result.get("entries", 0)
