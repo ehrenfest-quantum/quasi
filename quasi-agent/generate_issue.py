@@ -146,8 +146,8 @@ ROTATION: list[dict] = [
     {"id": "eurollm-22b", "model": "utter-project/EuroLLM-22B-Instruct-2512",
      "provider": "huggingface", "license": "Apache-2.0",
      "origin": "EU consortium / Unbabel (Portugal)"},
-    {"id": "olmo-32b", "model": "allenai/Olmo-3.1-32B-Instruct",
-     "provider": "huggingface", "license": "Apache-2.0",
+    {"id": "olmo-32b", "model": "allenai/olmo-3.1-32b-instruct",
+     "provider": "openrouter", "license": "Apache-2.0",
      "origin": "US / Allen AI (fully open)"},
     # ── Tier 3 — Regional participation ──────────────────────────────────
     {"id": "sarvam-m", "model": "sarvam-m",
@@ -163,9 +163,9 @@ ROTATION: list[dict] = [
     {"id": "sea-lion", "model": "aisingapore/Qwen-SEA-LION-v4-32B-IT",
      "provider": "huggingface", "license": "Apache-2.0",
      "origin": "Singapore / AI Singapore"},
-    {"id": "ernie-4.5", "model": "baidu/ERNIE-4.5-21B-A3B-PT",
-     "provider": "huggingface", "license": "ERNIE Open",
-     "origin": "China / Baidu", "max_tokens": 7900},
+    {"id": "ernie-4.5", "model": "baidu/ernie-4.5-21b-a3b",
+     "provider": "openrouter", "license": "ERNIE Open",
+     "origin": "China / Baidu"},
     # falcon: no OpenRouter ID as of 2026-02-24 — use AI71 platform or self-host
     # {"id": "falcon", "model": "tiiuae/falcon3-10b-instruct",
     #  "provider": "openrouter", "license": "Apache-2.0", "origin": "UAE / TII"},
@@ -186,8 +186,8 @@ ROTATION: list[dict] = [
      "provider": "openrouter", "license": "CC-BY-NC-4.0",
      "origin": "Canada / Cohere (Toronto)"},
     # ── OpenRouter additions — confirmed working Feb 2026 ─────────────────
-    {"id": "phi-4", "model": "microsoft/Phi-4-mini-instruct",
-     "provider": "huggingface", "license": "MIT",
+    {"id": "phi-4", "model": "microsoft/phi-4",
+     "provider": "openrouter", "license": "MIT",
      "origin": "US / Microsoft Research"},
     {"id": "nemotron-70b", "model": "nvidia/llama-3.1-nemotron-70b-instruct",
      "provider": "openrouter", "license": "NVIDIA Open Model",
@@ -202,8 +202,8 @@ ROTATION: list[dict] = [
      "provider": "openrouter", "license": "Gemma",
      "origin": "US / Google DeepMind"},
     # ── HF router additions ────────────────────────────────────────────────
-    {"id": "qwen2.5-7b", "model": "Qwen/Qwen2.5-7B-Instruct",
-     "provider": "huggingface", "license": "Qwen Community",
+    {"id": "qwen2.5-7b", "model": "qwen/qwen-2.5-7b-instruct",
+     "provider": "openrouter", "license": "Qwen Community",
      "origin": "China / Alibaba (smaller model, L0 tasks)"},
 ]
 
