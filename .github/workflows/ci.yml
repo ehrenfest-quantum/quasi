@@ -153,7 +153,7 @@ jobs:
   # It passes when all four layer jobs pass.
   all-layers:
     name: "All layers passed"
-    needs: [spec, board, mcp, agent]
+    needs: [python, board, mcp, agent]
     runs-on: ubuntu-latest
     if: always()
     steps:
