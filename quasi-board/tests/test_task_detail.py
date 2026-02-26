@@ -21,7 +21,7 @@ MOCK_ISSUE = {
 MOCK_LEDGER = [
     {
         "id": 1, "type": "claim", "task": "QUASI-054",
-        "contributor_agent": "bot-a", "timestamp": "2026-02-24T10:00:00Z",
+        "contributor_agent": "bot-a", "timestamp": "2099-01-01T10:00:00Z",
         "entry_hash": "a" * 64, "prev_hash": "0" * 64,
     },
 ]
