@@ -1100,35 +1100,30 @@ async def task_status(task_id: str):
     if _re_local.fullmatch(r"\d{1,6}", task_id):
         task_id = f"QUASI-{int(task_id):03d}"
     _validate_task_id(task_id)
+
+    # Use _effective_task_status for TTL-aware status
+    status_info = _effective_task_status(task_id)
+    status = status_info.get("status", "open")
+    claimed_by = status_info.get("agent")
+    expires_at = status_info.get("expires_at")
+
+    # Load ledger entries for this task
+    chain = load_ledger()
+    task_entries = [e for e in chain if e.get("task") == task_id]
+
     # Extract numeric issue number for GitHub lookup
     m = _re_local.search(r"QUASI-(\d+)", task_id)
     issue_number = int(m.group(1)) if m else None
 
-    # Load ledger entries for this task (single load — used for both status and entries)
-    chain = load_ledger()
-    task_entries = [e for e in chain if e.get("task") == task_id]
-
-    # Derive status from ledger entries (last entry type wins; no TTL for display)
-    status = "open"
-    claimed_by: str | None = None
-    for e in task_entries:
-        t = e.get("type")
-        if t == "claim":
-            status = "claimed"
-            claimed_by = e.get("contributor_agent")
-        elif t in ("completion", "merge"):
-            status = "done"
-            claimed_by = e.get("contributor_agent")
-
-    result: dict[str, Any] = {
+    result: dict = {
         "quasi:taskId": task_id,
         "quasi:status": status,
         "quasi:ledgerEntries": task_entries,
     }
-    if status == "claimed":
+    if claimed_by:
         result["quasi:claimedBy"] = claimed_by
-    elif status == "done":
-        result["quasi:claimedBy"] = claimed_by
+    if expires_at:
+        result["quasi:expiresAt"] = expires_at
 
     # Fetch GitHub issue data (graceful degradation on failure)
     if issue_number is not None:
