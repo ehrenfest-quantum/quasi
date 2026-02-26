@@ -698,6 +698,9 @@ async def contributors():
         if isinstance(contrib, dict):
             raw_key = contrib.get("handle") or contrib.get("name") or ""
             key = raw_key.lstrip("@")  # normalise: "@dkd-dobberkau" → "dkd-dobberkau"
+            # gawain-openclaw is the project initiator's own server agent — skip
+            if key in ("gawain-openclaw", "gawain@valiant-quantum.com"):
+                continue
             if key and key not in seen:
                 seen[key] = {**contrib, "first_contribution": ts, "task": task, "ledger_entry": eid}
             continue
