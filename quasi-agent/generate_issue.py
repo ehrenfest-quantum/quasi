@@ -150,7 +150,7 @@ ROTATION: list[dict] = [
      "provider": "openrouter", "license": "Apache-2.0",
      "origin": "US / Allen AI (fully open)"},
     # ── Tier 3 — Regional participation ──────────────────────────────────
-    {"id": "sarvam-m", "model": "sarvam-m",
+    {"id": "sarvam-m", "model": "sarvam-m", "max_tokens": 1500,
      "provider": "sarvam", "license": "Open", "origin": "India / Sarvam AI"},
     {"id": "jamba", "model": "ai21/jamba-large-1.7",
      "provider": "openrouter", "license": "Jamba Open", "origin": "Israel / AI21"},
