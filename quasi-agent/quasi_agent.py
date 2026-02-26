@@ -11,11 +11,8 @@ import argparse
 import json
 import re
 import sys
-import time
 import urllib.request
 import urllib.error
-from datetime import datetime, timezone
-from pathlib import Path
 
 DEFAULT_BOARD = "https://gawain.valiant-quantum.com"
 ACTOR_PATH = "/quasi-board"
@@ -78,7 +75,7 @@ def list_tasks(board: str = DEFAULT_BOARD) -> list:
     outbox = get(f"{board}{OUTBOX_PATH}")
     tasks = outbox.get("orderedItems", [])
     ledger = get(f"{board}{LEDGER_PATH}")
-    remaining = ledger.get("quasi:slotsRemaining", "?")
+    _ = ledger.get("quasi:slotsRemaining", "?")
 
     parsed = []
     for item in tasks:
