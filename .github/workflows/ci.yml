@@ -127,7 +127,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install deps
-        run: pip install --quiet flake8 argcomplete requests
+        run: pip install --quiet flake8 mypy pytest argcomplete requests
 
       - name: Lint (flake8)
         run: |
