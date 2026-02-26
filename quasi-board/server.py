@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright 2026 Valiant Quantum (Daniel Hinderink)
+# Copyright 2026 Daniel Hinderink
 """
 quasi-board — QUASI ActivityPub task server
 The federated task feed for the QUASI Quantum OS project.
@@ -24,32 +24,91 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 import hmac as _hmac
 import re as _re
 
-DOMAIN = "gawain.valiant-quantum.com"
+DOMAIN = os.environ.get("QUASI_DOMAIN", "gawain.valiant-quantum.com")
 ACTOR_URL = f"https://{DOMAIN}/quasi-board"
 OUTBOX_URL = f"{ACTOR_URL}/outbox"
 INBOX_URL = f"{ACTOR_URL}/inbox"
-LEDGER_FILE = Path("/home/vops/quasi-ledger/ledger.json")
+_DATA_DIR = Path(os.environ.get("QUASI_DATA_DIR", "/home/vops/quasi-board"))
+_LEDGER_DIR = Path(os.environ.get("QUASI_LEDGER_DIR", "/home/vops/quasi-ledger"))
+LEDGER_FILE = _LEDGER_DIR / "ledger.json"
 OPENAPI_SPEC = Path(__file__).parent / "spec" / "openapi.json"
-GITHUB_REPO = "ehrenfest-quantum/quasi"
-GITHUB_TOKEN_FILE = Path("/home/vops/quasi-board/.github_token")
-MATRIX_CREDS_FILE = Path("/home/vops/quasi-board/matrix_credentials.json")
+GITHUB_REPO = os.environ.get("QUASI_GITHUB_REPO", "ehrenfest-quantum/quasi")
+GITHUB_TOKEN_FILE = _DATA_DIR / ".github_token"
+MATRIX_CREDS_FILE = _DATA_DIR / "matrix_credentials.json"
 MATRIX_ROOM_ID = "!CerauaaS111HsAzJXI:gawain.valiant-quantum.com"
-ACTOR_KEY_FILE = Path("/home/vops/quasi-board/keys/actor.pem")
-FOLLOWERS_FILE = Path("/home/vops/quasi-board/followers.json")
+ACTOR_KEY_FILE = _DATA_DIR / "keys" / "actor.pem"
+FOLLOWERS_FILE = _DATA_DIR / "followers.json"
 PROPOSALS_FILE = Path("/home/vops/quasi-board/proposals.json")
 AGENT_TOKENS_FILE = Path("/home/vops/quasi-board/agent-tokens.json")
+PENDING_MERGES_FILE = Path("/home/vops/quasi-board/pending-merges.json")
 ACTOR_KEY_ID = f"{ACTOR_URL}#main-key"
 
 AP_CONTENT_TYPE = "application/activity+json"
 
 
+app = FastAPI(title="quasi-board", version="0.1.0")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
+
+
+# Prometheus-compatible metrics for quasi-board
+@app.get("/quasi-board/metrics", response_class=PlainTextResponse)
+def metrics() -> PlainTextResponse:
+    """Return Prometheus-compatible metrics for quasi-board.
+
+    Returns:
+        PlainTextResponse: Prometheus-formatted metrics including:
+            - Task counts by status (open/claimed/done)
+            - Total ledger entries
+            - Remaining genesis slots
+            - Active claims count
+    """
+    """Return Prometheus-compatible metrics."""
+    tasks = json.loads((Path(__file__).parent / 'testdata/outbox.json').read_text()).get('orderedItems', [])
+    task_status_counts = {'open': 0, 'claimed': 0, 'done': 0}
+    for item in tasks:
+        t = item.get('object', item) if item.get('type') == 'Create' else item
+        status = t.get('quasi:status', 'open')
+        if status in task_status_counts:
+            task_status_counts[status] += 1
+    ledger = json.loads((Path(__file__).parent / 'testdata/ledger.json').read_text())
+    ledger_entries_total = len(ledger.get('entries', []))
+    genesis_slots_remaining = 50 - len(ledger.get('contributors', []))
+    claims_active = sum(1 for task in tasks if task.get('quasi:status') == 'claimed')
+    metrics_text = """
+# HELP quasi_tasks_total Count of tasks by status
+# TYPE quasi_tasks_total gauge
+"""
+    for status, count in task_status_counts.items():
+        metrics_text += f'quasi_tasks_total{{status="{status}"}} {count}\n'
+    metrics_text += f"""
+# HELP quasi_ledger_entries_total Total number of ledger entries
+# TYPE quasi_ledger_entries_total gauge
+quasi_ledger_entries_total {ledger_entries_total}\n"""
+    metrics_text += f"""
+# HELP quasi_genesis_slots_remaining Remaining genesis slots (50 - named contributors)
+# TYPE quasi_genesis_slots_remaining gauge
+quasi_genesis_slots_remaining {genesis_slots_remaining}\n"""
+    metrics_text += f"""
+# HELP quasi_claims_active Number of currently active (claimed) tasks
+# TYPE quasi_claims_active gauge
+quasi_claims_active {claims_active}\n"""
+    return metrics_text
+
+
 # ── HTTP Signatures ───────────────────────────────────────────────────────────
 
-def _load_or_create_keys():
+def _load_or_create_keys() -> tuple[Any, str]:
+    """Load or generate RSA-2048 key pair for HTTP signatures.
+
+    Returns:
+        tuple: (private_key, public_key_pem) where:
+            private_key: cryptography.hazmat.primitives.asymmetric.rsa.RSAPrivateKey
+            public_key_pem: PEM-encoded public key as str
+    """
     """Load RSA-2048 key pair from disk, generating if absent. Returns (private_key, public_key_pem)."""
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.hazmat.primitives import serialization
@@ -230,6 +289,68 @@ _BLOCKED_EXACT = {
 }
 
 
+# Paths that require human review before auto-merge (softer gate than _BLOCKED)
+_REVIEW_REQUIRED_PREFIXES = (
+    "quasi-board/",   # board server — sensitive but agents may legitimately patch
+    ".github/",       # CI/CD workflows
+    "spec/",          # core specification
+)
+
+_REVIEW_REQUIRED_EXACT = {
+    "README.md",
+}
+
+
+def _requires_human_review(changed_files: dict) -> bool:
+    """Return True if any changed file path requires a human review gate."""
+    for path in changed_files:
+        clean = "/".join(
+            p for p in path.replace("\\", "/").split("/")
+            if p not in ("", ".", "..")
+        )
+        if clean in _REVIEW_REQUIRED_EXACT:
+            return True
+        for prefix in _REVIEW_REQUIRED_PREFIXES:
+            if clean.startswith(prefix) or clean == prefix.rstrip("/"):
+                return True
+    return False
+
+
+def _load_pending_merges() -> list:
+    """Load the list of PRs pending human review from disk."""
+    if PENDING_MERGES_FILE.exists():
+        try:
+            return json.loads(PENDING_MERGES_FILE.read_text())
+        except Exception:
+            pass
+    return []
+
+
+def _save_pending_merges(merges: list) -> None:
+    """Persist the pending merges list to disk."""
+    PENDING_MERGES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PENDING_MERGES_FILE.write_text(json.dumps(merges, indent=2))
+
+
+async def _fetch_github_issue(issue_number: int) -> dict | None:
+    """Fetch a single GitHub issue by number. Returns None on failure."""
+    token = _github_token()
+    headers: dict[str, str] = {"Accept": "application/vnd.github+json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                f"https://api.github.com/repos/{GITHUB_REPO}/issues/{issue_number}",
+                headers=headers,
+            )
+            if resp.status_code == 200:
+                return resp.json()
+    except Exception:
+        pass
+    return None
+
+
 def _validate_submission_files(files: dict) -> None:
     """Raise HTTPException if any file path or content is unsafe."""
     if not isinstance(files, dict) or not files:
@@ -358,6 +479,7 @@ def _effective_task_status(task_id: str) -> dict:
 
 
 # ── Agent token store (C2S auth) ──────────────────────────────────────────────
+
 
 def _load_agent_tokens() -> dict:
     """Return {token: agent_id} mapping from disk."""
@@ -498,15 +620,6 @@ async def _open_pr_from_files(task_id: str, agent: str, files: dict, message: st
                 return existing_prs.json()[0]["html_url"]
         r.raise_for_status()
         return r.json()["html_url"]
-
-app = FastAPI(title="quasi-board", version="0.1.0")
-
-
-@app.get("/health")
-async def health_check():
-    return JSONResponse({'status': 'ok'}, status_code=200)
-
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
 
 
 # ── Ledger ────────────────────────────────────────────────────────────────────
@@ -674,54 +787,24 @@ async def followers():
     }, media_type=AP_CONTENT_TYPE)
 
 
-# Known human contributors: github_handle → (display_name, fediverse_handle_or_none)
-_KNOWN_HUMANS: dict[str, tuple[str, str | None]] = {
-    "hiq-lab":        ("Daniel Hinderink",    "@Stabimobilism@social.tchncs.de"),
-    "robertlemke":    ("Robert Lemke",         "@robertlemke@github.com"),
-    "dkd-dobberkau":  ("Olivier Dobberkau",    "@dkd-dobberkau"),
-    "regniets":       ("Stefan Regniet",       "@regniets"),
-    "kdambekalns":    ("Karsten Dambekalns",   "@kdambekalns"),
-    "gpt-5-codex":    ("Carolin Schätzl", None),
-    "rlskdk":         ("Rasmus Leth Skjoldan", "@rlskdk"),
-    "itniuma2026":    ("itniuma",              None),
-}
-
-
 @app.get("/quasi-board/contributors")
 async def contributors():
     """Named contributors extracted from the quasi-ledger. Attribution is always optional."""
     chain = load_ledger()
     seen: dict[str, dict] = {}  # key → contributor record, ordered by first appearance
-
     for entry in chain:
-        ts = entry.get("timestamp", "")
-        task = entry.get("task")
-        eid = entry.get("id")
-
-        # Format 1: explicit contributor dict (ActivityPub-enriched entries)
         contrib = entry.get("contributor")
-        if isinstance(contrib, dict):
-            raw_key = contrib.get("handle") or contrib.get("name") or ""
-            key = raw_key.lstrip("@")  # normalise: "@dkd-dobberkau" → "dkd-dobberkau"
-            # gawain-openclaw is the project initiator's own server agent — skip
-            if key in ("gawain-openclaw", "gawain@valiant-quantum.com"):
-                continue
-            if key and key not in seen:
-                seen[key] = {**contrib, "first_contribution": ts, "task": task, "ledger_entry": eid}
+        if not contrib or not isinstance(contrib, dict):
             continue
-
-        # Format 2: contributor_github or contributor_agent — only surface known humans
-        gh = entry.get("contributor_github", "") or entry.get("contributor_agent", "")
-        # Normalise: strip leading @ for lookup
-        gh_key = gh.lstrip("@") if gh else ""
-        # Also check bare handle without @ prefix for contributor dicts (dedup Olivier etc.)
-        if gh_key and gh_key in _KNOWN_HUMANS and gh_key not in seen:
-            display_name, handle = _KNOWN_HUMANS[gh_key]
-            rec: dict = {"name": display_name, "first_contribution": ts, "task": task, "ledger_entry": eid}
-            if handle:
-                rec["handle"] = handle
-            seen[gh_key] = rec
-
+        key = contrib.get("handle") or contrib.get("name")
+        if not key or key in seen:
+            continue
+        seen[key] = {
+            **contrib,
+            "first_contribution": entry["timestamp"],
+            "task": entry.get("task"),
+            "ledger_entry": entry["id"],
+        }
     named = list(seen.values())
     genesis_limit = 50
     for i, c in enumerate(named):
@@ -832,7 +915,7 @@ async def _process_activity(body: dict) -> JSONResponse:
             "type": "Announce",
             "id": f"{ACTOR_URL}/ledger/{entry['id']}",
             "actor": ACTOR_URL,
-            "published": entry["timestamp"],
+            "published": entry.get("timestamp", ""),
             "summary": f"{agent} claimed {task_id}",
             "object": f"{ACTOR_URL}/tasks/{task_id}",
             "quasi:taskId": task_id,
@@ -858,6 +941,7 @@ async def _process_activity(body: dict) -> JSONResponse:
         files = _sanitise_files(files)
 
         pr_url = await _open_pr_from_files(task_id, agent, files, message)
+        review_required = _requires_human_review(files)
 
         entry = append_ledger({
             "type": "submission",
@@ -866,6 +950,32 @@ async def _process_activity(body: dict) -> JSONResponse:
             "commit_hash": None,
             "pr_url": pr_url,
         })
+
+        if review_required:
+            # Queue for human review — do not auto-merge
+            pending = _load_pending_merges()
+            pr_number_match = __import__("re").search(r"/pull/(\d+)", pr_url)
+            pr_num = int(pr_number_match.group(1)) if pr_number_match else 0
+            pending.append({
+                "pr_number": pr_num,
+                "pr_url": pr_url,
+                "task_id": task_id,
+                "agent": agent,
+                "ledger_submission_id": entry["id"],
+                "submitted_at": entry.get("timestamp", ""),
+            })
+            _save_pending_merges(pending)
+            await _notify_daniel(
+                f"🔍 QUASI: {agent} submitted {task_id} — REVIEW REQUIRED — PR: {pr_url} — ledger #{entry['id']}"
+            )
+            return JSONResponse({
+                "status": "pending_human_review",
+                "review_required": True,
+                "pr_url": pr_url,
+                "ledger_entry": entry["id"],
+                "entry_hash": entry["entry_hash"],
+            })
+
         await _notify_daniel(
             f"🤖 QUASI: {agent} submitted {task_id} — PR opened: {pr_url} — ledger #{entry['id']}"
         )
@@ -874,7 +984,7 @@ async def _process_activity(body: dict) -> JSONResponse:
             "type": "Create",
             "id": f"{ACTOR_URL}/ledger/{entry['id']}",
             "actor": ACTOR_URL,
-            "published": entry["timestamp"],
+            "published": entry.get("timestamp", ""),
             "summary": f"{agent} submitted {task_id} — PR open for review",
             "object": {
                 "type": "Note",
@@ -888,6 +998,7 @@ async def _process_activity(body: dict) -> JSONResponse:
         })
         return JSONResponse({
             "status": "pr_opened",
+            "review_required": False,
             "pr_url": pr_url,
             "ledger_entry": entry["id"],
             "entry_hash": entry["entry_hash"],
@@ -920,7 +1031,7 @@ async def _process_activity(body: dict) -> JSONResponse:
             "type": "Create",
             "id": f"{ACTOR_URL}/ledger/{entry['id']}",
             "actor": ACTOR_URL,
-            "published": entry["timestamp"],
+            "published": entry.get("timestamp", ""),
             "summary": f"{agent} completed {task_id}",
             "object": {
                 "type": "Note",
@@ -984,18 +1095,139 @@ async def inbox(request: Request):
 
 @app.get("/quasi-board/tasks/{task_id}")
 async def task_status(task_id: str):
+    import re as _re_local
+    # Accept plain numbers (e.g. "54") and normalise to QUASI-054
+    if _re_local.fullmatch(r"\d{1,6}", task_id):
+        task_id = f"QUASI-{int(task_id):03d}"
     _validate_task_id(task_id)
-    effective = _effective_task_status(task_id)
+    # Extract numeric issue number for GitHub lookup
+    m = _re_local.search(r"QUASI-(\d+)", task_id)
+    issue_number = int(m.group(1)) if m else None
+
+    # Load ledger entries for this task (single load — used for both status and entries)
+    chain = load_ledger()
+    task_entries = [e for e in chain if e.get("task") == task_id]
+
+    # Derive status from ledger entries (last entry type wins; no TTL for display)
+    status = "open"
+    claimed_by: str | None = None
+    for e in task_entries:
+        t = e.get("type")
+        if t == "claim":
+            status = "claimed"
+            claimed_by = e.get("contributor_agent")
+        elif t in ("completion", "merge"):
+            status = "done"
+            claimed_by = e.get("contributor_agent")
+
     result: dict[str, Any] = {
         "quasi:taskId": task_id,
-        "quasi:status": effective["status"],
+        "quasi:status": status,
+        "quasi:ledgerEntries": task_entries,
     }
-    if effective["status"] == "claimed":
-        result["quasi:claimedBy"] = effective.get("agent")
-        result["quasi:expiresAt"] = effective.get("expires_at")
-    elif effective["status"] == "done":
-        result["quasi:claimedBy"] = effective.get("agent")
+    if status == "claimed":
+        result["quasi:claimedBy"] = claimed_by
+    elif status == "done":
+        result["quasi:claimedBy"] = claimed_by
+
+    # Fetch GitHub issue data (graceful degradation on failure)
+    if issue_number is not None:
+        github_issue = await _fetch_github_issue(issue_number)
+        if github_issue is not None:
+            result["task"] = github_issue
+
     return JSONResponse(result)
+
+
+# ── Admin: pending human-review merges ───────────────────────────────────────
+
+
+@app.get("/quasi-board/admin/merges")
+async def list_pending_merges(request: Request):
+    """Admin: list PRs waiting for human review before merge."""
+    _check_admin(request)
+    pending = _load_pending_merges()
+    return JSONResponse({"pending": pending, "count": len(pending)})
+
+
+@app.post("/quasi-board/admin/merges/{pr_number}/approve")
+async def approve_merge(pr_number: int, request: Request):
+    """Admin: approve a pending PR — merges it via GitHub API and records completion."""
+    _check_admin(request)
+    pending = _load_pending_merges()
+    record = next((p for p in pending if p["pr_number"] == pr_number), None)
+    if record is None:
+        raise HTTPException(404, f"No pending merge for PR #{pr_number}")
+
+    # Merge via GitHub API
+    gh_token = _github_token()
+    headers: dict[str, str] = {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {gh_token}",
+    }
+    merge_url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}/merge"
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.put(merge_url, headers=headers, json={"merge_method": "squash"})
+        resp.raise_for_status()
+        merge_data = resp.json()
+
+    # Record completion in ledger
+    completion_entry = append_ledger({
+        "type": "completion",
+        "contributor_agent": record["agent"],
+        "task": record["task_id"],
+        "commit_hash": merge_data.get("sha"),
+        "pr_url": record["pr_url"],
+        "review_approved_by": "admin",
+    })
+
+    # Remove from pending queue
+    updated_pending = [p for p in pending if p["pr_number"] != pr_number]
+    _save_pending_merges(updated_pending)
+
+    await _notify_daniel(
+        f"✅ QUASI: PR #{pr_number} ({record['task_id']}) approved and merged — ledger #{completion_entry['id']}"
+    )
+    return JSONResponse({
+        "status": "merged",
+        "task_id": record["task_id"],
+        "pr_url": record["pr_url"],
+        "merge_sha": merge_data.get("sha"),
+        "ledger_completion": completion_entry["id"],
+    })
+
+
+@app.post("/quasi-board/admin/merges/{pr_number}/reject")
+async def reject_merge(pr_number: int, request: Request):
+    """Admin: reject a pending PR — closes it on GitHub and removes from queue."""
+    _check_admin(request)
+    pending = _load_pending_merges()
+    record = next((p for p in pending if p["pr_number"] == pr_number), None)
+    if record is None:
+        raise HTTPException(404, f"No pending merge for PR #{pr_number}")
+
+    # Close PR via GitHub API
+    gh_token = _github_token()
+    headers: dict[str, str] = {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {gh_token}",
+    }
+    close_url = f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}"
+    async with httpx.AsyncClient(timeout=30) as client:
+        await client.patch(close_url, headers=headers, json={"state": "closed"})
+
+    # Remove from pending queue
+    updated_pending = [p for p in pending if p["pr_number"] != pr_number]
+    _save_pending_merges(updated_pending)
+
+    await _notify_daniel(
+        f"❌ QUASI: PR #{pr_number} ({record['task_id']}) rejected and closed"
+    )
+    return JSONResponse({
+        "status": "rejected",
+        "task_id": record["task_id"],
+        "pr_url": record["pr_url"],
+    })
 
 
 # ── Ledger endpoints ──────────────────────────────────────────────────────────
@@ -1286,7 +1518,7 @@ async def revoke_agent(agent_id: str, request: Request):
 # ── GitHub webhook ────────────────────────────────────────────────────────────
 
 
-WEBHOOK_SECRET_FILE = Path("/home/vops/quasi-board/.webhook_secret")
+WEBHOOK_SECRET_FILE = _DATA_DIR / ".webhook_secret"
 
 
 def _webhook_secret() -> bytes:
