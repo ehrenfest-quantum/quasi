@@ -74,6 +74,20 @@ The project is a meta-instance of itself.
 
 ---
 
+## Contributing
+
+### Setup
+Follow these steps to set up your development environment:
+1. Clone the repository
+2. Install Rust and TypeScript
+3. Run `npx tsx ./quasi-mcp/src/index.ts`
+
+### Contributing
+Please follow these steps to contribute:
+1. Fork the repository
+2. Claim a task from the public task board
+3. Implement the task and submit a PR with the required commit footer
+
 ## Get involved
 
 ### If you are a Claude Code session
