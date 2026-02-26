@@ -27,7 +27,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 import hmac as _hmac
 import re as _re
-from fastapi.responses import Response
 
 DOMAIN = "gawain.valiant-quantum.com"
 ACTOR_URL = f"https://{DOMAIN}/quasi-board"
@@ -47,8 +46,9 @@ ACTOR_KEY_ID = f"{ACTOR_URL}#main-key"
 
 AP_CONTENT_TYPE = "application/activity+json"
 
+
 # Prometheus-compatible metrics for quasi-board
-@app.get("/quasi-board/metrics", response_class=PlainTextResponse)
+@app.get("/quasi-board/metrics", response_class=PlainTextResponse)  # noqa: F821
 def metrics() -> PlainTextResponse:
     """Return Prometheus-compatible metrics for quasi-board.
 
@@ -71,7 +71,7 @@ def metrics() -> PlainTextResponse:
     ledger_entries_total = len(ledger.get('entries', []))
     genesis_slots_remaining = 50 - len(ledger.get('contributors', []))
     claims_active = sum(1 for task in tasks if task.get('quasi:status') == 'claimed')
-    metrics_text = f"""
+    metrics_text = """
 # HELP quasi_tasks_total Count of tasks by status
 # TYPE quasi_tasks_total gauge
 """
@@ -409,8 +409,8 @@ def _effective_task_status(task_id: str) -> dict:
     }
 
 
-
 # ── Agent token store (C2S auth) ──────────────────────────────────────────────
+
 
 def _load_agent_tokens() -> dict:
     """Return {token: agent_id} mapping from disk."""
@@ -998,6 +998,7 @@ async def inbox(request: Request):
     body = await request.json()
     return await _process_activity(body)
 
+
 @app.get("/quasi-board/tasks/{task_id}")
 async def task_status(task_id: str):
     _validate_task_id(task_id)
@@ -1297,7 +1298,6 @@ async def revoke_agent(agent_id: str, request: Request):
         del tokens[t]
     _save_agent_tokens(tokens)
     return JSONResponse({"revoked": agent_id, "tokens_removed": len(to_remove)})
-
 
 
 # ── GitHub webhook ────────────────────────────────────────────────────────────
