@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quasi"
+version = "0.1.0"
+description = "QUASI — The first Quantum OS designed for AI as primary contributor"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "GPL-3.0"}
+authors = [
+  {name = "Daniel Hinderink", email = "daniel@valiant-quantum.com"},
+  {name = "Community Contributors"},
+]
+keywords = ["quantum", "computing", "compiler", "os", "ai"]
+
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.34,<1",
+  "httpx>=0.28,<1",
+  "cryptography>=44,<45",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9.0",
+  "pytest-asyncio>=0.21",
+  "flake8>=7.0",
+  "black>=25.0",
+  "mypy>=1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/ehrenfest-quantum/quasi"
+Repository = "https://github.com/ehrenfest-quantum/quasi.git"
+Documentation = "https://github.com/ehrenfest-quantum/quasi/tree/main/docs"
+Issues = "https://github.com/ehrenfest-quantum/quasi/issues"
+
+[tool.setuptools]
+packages = [
+  "afana",
+  "quasi_agent",
+  "quasi_board",
+  "quasi_board_extensions",
+  "quasi_mcp",
+]
+
+[tool.setuptools.package-data]
+quasi_agent = ["*.py"]
+quasi_board = ["*.py", "requirements.txt"]
+quasi_mcp = ["*.py"]
+
+[tool.black]
+line-length = 120
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = ["E203", "W503", "E501"]
+exclude = ["__pycache__", ".git", ".venv", "venv", ".tox", "dist", "build"]
+
+[tool.pytest.ini_options]
+testpaths = ["quasi-agent", "quasi-board", "afana"]
+python_files = "test_*.py"
+addopts = "-v --tb=short"
