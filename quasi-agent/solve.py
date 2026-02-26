@@ -214,7 +214,7 @@ def call_model(entry: dict, prompt: str) -> dict:
     # Some models have small context windows — truncate if needed
     max_ctx = entry.get("max_context")
     if provider_id == "sarvam":
-        prompt = prompt[:24000]
+        prompt = prompt[:6000]  # 7168 total window; leave ~4000 tokens for output
     elif max_ctx and len(prompt) > max_ctx:
         prompt = prompt[:max_ctx]
     payload = {
