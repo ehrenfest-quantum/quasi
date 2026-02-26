@@ -128,8 +128,8 @@ ROTATION: list[dict] = [
      "provider": "openrouter", "license": "Llama Community", "origin": "US / Meta"},
     {"id": "llama3.3", "model": "meta-llama/llama-3.3-70b-instruct",
      "provider": "openrouter", "license": "Llama Community", "origin": "US / Meta"},
-    {"id": "starcoder2", "model": "bigcode/starcoder2-15b",
-     "provider": "openrouter", "license": "OpenRAIL-M", "origin": "Canada / BigCode"},
+    {"id": "codestral", "model": "mistralai/codestral-2508",
+     "provider": "openrouter", "license": "MNPL", "origin": "France / Mistral (code specialist)"},
     # ── Tier 2 — EU / competitive coding ─────────────────────────────────
     {"id": "mistral-small", "model": "mistralai/mistral-small-3.1-24b-instruct",
      "provider": "openrouter", "license": "Apache-2.0", "origin": "France / Mistral"},
@@ -186,8 +186,8 @@ ROTATION: list[dict] = [
      "provider": "huggingface", "license": "CC-BY-NC-4.0",
      "origin": "Canada / Cohere (Toronto)"},
     # ── OpenRouter additions — confirmed working Feb 2026 ─────────────────
-    {"id": "phi-4", "model": "microsoft/phi-4",
-     "provider": "openrouter", "license": "MIT",
+    {"id": "phi-4", "model": "microsoft/Phi-4-mini-instruct",
+     "provider": "huggingface", "license": "MIT",
      "origin": "US / Microsoft Research"},
     {"id": "nemotron-70b", "model": "nvidia/llama-3.1-nemotron-70b-instruct",
      "provider": "openrouter", "license": "NVIDIA Open Model",

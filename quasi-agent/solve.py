@@ -234,7 +234,8 @@ def call_model(entry: dict, prompt: str) -> dict:
 
     print(f"Calling {entry['model']} via {provider_id}...", end=" ", flush=True)
     try:
-        with urllib.request.urlopen(req, timeout=120) as r:
+        timeout = 600 if provider_id == "huggingface" else 120
+        with urllib.request.urlopen(req, timeout=timeout) as r:
             resp = json.loads(r.read())
     except urllib.error.HTTPError as e:
         print(f"HTTP {e.code}: {e.read().decode()[:200]}", file=sys.stderr)
