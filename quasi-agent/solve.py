@@ -209,13 +209,18 @@ def call_model(entry: dict, prompt: str) -> dict:
         print(f"Error: {provider['env']} not set", file=sys.stderr)
         sys.exit(1)
 
+    # Some models cap max_tokens lower than 8192
+    max_tok = entry.get("max_tokens", 8192)
+    # Sarvam caps prompt at 7168 tokens (~28K chars) — truncate context
+    if provider_id == "sarvam":
+        prompt = prompt[:24000]
     payload = {
         "model": entry["model"],
         "messages": [
             {"role": "system", "content": SOLVER_SYSTEM},
             {"role": "user", "content": prompt},
         ],
-        "max_tokens": 8192,
+        "max_tokens": max_tok,
         "temperature": 0.2,
     }
 
