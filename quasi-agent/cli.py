@@ -239,15 +239,6 @@ def post(url: str, body: dict) -> dict:
 
 
 def parse_contributor(as_str: str) -> dict:
-    """Parses the contributor string into a dictionary.
-
-    Args:
-        as_str (str): The contributor string to parse.
-
-    Returns:
-        dict: A dictionary with the parsed contributor information.
-    """
- str) -> dict:
     """Parse 'Name <handle>' → {'name': ..., 'handle': ...}. All fields optional."""
     as_str = as_str.strip()
     m = re.match(r'^(.*?)\s*<([^>]+)>$', as_str)
@@ -750,18 +741,25 @@ if __name__ == "__main__":
 
     if args.command == 'list':
         # ... existing list command logic ...
+        pass
     elif args.command == 'claim':
         # ... existing claim command logic ...
+        pass
     elif args.command == 'complete':
         # ... existing complete command logic ...
+        pass
     elif args.command == 'watch':
         # ... existing watch command logic ...
+        pass
     elif args.command == 'ledger':
         # ... existing ledger command logic ...
+        pass
     elif args.command == 'contributors':
         # ... existing contributors command logic ...
+        pass
     elif args.command == 'verify':
         # ... existing verify command logic ...
+        pass
     else:
         parser.print_help()
         sys.exit(1)
