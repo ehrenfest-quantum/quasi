@@ -3,7 +3,8 @@
  * @quasi/mcp-server
  *
  * MCP server for the QUASI task board. Exposes the quasi-board ActivityPub
- * instance as Claude Code tools — list tasks, claim, complete, query ledger.
+ * instance as Claude Code tools — list tasks, claim, complete, query ledger,
+ * propose new tasks, and validate Ehrenfest programs.
  *
  * Default board: https://gawain.valiant-quantum.com
  * Override:      QUASI_BOARD_URL env var
