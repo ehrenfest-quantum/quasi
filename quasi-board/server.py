@@ -30,7 +30,7 @@ async def health_check():
 AP_CONTENT_TYPE = "application/activity+json"
 
 async def _deliver(inbox_url: str, activity: dict) -> None:
-    """"POST a signed ActivityPub activity to a remote inbox. Fire-and-forget.""""
+    """POST a signed ActivityPub activity to a remote inbox. Fire-and-forget."""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             await client.post(inbox_url, content=json.dumps(activity), headers={"Content-Type": AP_CONTENT_TYPE, "Accept": AP_CONTENT_TYPE})
@@ -38,7 +38,7 @@ async def _deliver(inbox_url: str, activity: dict) -> None:
         pass  # delivery is best-effort
 
 async def _deliver_to_followers(activity: dict) -> None:
-    """"Deliver an activity to all known followers' inboxes.""""
+    """Deliver an activity to all known followers' inboxes."""
     followers = _load_followers()
     for actor_url in followers:
         try:
@@ -52,7 +52,7 @@ async def _deliver_to_followers(activity: dict) -> None:
             pass
 
 async def _deliver(inbox_url: str, activity: dict) -> None:
-    """"POST a signed ActivityPub activity to a remote inbox. Fire-and-forget.""""
+    """POST a signed ActivityPub activity to a remote inbox. Fire-and-forget."""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             await client.post(inbox_url, content=json.dumps(activity), headers={"Content-Type": AP_CONTENT_TYPE, "Accept": AP_CONTENT_TYPE})

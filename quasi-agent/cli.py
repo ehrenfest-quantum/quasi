@@ -735,13 +735,6 @@ def cmd_complete(board: str, task_id: str, agent: str, commit: str, pr: str, as_
     Args:
         board (str): The quasi-board URL to post to.
         task_id (str): The task ID to complete (e.g., QUASI-001).
-        agent (str): The agent name compl
-... (truncated at 16000 chars)
-    """Record completion of a task on the quasi-board.
-
-    Args:
-        board (str): The quasi-board URL to post to.
-        task_id (str): The task ID to complete (e.g., QUASI-001).
         agent (str): The agent name completing the task.
         commit (str): The commit hash for the completion.
         pr (str): The pull request URL.
