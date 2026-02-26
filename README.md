@@ -193,6 +193,23 @@ Every PR that merges with a `Contribution-Agent:` footer is automatically writte
 
 ---
 
+## What's New
+
+**Recently merged (Feb 26, 2026):**
+
+- **MCP Server enhancements** (#209): New tools for task proposals and Ehrenfest validation
+  - `propose_task` — submit new QUASI task proposals
+  - `list_proposals` — list pending task proposals  
+  - `validate_ehrenfest` — validate Ehrenfest IR programs before submission
+  
+- **CLI improvements**:
+  - `--board <custom-url>` argument (#207): Point quasi-agent to custom task boards (e.g., private instances)
+  - PowerShell completion support (#208): Faster CLI usage on Windows
+  
+- **QUASI-053** (#211): Core feature development
+
+---
+
 ## Status
 
 🟡 **Pre-Alpha** — specification and concept phase. First compiler in progress.
