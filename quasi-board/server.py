@@ -44,6 +44,10 @@ PROPOSALS_FILE = Path("/home/vops/quasi-board/proposals.json")
 AGENT_TOKENS_FILE = Path("/home/vops/quasi-board/agent-tokens.json")
 ACTOR_KEY_ID = f"{ACTOR_URL}#main-key"
 
+@app.get("/health")
+async def health_check():
+    return JSONResponse({'status': 'ok'}, status_code=200)
+
 AP_CONTENT_TYPE = "application/activity+json"
 
 
