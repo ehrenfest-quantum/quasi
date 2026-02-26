@@ -126,13 +126,17 @@ from pathlib import Path
 
 DEFAULT_BOARD = "https://gawain.valiant-quantum.com"
 
+
 def format_help(text: str) -> str:
     """Dedent and wrap help text."""
     return textwrap.fill(textwrap.dedent(text).strip(), width=72)
+
+
 ACTOR_PATH = "/quasi-board"
 OUTBOX_PATH = "/quasi-board/outbox"
 INBOX_PATH = "/quasi-board/inbox"
 LEDGER_PATH = "/quasi-board/ledger"
+
 
 def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -154,18 +158,24 @@ def create_parser() -> argparse.ArgumentParser:
     claim_parser = subparsers.add_parser('claim', help='Claim a task')
     claim_parser.add_argument('task_id', help='Task ID to claim (e.g., QUASI-001)')
     claim_parser.add_argument('--agent', required=True, help='Agent name claiming the task')
-    claim_parser.add_argument('--as', dest='attribution', metavar='"Name <handle>"', help='Attribute claim to specified name/handle')
+    claim_parser.add_argument(
+        '--as', dest='attribution', metavar='"Name <handle>"',
+        help='Attribute claim to specified name/handle')
     claim_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
     complete_parser = subparsers.add_parser('complete', help='Mark a task as complete')
     complete_parser.add_argument('task_id', help='Task ID to complete (e.g., QUASI-001)')
     complete_parser.add_argument('--commit', required=True, help='Commit hash for the completion')
     complete_parser.add_argument('--pr', required=True, help='Pull request URL')
-    complete_parser.add_argument('--as', dest='attribution', metavar='"Name <handle>"', help='Attribute completion to specified name/handle')
+    complete_parser.add_argument(
+        '--as', dest='attribution', metavar='"Name <handle>"',
+        help='Attribute completion to specified name/handle')
     complete_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
     watch_parser = subparsers.add_parser('watch', help='Watch for new tasks at specified interval')
-    watch_parser.add_argument('--interval', type=int, default=300, help='Watch interval in seconds (default: %(default)s)')
+    watch_parser.add_argument(
+        '--interval', type=int, default=300,
+        help='Watch interval in seconds (default: %(default)s)')
     watch_parser.add_argument('--once', action='store_true', help='Run watch command once')
     watch_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
@@ -270,8 +280,9 @@ def task_id_completer(**kwargs):
             if task_id:
                 task_ids.append(task_id)
         return task_ids
-    except Exception as e:
+    except Exception:
         return []
+
 
 def cmd_list(board: str, output_json: bool = False) -> None:
     outbox = get(f"{board}{OUTBOX_PATH}")
@@ -611,7 +622,7 @@ def cmd_completion(shell: str) -> None:
 complete -F _quasi_agent quasi-agent
 complete -F _quasi_agent cli.py''')
     elif shell == "zsh":
-        print(f'''#compdef quasi-agent cli.py
+        print('''#compdef quasi-agent cli.py
 
 _quasi_agent() {{
     local -a commands
@@ -644,7 +655,8 @@ _quasi_agent() {{
                     _arguments '1:task-id:' '--board[Board URL]:' '--agent[Agent]:' '--as[Attribution]:'
                     ;;
                 complete)
-                    _arguments '1:task-id:' '--commit[Commit SHA]:' '--pr[PR URL]:' '--board[Board URL]:' '--agent[Agent]:' '--as[Attribution]:'
+                    _arguments '1:task-id:' '--commit[Commit SHA]:' '--pr[PR URL]:' \
+                        '--board[Board URL]:' '--agent[Agent]:' '--as[Attribution]:'
                     ;;
                 watch)
                     _arguments '--interval[Poll interval in seconds]:' '--once[Run once and exit]'
@@ -764,3 +776,4 @@ if __name__ == "__main__":
         parser.print_help()
         sys.exit(1)
     main()
+
