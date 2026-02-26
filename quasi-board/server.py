@@ -915,7 +915,7 @@ async def _process_activity(body: dict) -> JSONResponse:
             "type": "Announce",
             "id": f"{ACTOR_URL}/ledger/{entry['id']}",
             "actor": ACTOR_URL,
-            "published": entry["timestamp"],
+            "published": entry.get("timestamp", ""),
             "summary": f"{agent} claimed {task_id}",
             "object": f"{ACTOR_URL}/tasks/{task_id}",
             "quasi:taskId": task_id,
@@ -962,7 +962,7 @@ async def _process_activity(body: dict) -> JSONResponse:
                 "task_id": task_id,
                 "agent": agent,
                 "ledger_submission_id": entry["id"],
-                "submitted_at": entry["timestamp"],
+                "submitted_at": entry.get("timestamp", ""),
             })
             _save_pending_merges(pending)
             await _notify_daniel(
@@ -984,7 +984,7 @@ async def _process_activity(body: dict) -> JSONResponse:
             "type": "Create",
             "id": f"{ACTOR_URL}/ledger/{entry['id']}",
             "actor": ACTOR_URL,
-            "published": entry["timestamp"],
+            "published": entry.get("timestamp", ""),
             "summary": f"{agent} submitted {task_id} — PR open for review",
             "object": {
                 "type": "Note",
@@ -1031,7 +1031,7 @@ async def _process_activity(body: dict) -> JSONResponse:
             "type": "Create",
             "id": f"{ACTOR_URL}/ledger/{entry['id']}",
             "actor": ACTOR_URL,
-            "published": entry["timestamp"],
+            "published": entry.get("timestamp", ""),
             "summary": f"{agent} completed {task_id}",
             "object": {
                 "type": "Note",
@@ -1100,26 +1100,35 @@ async def task_status(task_id: str):
     if _re_local.fullmatch(r"\d{1,6}", task_id):
         task_id = f"QUASI-{int(task_id):03d}"
     _validate_task_id(task_id)
-    effective = _effective_task_status(task_id)
-
     # Extract numeric issue number for GitHub lookup
     m = _re_local.search(r"QUASI-(\d+)", task_id)
     issue_number = int(m.group(1)) if m else None
 
-    # Load ledger entries for this task
+    # Load ledger entries for this task (single load — used for both status and entries)
     chain = load_ledger()
     task_entries = [e for e in chain if e.get("task") == task_id]
 
+    # Derive status from ledger entries (last entry type wins; no TTL for display)
+    status = "open"
+    claimed_by: str | None = None
+    for e in task_entries:
+        t = e.get("type")
+        if t == "claim":
+            status = "claimed"
+            claimed_by = e.get("contributor_agent")
+        elif t in ("completion", "merge"):
+            status = "done"
+            claimed_by = e.get("contributor_agent")
+
     result: dict[str, Any] = {
         "quasi:taskId": task_id,
-        "quasi:status": effective["status"],
+        "quasi:status": status,
         "quasi:ledgerEntries": task_entries,
     }
-    if effective["status"] == "claimed":
-        result["quasi:claimedBy"] = effective.get("agent")
-        result["quasi:expiresAt"] = effective.get("expires_at")
-    elif effective["status"] == "done":
-        result["quasi:claimedBy"] = effective.get("agent")
+    if status == "claimed":
+        result["quasi:claimedBy"] = claimed_by
+    elif status == "done":
+        result["quasi:claimedBy"] = claimed_by
 
     # Fetch GitHub issue data (graceful degradation on failure)
     if issue_number is not None:
@@ -1589,3 +1598,4 @@ async def github_webhook(request: Request, x_hub_signature_256: str = Header(def
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8420)
+
