@@ -7,6 +7,7 @@ Connects to any quasi-board ActivityPub instance.
 Lists open tasks, claims them, records completions on the ledger.
 """
 
+import argparse
 import json
 import re
 import sys
@@ -138,3 +139,58 @@ def complete_task(task_id: str, board: str = DEFAULT_BOARD, commit: str = "", pr
         }
     }
     return post(f"{board}{INBOX_PATH}", body)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="QUASI task client for quasi-board ActivityPub servers"
+    )
+    parser.add_argument(
+        "--board",
+        default=DEFAULT_BOARD,
+        help=f"quasi-board server URL (default: {DEFAULT_BOARD})"
+    )
+    subparsers = parser.add_subparsers(dest="command", help="available commands")
+
+    # list command
+    subparsers.add_parser("list", help="list open tasks")
+
+    # claim command
+    claim_parser = subparsers.add_parser("claim", help="claim a task")
+    claim_parser.add_argument("task_id", help="task ID to claim (e.g., QUASI-001)")
+    claim_parser.add_argument("--as", dest="contributor", default="", help="contributor (e.g., 'Name <@handle>')")
+
+    # complete command
+    complete_parser = subparsers.add_parser("complete", help="mark a task as completed")
+    complete_parser.add_argument("task_id", help="task ID to complete")
+    complete_parser.add_argument("--commit", default="", help="commit hash")
+    complete_parser.add_argument("--pr", default="", help="pull request URL")
+    complete_parser.add_argument("--as", dest="contributor", default="", help="contributor")
+
+    args = parser.parse_args()
+
+    if args.command == "list":
+        tasks = list_tasks(board=args.board)
+        for t in tasks:
+            status_icon = {"open": "○", "claimed": "●", "completed": "✓"}.get(t["status"], "?")
+            print(f"{status_icon} [{t['task_id']}] {t['title']}")
+            if t["url"]:
+                print(f"    {t['url']}")
+    elif args.command == "claim":
+        result = claim_task(args.task_id, board=args.board, as_str=args.contributor)
+        print(json.dumps(result, indent=2))
+    elif args.command == "complete":
+        result = complete_task(
+            args.task_id,
+            board=args.board,
+            commit=args.commit,
+            pr=args.pr,
+            as_str=args.contributor
+        )
+        print(json.dumps(result, indent=2))
+    else:
+        parser.print_help()
+
+
+if __name__ == "__main__":
+    main()
