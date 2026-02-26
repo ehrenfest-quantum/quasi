@@ -198,6 +198,16 @@ Rules:
 - If the issue is already fully satisfied, set "edits" to [] and explain in "reasoning".
 - Do not modify lines unrelated to the issue.
 - Keep changes minimal — only what satisfies the acceptance criteria.
+
+CI / GitHub Actions rules (IMPORTANT — violations break the project for everyone):
+- The project already has a complete CI pipeline at .github/workflows/ci.yml covering all four
+  layers (spec/python, board, mcp, agent). Check it before adding anything CI-related.
+- Do NOT create a new workflow file if the issue can be solved by editing ci.yml.
+- Do NOT create duplicate workflow files — one workflow per concern.
+- If you create a new workflow, ensure all commands actually exist. For Python tests use:
+    pip install pytest pytest-anyio anyio[asyncio]  (pytest is NOT in requirements.txt)
+- Never rename a job ID in ci.yml without updating every "needs:" reference to that job.
+- Prefer editing the existing ci.yml job steps over creating a new .github/workflows/*.yml file.
 """
 
 
