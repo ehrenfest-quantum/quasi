@@ -263,7 +263,28 @@ def call_model(entry: dict, prompt: str) -> dict:
     # Repair common model output issues before giving up
     repaired = content
 
-    # 0. Strip JS-style // comments that some models add
+    # 0a. Escape literal newlines inside JSON strings (some models output them raw)
+    def _fix_literal_newlines(s):
+        result, in_str, esc_next = [], False, False
+        for ch in s:
+            if esc_next:
+                result.append(ch); esc_next = False
+            elif ch == '\\' and in_str:
+                result.append(ch); esc_next = True
+            elif ch == '"':
+                in_str = not in_str; result.append(ch)
+            elif in_str and ch == '\n':
+                result.append('\\n')
+            elif in_str and ch == '\r':
+                result.append('\\r')
+            elif in_str and ch == '\t':
+                result.append('\\t')
+            else:
+                result.append(ch)
+        return ''.join(result)
+    repaired = _fix_literal_newlines(repaired)
+
+    # 0b. Strip JS-style // comments that some models add
     repaired = re.sub(r"//[^\n]*", "", repaired)
 
     # 1. Replace Python triple-quoted strings with JSON-safe equivalent
