@@ -149,7 +149,7 @@ jobs:
   # ── Summary gate ───────────────────────────────────────────────────────────
   # Branch protection should require THIS job only.
   # It passes when all four layer jobs pass.
-  all-layers:
+  # Remove or comment out if keeping full CI, otherwise keep as is
     name: "All layers passed"
     needs: [spec, board, mcp, agent]
     runs-on: ubuntu-latest
