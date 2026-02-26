@@ -188,7 +188,7 @@ ROTATION: list[dict] = [
     # ── OpenRouter additions — confirmed working Feb 2026 ─────────────────
     {"id": "phi-4", "model": "microsoft/phi-4",
      "provider": "openrouter", "license": "MIT",
-     "origin": "US / Microsoft Research"},
+     "origin": "US / Microsoft Research", "max_context": 24000},
     {"id": "nemotron-70b", "model": "nvidia/llama-3.1-nemotron-70b-instruct",
      "provider": "openrouter", "license": "NVIDIA Open Model",
      "origin": "US / NVIDIA Research"},

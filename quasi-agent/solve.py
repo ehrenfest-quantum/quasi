@@ -211,9 +211,12 @@ def call_model(entry: dict, prompt: str) -> dict:
 
     # Some models cap max_tokens lower than 8192
     max_tok = entry.get("max_tokens", 8192)
-    # Sarvam caps prompt at 7168 tokens (~28K chars) — truncate context
+    # Some models have small context windows — truncate if needed
+    max_ctx = entry.get("max_context")
     if provider_id == "sarvam":
         prompt = prompt[:24000]
+    elif max_ctx and len(prompt) > max_ctx:
+        prompt = prompt[:max_ctx]
     payload = {
         "model": entry["model"],
         "messages": [
