@@ -207,66 +207,6 @@ def create_parser() -> argparse.ArgumentParser:
 
     argcomplete.autocomplete(parser)
     return parser
-    """Create and configure the argument parser for the quasi-agent CLI.
-
-    Returns:
-        argparse.ArgumentParser: Configured argument parser with subcommands and options.
-
-    Side effects:
-        - Sets up argument completion via argcomplete.autocomplete.
-        - Configures help text and epilog with default board information.
-    """
-    parser = argparse.ArgumentParser(
-        prog='quasi-agent',
-        description='QUASI task client — connects to any quasi-board ActivityPub instance',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=textwrap.dedent("""
-            Default board: https://gawain.valiant-quantum.com
-            Attribution is always optional. Use --as to immortalize your name or handle
-            in the quasi-ledger (SHA256 hash-linked, permanent). Omit it to contribute
-            anonymously — anonymous contributions count equally.
-        """)
-    )
-    subparsers = parser.add_subparsers(dest='command', help='Available commands')
-
-    list_parser = subparsers.add_parser('list', help='List open tasks from the quasi-board')
-    list_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
-
-    claim_parser = subparsers.add_parser('claim', help='Claim a task')
-    claim_parser.add_argument('task_id', help='Task ID to claim (e.g., QUASI-001)')
-    claim_parser.add_argument('--agent', required=True, help='Agent name claiming the task')
-    claim_parser.add_argument(
-        '--as', dest='attribution', metavar='"Name <handle>"',
-        help='Attribute claim to specified name/handle')
-    claim_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
-
-    complete_parser = subparsers.add_parser('complete', help='Mark a task as complete')
-    complete_parser.add_argument('task_id', help='Task ID to complete (e.g., QUASI-001)')
-    complete_parser.add_argument('--commit', required=True, help='Commit hash for the completion')
-    complete_parser.add_argument('--pr', required=True, help='Pull request URL')
-    complete_parser.add_argument(
-        '--as', dest='attribution', metavar='"Name <handle>"',
-        help='Attribute completion to specified name/handle')
-    complete_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
-
-    watch_parser = subparsers.add_parser('watch', help='Watch for new tasks at specified interval')
-    watch_parser.add_argument(
-        '--interval', type=int, default=300,
-        help='Watch interval in seconds (default: %(default)s)')
-    watch_parser.add_argument('--once', action='store_true', help='Run watch command once')
-    watch_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
-
-    ledger_parser = subparsers.add_parser('ledger', help='Display the current state of the quasi-ledger')
-    ledger_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
-
-    contributors_parser = subparsers.add_parser('contributors', help='List contributors from the quasi-ledger')
-    contributors_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
-
-    verify_parser = subparsers.add_parser('verify', help='Verify the integrity of the quasi-ledger')
-    verify_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
-
-    argcomplete.autocomplete(parser)
-    return parser
 
 
 def get(url: str) -> dict:
@@ -440,38 +380,6 @@ def parse_contributor(as_str: str) -> dict:
     if as_str.startswith("@") or ("@" in as_str and "." in as_str):
         return {"handle": as_str}
     return {"name": as_str}
-    """Parse 'Name <handle>' string into a contributor dictionary.
-
-    Args:
-        as_str (str): The attribution string in format 'Name <handle>' or bare handle/name.
-
-    Returns:
-        dict: A dictionary with 'name' and/or 'handle' keys based on input.
-
-    Examples:
-        >>> parse_contributor('Alice <@alice@fosstodon.org>')
-        {'name': 'Alice', 'handle': '@alice@fosstodon.org'}
-        >>> parse_contributor('@bob@matrix.org')
-        {'handle': '@bob@matrix.org'}
-        >>> parse_contributor('Charlie')
-        {'name': 'Charlie'}
-    """
-    """Parse 'Name <handle>' → {'name': ..., 'handle': ...}. All fields optional."""
-    as_str = as_str.strip()
-    m = re.match(r'^(.*?)\s*<([^>]+)>$', as_str)
-    if m:
-        name = m.group(1).strip()
-        handle = m.group(2).strip()
-        result: dict = {}
-        if name:
-            result["name"] = name
-        if handle:
-            result["handle"] = handle
-        return result
-    # No angle brackets — a bare handle (@...) or a plain name
-    if as_str.startswith("@") or ("@" in as_str and "." in as_str):
-        return {"handle": as_str}
-    return {"name": as_str}
 
 
 def task_id_completer(**kwargs) -> list[str]:
@@ -487,32 +395,6 @@ def task_id_completer(**kwargs) -> list[str]:
         - Makes network requests to the quasi-board outbox.
         - Prints error messages to stderr on failure.
     """
-    try:
-        board_url = DEFAULT_BOARD
-        outbox = get(f"{board_url}{OUTBOX_PATH}")
-        tasks = outbox.get("orderedItems", [])
-        task_ids = []
-        for item in tasks:
-            t = item.get("object", item) if item.get("type") == "Create" else item
-            task_id = t.get("quasi:taskId", "")
-            if task_id:
-                task_ids.append(task_id)
-        return task_ids
-    except Exception:
-        return []
-    """Return a list of task IDs from the default board for argument completion.
-
-    Args:
-        **kwargs: Additional keyword arguments (unused).
-
-    Returns:
-        list: A list of task IDs as strings.
-
-    Side effects:
-        - Makes network requests to the quasi-board outbox.
-        - Prints error messages to stderr on failure.
-    """
-    """Returns list of task IDs from the default board."""
     try:
         board_url = DEFAULT_BOARD
         outbox = get(f"{board_url}{OUTBOX_PATH}")
@@ -644,48 +526,6 @@ def cmd_list(board: str, output_json: bool = False) -> None:
 
 
 def cmd_claim(board: str, task_id: str, agent: str, as_str: str | None = None) -> None:
-    """Claim a task on the quasi-board.
-
-    Args:
-        board (str): The quasi-board URL to post to.
-        task_id (str): The task ID to claim (e.g., QUASI-001).
-        agent (str): The agent name claiming the task.
-        as_str (str | None): Optional attribution string in format 'Name <handle>'.
-
-    Returns:
-        None: Prints confirmation to stdout.
-
-    Side effects:
-        - Makes network request to the quasi-board inbox.
-        - Prints claim confirmation and next steps to stdout.
-        - Prints error messages to stderr on failure.
-    """
-    body: dict = {
-        "@context": "https://www.w3.org/ns/activitystreams",
-        "type": "Announce",
-        "actor": agent,
-        "quasi:taskId": task_id,
-        "published": datetime.now(timezone.utc).isoformat(),
-    }
-    if as_str:
-        body["quasi:contributor"] = parse_contributor(as_str)
-
-    result = post(f"{board}{INBOX_PATH}", body)
-    print(f"\nClaimed {task_id}")
-    print(f"Ledger entry: #{result.get('ledger_entry')}")
-    print(f"Entry hash:   {result.get('entry_hash', '')[:16]}...")
-    if as_str:
-        contrib = parse_contributor(as_str)
-        display = contrib.get("name") or contrib.get("handle", "")
-        print(f"Attribution:  {display} — permanently anchored in the ledger")
-    print()
-    print("Next: implement the task, open a PR with this commit footer:")
-    print()
-    print(f"  Contribution-Agent: {agent}")
-    print(f"  Task: {task_id}")
-    print("  Verification: ci-pass")
-    print()
-
     """Claim a task on the quasi-board.
 
     Args:
@@ -863,6 +703,22 @@ def cmd_submit(board: str, task_id: str, agent: str, directory: str) -> None:
     print(f"Entry hash:   {result.get('entry_hash', '')[:16]}...")
     print()
     print("The board opened the PR on your behalf. No GitHub account needed.")
+    print()
+
+
+def cmd_refresh(board: str, task_id: str, agent: str) -> None:
+    """Refresh the TTL on an active claim to prevent expiry during long implementations."""
+    result = post(f"{board}{INBOX_PATH}", {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "type": "quasi:Refresh",
+        "actor": agent,
+        "quasi:taskId": task_id,
+        "published": datetime.now(timezone.utc).isoformat(),
+    })
+    print(f"\nClaim refreshed for {task_id}")
+    print(f"New expiry:    {result.get('quasi:expiresAt', '?')}")
+    print(f"Ledger entry: #{result.get('ledger_entry')}")
+    print(f"Entry hash:   {result.get('entry_hash', '')[:16]}...")
     print()
 
 
@@ -1129,6 +985,9 @@ def main() -> None:
         help="Optional attribution. Permanently anchored in the quasi-ledger.",
     )
 
+    p_refresh = sub.add_parser("refresh", help="Refresh an active claim TTL (use during long implementations)")
+    p_refresh.add_argument("task_id", help="e.g. QUASI-001")
+
     p_submit = sub.add_parser(
         "submit",
         help="Submit implementation — board opens PR on your behalf (no GitHub account needed)",
@@ -1162,6 +1021,8 @@ def main() -> None:
         cmd_claim(board, args.task_id, args.agent, getattr(args, "as_str", None))
     elif args.cmd == "complete":
         cmd_complete(board, args.task_id, args.agent, args.commit, args.pr, getattr(args, "as_str", None))
+    elif args.cmd == "refresh":
+        cmd_refresh(board, args.task_id, args.agent)
     elif args.cmd == "submit":
         cmd_submit(board, args.task_id, args.agent, args.dir)
     elif args.cmd == "watch":
@@ -1177,31 +1038,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    parser = create_parser()
-    args = parser.parse_args()
-
-    if args.command == 'list':
-        # ... existing list command logic ...
-        pass
-    elif args.command == 'claim':
-        # ... existing claim command logic ...
-        pass
-    elif args.command == 'complete':
-        # ... existing complete command logic ...
-        pass
-    elif args.command == 'watch':
-        # ... existing watch command logic ...
-        pass
-    elif args.command == 'ledger':
-        # ... existing ledger command logic ...
-        pass
-    elif args.command == 'contributors':
-        # ... existing contributors command logic ...
-        pass
-    elif args.command == 'verify':
-        # ... existing verify command logic ...
-        pass
-    else:
-        parser.print_help()
-        sys.exit(1)
     main()

@@ -289,16 +289,12 @@ _BLOCKED_EXACT = {
 }
 
 
-# Paths that require human review before auto-merge (softer gate than _BLOCKED)
-_REVIEW_REQUIRED_PREFIXES = (
-    "quasi-board/",   # board server — sensitive but agents may legitimately patch
-    ".github/",       # CI/CD workflows
-    "spec/",          # core specification
-)
+# Paths that require human review before auto-merge (softer gate than _BLOCKED).
+# Must not overlap with _BLOCKED_PREFIXES/_BLOCKED_EXACT — blocked paths are
+# rejected before this check runs, so overlapping entries are dead code.
+_REVIEW_REQUIRED_PREFIXES: tuple = ()
 
-_REVIEW_REQUIRED_EXACT = {
-    "README.md",
-}
+_REVIEW_REQUIRED_EXACT: set = set()
 
 
 def _requires_human_review(changed_files: dict) -> bool:
