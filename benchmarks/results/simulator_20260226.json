@@ -1,0 +1,39 @@
+{
+  "generated_at": "2026-02-26T17:48:33.490154+00:00",
+  "backend": "simulator",
+  "shots": 1024,
+  "results": [
+    {
+      "circuit": "Bell state",
+      "backend": "simulator",
+      "fidelity": 1.0,
+      "gate_count": 2,
+      "depth": 2,
+      "shots": 1024
+    },
+    {
+      "circuit": "GHZ 3q",
+      "backend": "simulator",
+      "fidelity": 1.0,
+      "gate_count": 3,
+      "depth": 3,
+      "shots": 1024
+    },
+    {
+      "circuit": "Grover 2q",
+      "backend": "simulator",
+      "fidelity": 1.0,
+      "gate_count": 14,
+      "depth": 14,
+      "shots": 1024
+    },
+    {
+      "circuit": "VQE H2",
+      "backend": "simulator",
+      "fidelity": 1.0,
+      "gate_count": 5,
+      "depth": 5,
+      "shots": 1024
+    }
+  ]
+}
