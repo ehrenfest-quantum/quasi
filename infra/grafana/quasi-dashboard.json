@@ -1,17 +1,408 @@
 {
   "title": "QUASI Ledger",
   "uid": "quasi-ledger",
-  "tags": ["quasi", "ledger", "contributors"],
+  "tags": [
+    "quasi",
+    "ledger",
+    "contributors"
+  ],
   "timezone": "browser",
   "refresh": "1m",
   "panels": [
-    {"id":1,"type":"stat","title":"Ledger Entries","gridPos":{"h":4,"w":4,"x":0,"y":0},"datasource":{"type":"marcusolsson-json-datasource","uid":"efe0dbtl6rrwgf"},"options":{"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"background"},"targets":[{"refId":"A","urlPath":"/quasi-board/ledger","method":"GET","fields":[{"name":"quasi:entries","type":"number","jsonPath":"$.['quasi:entries']"}]}]},
-    {"id":2,"type":"stat","title":"Genesis Slots Remaining","gridPos":{"h":4,"w":4,"x":4,"y":0},"datasource":{"type":"marcusolsson-json-datasource","uid":"efe0dbtl6rrwgf"},"options":{"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"background","thresholds":{"steps":[{"value":0,"color":"red"},{"value":10,"color":"yellow"},{"value":25,"color":"green"}]}},"targets":[{"refId":"A","urlPath":"/quasi-board/ledger","method":"GET","fields":[{"name":"quasi:slotsRemaining","type":"number","jsonPath":"$.['quasi:slotsRemaining']"}]}]},
-    {"id":3,"type":"stat","title":"Chain Valid","gridPos":{"h":4,"w":4,"x":8,"y":0},"datasource":{"type":"marcusolsson-json-datasource","uid":"efe0dbtl6rrwgf"},"options":{"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"background"},"targets":[{"refId":"A","urlPath":"/quasi-board/ledger","method":"GET","fields":[{"name":"valid","type":"boolean","jsonPath":"$.['quasi:valid']"}]}]},
-    {"id":4,"type":"stat","title":"Open Tasks","gridPos":{"h":4,"w":4,"x":12,"y":0},"datasource":{"type":"marcusolsson-json-datasource","uid":"efe0dbtl6rrwgf"},"options":{"reduceOptions":{"calcs":["lastNotNull"]},"colorMode":"background"},"targets":[{"refId":"A","urlPath":"/quasi-board/outbox","method":"GET","fields":[{"name":"totalItems","type":"number","jsonPath":"$.totalItems"}]}]},
-    {"id":5,"type":"table","title":"Ledger Chain","gridPos":{"h":12,"w":24,"x":0,"y":4},"datasource":{"type":"marcusolsson-json-datasource","uid":"efe0dbtl6rrwgf"},"options":{"sortBy":[{"desc":true,"displayName":"id"}]},"targets":[{"refId":"A","urlPath":"/quasi-board/ledger","method":"GET","fields":[{"name":"id","type":"number","jsonPath":"$.chain[*].id"},{"name":"type","type":"string","jsonPath":"$.chain[*].type"},{"name":"task","type":"string","jsonPath":"$.chain[*].task"},{"name":"contributor_agent","type":"string","jsonPath":"$.chain[*].contributor_agent"},{"name":"timestamp","type":"string","jsonPath":"$.chain[*].timestamp"},{"name":"entry_hash","type":"string","jsonPath":"$.chain[*].entry_hash"}]}]},
-    {"id":6,"type":"piechart","title":"Completions by Agent","gridPos":{"h":8,"w":8,"x":0,"y":16},"datasource":{"type":"marcusolsson-json-datasource","uid":"efe0dbtl6rrwgf"},"targets":[{"refId":"A","urlPath":"/quasi-board/ledger","method":"GET","fields":[{"name":"contributor_agent","type":"string","jsonPath":"$.chain[?(@.type=='completion')].contributor_agent"},{"name":"count","type":"number","jsonPath":"$.chain[?(@.type=='completion')].id"}]}]},
-    {"id":7,"type":"table","title":"Open Tasks","gridPos":{"h":8,"w":16,"x":8,"y":16},"datasource":{"type":"marcusolsson-json-datasource","uid":"efe0dbtl6rrwgf"},"targets":[{"refId":"A","urlPath":"/quasi-board/outbox","method":"GET","fields":[{"name":"taskId","type":"string","jsonPath":"$.orderedItems[*]['quasi:taskId']"},{"name":"title","type":"string","jsonPath":"$.orderedItems[*].name"},{"name":"status","type":"string","jsonPath":"$.orderedItems[*]['quasi:status']"},{"name":"url","type":"string","jsonPath":"$.orderedItems[*].url"}]}]}
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Ledger Entries",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "marcusolsson-json-datasource",
+        "uid": "efe0dbtl6rrwgf"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "urlPath": "/quasi-board/ledger",
+          "method": "GET",
+          "fields": [
+            {
+              "name": "quasi:entries",
+              "type": "number",
+              "jsonPath": "$.['quasi:entries']"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Genesis Slots Remaining",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "datasource": {
+        "type": "marcusolsson-json-datasource",
+        "uid": "efe0dbtl6rrwgf"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "thresholds": {
+          "steps": [
+            {
+              "value": 0,
+              "color": "red"
+            },
+            {
+              "value": 10,
+              "color": "yellow"
+            },
+            {
+              "value": 25,
+              "color": "green"
+            }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "urlPath": "/quasi-board/ledger",
+          "method": "GET",
+          "fields": [
+            {
+              "name": "quasi:slotsRemaining",
+              "type": "number",
+              "jsonPath": "$.['quasi:slotsRemaining']"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Chain Valid",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "datasource": {
+        "type": "marcusolsson-json-datasource",
+        "uid": "efe0dbtl6rrwgf"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "urlPath": "/quasi-board/ledger",
+          "method": "GET",
+          "fields": [
+            {
+              "name": "valid",
+              "type": "boolean",
+              "jsonPath": "$.['quasi:valid']"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Open Tasks",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "marcusolsson-json-datasource",
+        "uid": "efe0dbtl6rrwgf"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "urlPath": "/quasi-board/outbox",
+          "method": "GET",
+          "fields": [
+            {
+              "name": "totalItems",
+              "type": "number",
+              "jsonPath": "$.totalItems"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Ledger Chain",
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "marcusolsson-json-datasource",
+        "uid": "efe0dbtl6rrwgf"
+      },
+      "options": {
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "id"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "urlPath": "/quasi-board/ledger",
+          "method": "GET",
+          "fields": [
+            {
+              "name": "id",
+              "type": "number",
+              "jsonPath": "$.chain[*].id"
+            },
+            {
+              "name": "type",
+              "type": "string",
+              "jsonPath": "$.chain[*].type"
+            },
+            {
+              "name": "task",
+              "type": "string",
+              "jsonPath": "$.chain[*].task"
+            },
+            {
+              "name": "contributor_agent",
+              "type": "string",
+              "jsonPath": "$.chain[*].contributor_agent"
+            },
+            {
+              "name": "timestamp",
+              "type": "string",
+              "jsonPath": "$.chain[*].timestamp"
+            },
+            {
+              "name": "entry_hash",
+              "type": "string",
+              "jsonPath": "$.chain[*].entry_hash"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "piechart",
+      "title": "Completions by Agent",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      },
+      "datasource": {
+        "type": "marcusolsson-json-datasource",
+        "uid": "efe0dbtl6rrwgf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "urlPath": "/quasi-board/ledger",
+          "method": "GET",
+          "fields": [
+            {
+              "name": "contributor_agent",
+              "type": "string",
+              "jsonPath": "$.chain[?(@.type=='completion')].contributor_agent"
+            },
+            {
+              "name": "count",
+              "type": "number",
+              "jsonPath": "$.chain[?(@.type=='completion')].id"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Open Tasks",
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 16
+      },
+      "datasource": {
+        "type": "marcusolsson-json-datasource",
+        "uid": "efe0dbtl6rrwgf"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "urlPath": "/quasi-board/outbox",
+          "method": "GET",
+          "fields": [
+            {
+              "name": "taskId",
+              "type": "string",
+              "jsonPath": "$.orderedItems[*]['quasi:taskId']"
+            },
+            {
+              "name": "title",
+              "type": "string",
+              "jsonPath": "$.orderedItems[*].name"
+            },
+            {
+              "name": "status",
+              "type": "string",
+              "jsonPath": "$.orderedItems[*]['quasi:status']"
+            },
+            {
+              "name": "url",
+              "type": "string",
+              "jsonPath": "$.orderedItems[*].url"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "text",
+      "title": "Sir Slopalot \u2014 Title Holder",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "options": {
+        "content": "<div style=\"font-family:monospace; font-size:0.9rem; padding:0.5rem;\"><span style=\"color:#ef4444; font-weight:700;\">\u2620 phi-4</span> <span style=\"font-size:0.75rem; color:#aaa;\">Q1 2026</span><br><span style=\"font-size:0.72rem; color:#888;\">PR #234 \u00b7 all 5 flags \u00b7 server.py destroyed (1367\u219260 lines)</span><br><span style=\"font-size:0.68rem; color:#666; margin-top:0.3rem; display:block;\">scope-violation \u00b7 destructive-diff \u00b7 false-verification \u00b7 message-drift \u00b7 reverted</span></div>",
+        "mode": "html"
+      }
+    },
+    {
+      "id": 9,
+      "type": "text",
+      "title": "\u2460 Scope Hygiene",
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 0,
+        "y": 24
+      },
+      "options": {
+        "content": "<div style=\"font-family:monospace; font-size:0.78rem; color:#a0a0b0; padding:0.25rem;\">Fraction of changed files relevant to the stated issue. Computed from PR diff vs issue labels.</div>",
+        "mode": "html"
+      }
+    },
+    {
+      "id": 10,
+      "type": "text",
+      "title": "\u2461 Commit Fidelity",
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 5,
+        "y": 24
+      },
+      "options": {
+        "content": "<div style=\"font-family:monospace; font-size:0.78rem; color:#a0a0b0; padding:0.25rem;\">Semantic similarity between commit message and actual diff. Drift = model did not understand what it changed.</div>",
+        "mode": "html"
+      }
+    },
+    {
+      "id": 11,
+      "type": "text",
+      "title": "\u2462 Net Contribution",
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 10,
+        "y": 24
+      },
+      "options": {
+        "content": "<div style=\"font-family:monospace; font-size:0.78rem; color:#a0a0b0; padding:0.25rem;\">Lines added persisting 30d minus lines destroyed. Negative = net subtraction from codebase.</div>",
+        "mode": "html"
+      }
+    },
+    {
+      "id": 12,
+      "type": "text",
+      "title": "\u2463 Verification Honesty",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 15,
+        "y": 24
+      },
+      "options": {
+        "content": "<div style=\"font-family:monospace; font-size:0.78rem; color:#a0a0b0; padding:0.25rem;\">Did the agent claim ci-pass before CI finished? Premature claims = false-verification flag.</div>",
+        "mode": "html"
+      }
+    },
+    {
+      "id": 13,
+      "type": "text",
+      "title": "\u2464 Revert Rate",
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 19,
+        "y": 24
+      },
+      "options": {
+        "content": "<div style=\"font-family:monospace; font-size:0.78rem; color:#a0a0b0; padding:0.25rem;\">Fraction of merged PRs subsequently reverted. Strongest single indicator of destructive contribution.</div>",
+        "mode": "html"
+      }
+    }
   ],
   "schemaVersion": 39
 }
