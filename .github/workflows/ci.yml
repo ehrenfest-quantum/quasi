@@ -148,12 +148,38 @@ jobs:
           python3 quasi-agent/generate_issue.py --list-models
           echo "✅ CLI loads cleanly"
 
+
+  # ── Quality Radar ①: Scope Hygiene ────────────────────────────────────────
+  scope:
+    name: "Quality Radar ① · Scope Hygiene"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Scope hygiene check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python3 spec/tools/scope_hygiene.py
+
   # ── Summary gate ───────────────────────────────────────────────────────────
   # Branch protection should require THIS job only.
   # It passes when all four layer jobs pass.
   all-layers:
     name: "All layers passed"
-    needs: [python, board, mcp, agent]
+    needs: [python, board, mcp, agent, scope]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -170,4 +196,10 @@ jobs:
             echo "  agent:  ${{ needs.agent.result }}"
             exit 1
           fi
-          echo "✅ All four layers passed — Pauli-Test objective criterion met"
+          # scope job only runs on pull_request; skip check on push
+          if [[ "${{ github.event_name }}" == "pull_request" &&
+                "${{ needs.scope.result }}"  != "success" ]]; then
+            echo "❌ Scope hygiene failed: ${{ needs.scope.result }}"
+            exit 1
+          fi
+          echo "✅ All layers passed — Pauli-Test objective criterion met"
