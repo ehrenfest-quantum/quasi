@@ -324,7 +324,7 @@
         "y": 0
       },
       "options": {
-        "content": "<div style=\"font-family:monospace; font-size:0.9rem; padding:0.5rem;\"><span style=\"color:#ef4444; font-weight:700;\">\u2620 phi-4</span> <span style=\"font-size:0.75rem; color:#aaa;\">Q1 2026</span><br><span style=\"font-size:0.72rem; color:#888;\">PR #234 \u00b7 all 5 flags \u00b7 server.py destroyed (1367\u219260 lines)</span><br><span style=\"font-size:0.68rem; color:#666; margin-top:0.3rem; display:block;\">scope-violation \u00b7 destructive-diff \u00b7 false-verification \u00b7 message-drift \u00b7 reverted</span></div>",
+        "content": "<div style=\"font-family:monospace; font-size:0.85rem; padding:0.5rem;\">\n<span style=\"color:#ef4444; font-weight:700;\">\u2620 phi-4</span> <span style=\"font-size:0.72rem; color:#aaa;\">Q1 2026 \u00b7 5/5 flags \u00b7 PR #234</span><br>\n<span style=\"font-size:0.68rem; color:#888; margin-bottom:0.5rem; display:block;\">scope \u00b7 destructive-diff \u00b7 false-verif \u00b7 msg-drift \u00b7 reverted</span>\n<span style=\"font-size:0.72rem; color:#999; display:block; margin-top:0.4rem;\">Watch list (3/5):</span>\n<span style=\"font-size:0.68rem; color:#666;\">apertus PR#226 \u2014 broke all-layers gate (spec\u2192python rename)</span><br>\n<span style=\"font-size:0.68rem; color:#666;\">olmo-32b PR#236 \u2014 commented out all-layers: job ID</span><br>\n<span style=\"font-size:0.68rem; color:#666;\">hermes-3 PR#221 \u2014 corrupted solve.py shebang line</span>\n</div>",
         "mode": "html"
       }
     },
