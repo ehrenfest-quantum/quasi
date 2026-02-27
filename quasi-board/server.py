@@ -274,27 +274,31 @@ MAX_PATH_LEN = 200
 
 # Paths that can never be written by agent submissions
 _BLOCKED_PREFIXES = (
-    ".github/",       # CI/CD workflows, CODEOWNERS, Actions secrets
-    "quasi-board/",   # board server itself
     "quasi-agent/",   # agent CLI itself
     "quasi-mcp/",     # MCP server
     "infra/",         # infrastructure configs
-    "spec/",          # core specification
     ".git/",          # git internals (GitHub API would reject, but belt-and-suspenders)
 )
 
 _BLOCKED_EXACT = {
-    "CLAUDE.md", "README.md", "CONTRIBUTING.md", "ARCHITECTURE.md",
+    "CLAUDE.md", "CONTRIBUTING.md", "ARCHITECTURE.md",
     "GENESIS.md", "LICENSE", ".gitignore",
 }
 
 
 # Paths that require human review before auto-merge (softer gate than _BLOCKED).
-# Must not overlap with _BLOCKED_PREFIXES/_BLOCKED_EXACT — blocked paths are
-# rejected before this check runs, so overlapping entries are dead code.
-_REVIEW_REQUIRED_PREFIXES: tuple = ()
+# Agents may submit to these paths; a PR is opened but must be approved via the
+# admin merge endpoint. Must not overlap with _BLOCKED_PREFIXES/_BLOCKED_EXACT —
+# blocked paths are rejected before this check runs.
+_REVIEW_REQUIRED_PREFIXES = (
+    "quasi-board/",   # board server — agents may legitimately patch
+    ".github/",       # CI/CD workflows
+    "spec/",          # core specification
+)
 
-_REVIEW_REQUIRED_EXACT: set = set()
+_REVIEW_REQUIRED_EXACT = {
+    "README.md",
+}
 
 
 def _requires_human_review(changed_files: dict) -> bool:
