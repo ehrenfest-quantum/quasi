@@ -470,7 +470,7 @@ def apply_and_pr(
         with urllib.request.urlopen(ledger_req, timeout=10) as r:
             ledger_resp = json.loads(r.read())
         print(f"Ledger entry: #{ledger_resp.get('ledger_entry')} "
-              f"({ledger_resp.get('entry_hash','')[:16]}...)")
+              f"({ledger_resp.get('entry_hash', '')[:16]}...)")
     except Exception as e:
         print(f"Ledger record failed (PR still open): {e}", file=sys.stderr)
 
