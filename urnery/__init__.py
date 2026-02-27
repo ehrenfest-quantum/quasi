@@ -1,0 +1,2 @@
+"""Urnery package."""
+
