@@ -1,0 +1,27 @@
+{
+  "name": "@quasi/hal-contract",
+  "version": "0.1.0",
+  "description": "TypeScript bindings for the QUASI HAL Contract HTTP API",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "check": "tsc --noEmit"
+  },
+  "keywords": [
+    "quasi",
+    "quantum",
+    "hal",
+    "typescript"
+  ],
+  "license": "GPL-3.0-or-later",
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^2.1.5"
+  }
+}
