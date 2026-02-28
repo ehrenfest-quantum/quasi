@@ -14,10 +14,16 @@ def _read_text(path: str) -> str:
 
 
 def _print_gate_report(path: str, stats: dict) -> None:
-    print(
+    line = (
         f"{path}: before={stats['gate_count_before']} "
         f"after={stats['gate_count_after']}"
     )
+    if "t_gate_count_before" in stats and "t_gate_count_after" in stats:
+        line += (
+            f" t_before={stats['t_gate_count_before']}"
+            f" t_after={stats['t_gate_count_after']}"
+        )
+    print(line)
 
 
 def cmd_compile(path: str, optimize: bool, output: Optional[str]) -> int:
@@ -44,6 +50,9 @@ def cmd_benchmark(paths: Iterable[str], optimize: bool) -> int:
                 "after": stats["gate_count_after"],
             }
         )
+        if "t_gate_count_before" in stats and "t_gate_count_after" in stats:
+            rows[-1]["t_before"] = stats["t_gate_count_before"]
+            rows[-1]["t_after"] = stats["t_gate_count_after"]
         _print_gate_report(path, stats)
     print(json.dumps({"results": rows}, indent=2))
     return 0
@@ -55,12 +64,12 @@ def main() -> int:
 
     p_compile = sub.add_parser("compile", help="Compile OpenQASM input")
     p_compile.add_argument("input", help="Path to OpenQASM file")
-    p_compile.add_argument("--optimize", action="store_true", help="Enable ZX optimization")
+    p_compile.add_argument("--optimize", action="store_true", help="Enable ZX optimization, including T-gate reduction")
     p_compile.add_argument("--output", help="Optional output path for compiled QASM")
 
     p_bench = sub.add_parser("benchmark", help="Benchmark gate count before/after")
     p_bench.add_argument("inputs", nargs="+", help="One or more OpenQASM files")
-    p_bench.add_argument("--optimize", action="store_true", help="Enable ZX optimization")
+    p_bench.add_argument("--optimize", action="store_true", help="Enable ZX optimization, including T-gate reduction")
 
     args = parser.parse_args()
     if args.cmd == "compile":

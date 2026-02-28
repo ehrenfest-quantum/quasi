@@ -61,3 +61,26 @@ def test_optimize_accepts_better_candidate(monkeypatch):
     assert out == qasm_better
     assert stats["before"] == 2
     assert stats["after"] == 1
+
+
+def test_optimize_reduces_adjacent_t_gates(monkeypatch):
+    qasm_t = "\n".join(
+        [
+            "OPENQASM 2.0;",
+            'include "qelib1.inc";',
+            "qreg q[1];",
+            "t q[0];",
+            "t q[0];",
+            "h q[0];",
+        ]
+    )
+
+    monkeypatch.setitem(sys.modules, "pyzx", _fake_pyzx(qasm_t))
+    out, stats = optimize_qasm_with_stats(qasm_t)
+
+    assert "s q[0];" in out
+    assert "t q[0];\nt q[0];" not in out
+    assert stats["before"] == 3
+    assert stats["after"] == 2
+    assert stats["t_before"] == 2
+    assert stats["t_after"] == 0

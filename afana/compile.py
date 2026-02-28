@@ -26,20 +26,33 @@ def _count_qasm_ops(qasm: str) -> int:
     return count
 
 
+def _count_qasm_t_ops(qasm: str) -> int:
+    count = 0
+    for raw in qasm.splitlines():
+        if raw.strip().startswith("t ") and raw.strip().endswith(";"):
+            count += 1
+    return count
+
+
 def compile_qasm(qasm: str, optimize: bool = False) -> Dict[str, Any]:
     """Compile raw OpenQASM and optionally run ZX optimization."""
     gate_count_before = _count_qasm_ops(qasm)
+    t_gate_count_before = _count_qasm_t_ops(qasm)
     if optimize:
         out_qasm, stats = optimize_qasm_with_stats(qasm)
         gate_count_after = stats["after"]
+        t_gate_count_after = stats["t_after"]
     else:
         out_qasm = qasm
         gate_count_after = gate_count_before
+        t_gate_count_after = t_gate_count_before
     return {
         "qasm": out_qasm,
         "stats": {
             "gate_count_before": gate_count_before,
             "gate_count_after": gate_count_after,
+            "t_gate_count_before": t_gate_count_before,
+            "t_gate_count_after": t_gate_count_after,
             "optimized": optimize,
         },
     }
