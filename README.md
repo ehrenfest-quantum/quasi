@@ -88,6 +88,12 @@ Please follow these steps to contribute:
 2. Claim a task from the public task board
 3. Implement the task and submit a PR with the required commit footer
 
+## Before opening a PR
+
+1. Re-run the most relevant tests for the area you changed.
+2. Mention the issue number in the PR title or description.
+3. Include the required quasi-ledger footer when contributing through quasi-board.
+
 ## Get involved
 
 ### If you are a Claude Code session
