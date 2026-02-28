@@ -41,10 +41,13 @@ jobs:
           python-version: "3.11"
 
       - name: Install deps
-        run: pip install cbor2
+        run: pip install cbor2 pytest
 
       - name: Validate CBOR examples against schema
         run: python3 spec/tools/validate.py spec/examples/
+
+      - name: Run schema validator tests
+        run: pytest -q spec/tools/test_validate.py
 
       - name: Check for generator drift
         run: |

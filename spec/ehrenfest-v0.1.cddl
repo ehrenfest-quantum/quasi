@@ -160,4 +160,27 @@ NoiseConstraint = {
   "t2_us":                    float,  ; minimum required T2 dephasing time (μs)  — REQUIRED
   ? "gate_fidelity_min":      float,  ; minimum single-qubit gate fidelity [0.0, 1.0]
   ? "readout_fidelity_min":   float,  ; minimum readout fidelity [0.0, 1.0]
+  ? "channels":               [* NoiseChannel], ; optional backend hints, may be ignored
+}
+
+; Optional noise metadata describing channel assumptions during compilation.
+; These are advisory annotations for backend selection and simulation only.
+NoiseChannel = DepolarizingNoise / AmplitudeDamping / PhaseDamping
+
+DepolarizingNoise = {
+  "type":   1,
+  "qubit":  uint,
+  "p":      float,   ; depolarizing probability in [0.0, 1.0]
+}
+
+AmplitudeDamping = {
+  "type":   2,
+  "qubit":  uint,
+  "gamma":  float,   ; damping factor in [0.0, 1.0]
+}
+
+PhaseDamping = {
+  "type":   3,
+  "qubit":  uint,
+  "gamma":  float,   ; dephasing factor in [0.0, 1.0]
 }

@@ -14,15 +14,10 @@ import binascii
 import sys
 from pathlib import Path
 
-try:
-    import cbor2
-except ImportError:
-    print("cbor2 required: pip install cbor2", file=sys.stderr)
-    sys.exit(1)
-
 REQUIRED_TOP_LEVEL = {"version", "system", "hamiltonian", "evolution", "observables", "noise"}
 VALID_OBSERVABLE_TYPES = {"SZ", "SX", "E", "rho", "F"}
 VALID_PAULI_AXES = {0, 1, 2, 3}
+VALID_NOISE_CHANNEL_TYPES = {1, 2, 3}
 
 
 class ValidationError(Exception):
@@ -142,10 +137,44 @@ def validate_program(p: dict) -> None:
         f = noise["readout_fidelity_min"]
         check(isinstance(f, (int, float)) and 0.0 <= f <= 1.0,
               f"noise.readout_fidelity_min={f} must be in [0.0, 1.0]")
+    if "channels" in noise:
+        channels = noise["channels"]
+        check(isinstance(channels, list), "noise.channels must be an array")
+        for i, channel in enumerate(channels):
+            check(isinstance(channel, dict), f"noise.channels[{i}] must be a map")
+            check("type" in channel, f"noise.channels[{i}].type is required")
+            check("qubit" in channel, f"noise.channels[{i}].qubit is required")
+            kind = channel["type"]
+            check(
+                kind in VALID_NOISE_CHANNEL_TYPES,
+                f"noise.channels[{i}].type={kind!r} must be one of {VALID_NOISE_CHANNEL_TYPES}",
+            )
+            check(
+                isinstance(channel["qubit"], int) and 0 <= channel["qubit"] < n_qubits,
+                f"noise.channels[{i}].qubit={channel['qubit']} out of range [0, {n_qubits})",
+            )
+
+            if kind == 1:
+                check("p" in channel, f"noise.channels[{i}] (type=1) requires p")
+                value = channel["p"]
+                label = "p"
+            else:
+                check("gamma" in channel, f"noise.channels[{i}] (type={kind}) requires gamma")
+                value = channel["gamma"]
+                label = "gamma"
+            check(
+                isinstance(value, (int, float)) and 0.0 <= value <= 1.0,
+                f"noise.channels[{i}].{label}={value} must be in [0.0, 1.0]",
+            )
 
 
 def validate_file(path: Path) -> bool:
     try:
+        try:
+            import cbor2
+        except ImportError:
+            print("cbor2 required: pip install cbor2", file=sys.stderr)
+            return False
         raw = bytes.fromhex(path.read_text().strip())
         program = cbor2.loads(raw)
         validate_program(program)
