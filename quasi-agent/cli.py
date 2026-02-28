@@ -792,6 +792,12 @@ def _extract_task_info(item: dict) -> dict | None:
 
 
 def _load_seen() -> set[str]:
+    """Load the set of task IDs already seen by the watch command.
+
+    Returns:
+        set[str]: Previously seen task IDs, or an empty set if the cache
+        file does not exist or cannot be parsed.
+    """
     if SEEN_TASKS_FILE.exists():
         try:
             return set(json.loads(SEEN_TASKS_FILE.read_text()))
@@ -801,11 +807,23 @@ def _load_seen() -> set[str]:
 
 
 def _save_seen(seen: set[str]) -> None:
+    """Persist the set of task IDs seen by the watch command.
+
+    Args:
+        seen (set[str]): Task IDs that should be stored in the local cache.
+    """
     SEEN_TASKS_FILE.parent.mkdir(parents=True, exist_ok=True)
     SEEN_TASKS_FILE.write_text(json.dumps(sorted(seen)))
 
 
 def cmd_watch(board: str, interval: int, once: bool) -> None:
+    """Poll the quasi-board for newly opened tasks and print notifications.
+
+    Args:
+        board (str): The quasi-board URL to poll.
+        interval (int): Poll interval in seconds.
+        once (bool): If True, run one poll cycle and exit.
+    """
     seen = _load_seen()
     first_run = True
 
@@ -959,6 +977,7 @@ compdef _quasi_agent cli.py''')
 
 
 def main() -> None:
+    """Parse CLI arguments and dispatch to the selected quasi-agent command."""
     parser = argparse.ArgumentParser(description="quasi-agent — QUASI task client")
     parser.add_argument("--board", default=DEFAULT_BOARD, help="quasi-board URL")
     parser.add_argument("--agent", default="quasi-agent/0.1", help="Agent identifier (model name)")
