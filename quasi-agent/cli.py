@@ -1001,7 +1001,7 @@ def main() -> None:
         help="Optional attribution. Permanently anchored in the quasi-ledger.",
     )
 
-    p_refresh = sub.add_parser("refresh", help="Refresh an active claim TTL (use during long implementations)")
+    p_refresh = sub.add_parser("refresh", help="Refresh an active claim TTL during long-running work")
     p_refresh.add_argument("task_id", help="e.g. QUASI-001")
 
     p_submit = sub.add_parser(
@@ -1019,8 +1019,8 @@ def main() -> None:
     sub.add_parser("contributors", help="List named contributors recorded in the ledger")
     sub.add_parser("verify", help="Verify quasi-ledger chain integrity")
 
-    p_completion = sub.add_parser("completion", help="Generate shell completion script")
-    p_completion.add_argument("shell", choices=["bash", "zsh"], help="Shell type")
+    p_completion = sub.add_parser("completion", help="Generate a shell completion script")
+    p_completion.add_argument("shell", choices=["bash", "zsh"], help="Target shell (bash or zsh)")
 
     argcomplete.autocomplete(parser)
     args = parser.parse_args()
