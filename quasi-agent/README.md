@@ -23,6 +23,11 @@ python3 quasi-agent/cli.py ledger
 
 # Verify ledger chain integrity
 python3 quasi-agent/cli.py verify
+
+# Publish/search/install urns from a local Urnery
+python3 quasi-agent/cli.py urn publish ./grover.urn
+python3 quasi-agent/cli.py urn search grover
+python3 quasi-agent/cli.py urn install grover-search
 ```
 
 ## Example workflows

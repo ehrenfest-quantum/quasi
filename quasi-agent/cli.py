@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Daniel Hinderink
+from __future__ import annotations
+
 """
 
 ## CLI Commands
@@ -114,17 +116,29 @@ anonymously — anonymous contributions count equally.
 
 import argparse
 import textwrap
-import argcomplete
 import json
+import os
 import re
 import sys
 import time
 import urllib.request
 import urllib.error
+import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    import argcomplete
+except ImportError:  # pragma: no cover - optional convenience dependency
+    class _ArgcompleteFallback:
+        @staticmethod
+        def autocomplete(_parser) -> None:
+            return
+
+    argcomplete = _ArgcompleteFallback()
+
 DEFAULT_BOARD = "https://gawain.valiant-quantum.com"
+DEFAULT_URNERY = os.getenv("URNERY_URL", "http://127.0.0.1:8000")
 
 
 def format_help(text: str) -> str:
@@ -236,45 +250,6 @@ def get(url: str) -> dict:
     except Exception as e:
         print(f"Connection error: {e}")
         sys.exit(1)
-    """Fetch data from the specified URL using HTTP GET.
-
-    Args:
-        url (str): The URL to fetch data from.
-
-    Returns:
-        dict: The JSON response from the URL.
-
-    Raises:
-        SystemExit: If there is an HTTP error or connection issue.
-
-    Side effects:
-        - Prints error messages to stderr on failure.
-    """
-    """Fetches data from the specified URL.
-
-    Args:
-        url (str): The URL to fetch data from.
-
-    Returns:
-        dict: The JSON response from the URL.
-
-    Raises:
-        SystemExit: If there is an HTTP error or connection issue.
-    """
-
-    req = urllib.request.Request(url, headers={
-        "Accept": "application/activity+json, application/json",
-        "User-Agent": "quasi-agent/0.1",
-    })
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        print(f"Error {e.code}: {url}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Connection error: {e}")
-        sys.exit(1)
 
 
 def post(url: str, body: dict) -> dict:
@@ -305,45 +280,25 @@ def post(url: str, body: dict) -> dict:
     except urllib.error.HTTPError as e:
         print(f"Error {e.code}: {e.read().decode()}")
         sys.exit(1)
-    """Post data to the specified URL using HTTP POST.
+    except Exception as e:
+        print(f"Connection error: {e}")
+        sys.exit(1)
 
-    Args:
-        url (str): The URL to post data to.
-        body (dict): The data to post.
 
-    Returns:
-        dict: The JSON response from the URL.
-
-    Raises:
-        SystemExit: If there is an HTTP error or connection issue.
-
-    Side effects:
-        - Prints error messages to stderr on failure.
-    """
-    """Posts data to the specified URL.
-
-    Args:
-        url (str): The URL to post data to.
-        body (dict): The data to post.
-
-    Returns:
-        dict: The JSON response from the URL.
-
-    Raises:
-        SystemExit: If there is an HTTP error or connection issue.
-    """
-
-    data = json.dumps(body).encode()
-    req = urllib.request.Request(url, data=data, headers={
-        "Content-Type": "application/json",
-        "Accept": "application/json",
+def download(url: str) -> bytes:
+    """Download raw bytes from the specified URL."""
+    req = urllib.request.Request(url, headers={
+        "Accept": "application/json, application/cbor, application/octet-stream",
         "User-Agent": "quasi-agent/0.1",
-    }, method="POST")
+    })
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
-            return json.loads(resp.read())
+            return resp.read()
     except urllib.error.HTTPError as e:
-        print(f"Error {e.code}: {e.read().decode()}")
+        print(f"Error {e.code}: {url}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Connection error: {e}")
         sys.exit(1)
 
 
@@ -888,9 +843,62 @@ def cmd_verify(board: str) -> None:
     sys.exit(0 if valid else 1)
 
 
+def cmd_urn_publish(registry: str, urn_file: str) -> None:
+    """Publish a JSON-encoded urn manifest to the Urnery registry."""
+    path = Path(urn_file)
+    if not path.exists():
+        print(f"Urn file not found: {urn_file}")
+        sys.exit(1)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        print(f"Invalid JSON in {urn_file}: {exc}")
+        sys.exit(1)
+
+    result = post(f"{registry.rstrip('/')}/urns", payload)
+    print(f"Published {result.get('name')}@{result.get('version')}")
+    print(f"Download: {result.get('download_url')}")
+
+
+def cmd_urn_search(registry: str, query: str) -> None:
+    """Search the Urnery registry by name or description."""
+    result = get(f"{registry.rstrip('/')}/urns/search?q={urllib.parse.quote(query)}")
+    items = result.get("items", [])
+    if not items:
+        print(f"No urns found for {query!r}")
+        return
+    for item in items:
+        latest = item.get("latest_version", "?")
+        desc = item.get("description", "")
+        print(f"{item.get('name')}  latest={latest}")
+        if desc:
+            print(f"  {desc}")
+
+
+def cmd_urn_install(registry: str, name: str, version: str | None = None, output: str | None = None) -> None:
+    """Download the latest (or specified) urn artifact from the Urnery registry."""
+    base = registry.rstrip("/")
+    if version:
+        meta = get(f"{base}/urns/{name}/{version}")
+    else:
+        meta = get(f"{base}/urns/{name}")
+        version = meta.get("latest_version")
+        if not version:
+            versions = meta.get("versions", [])
+            version = versions[-1]["version"] if versions else None
+        if version is None:
+            print(f"Could not determine latest version for {name}")
+            sys.exit(1)
+
+    data = download(f"{base}/urns/{name}/{version}/download")
+    target = Path(output) if output else Path(f"{name}-{version}.cbor")
+    target.write_bytes(data)
+    print(f"Installed {name}@{version} -> {target}")
+
+
 def cmd_completion(shell: str) -> None:
     """Print shell completion script to stdout."""
-    commands = "list claim complete submit watch ledger contributors verify completion"
+    commands = "list claim complete submit watch ledger contributors verify completion urn"
     if shell == "bash":
         print(f'''_quasi_agent() {{
     local cur prev commands
@@ -935,6 +943,7 @@ _quasi_agent() {{
         'ledger:Show the ledger'
         'contributors:List named contributors'
         'verify:Verify ledger chain integrity'
+        'urn:Interact with the Urnery package registry'
         'completion:Generate shell completion script'
     )
 
@@ -960,6 +969,9 @@ _quasi_agent() {{
                     ;;
                 watch)
                     _arguments '--interval[Poll interval in seconds]:' '--once[Run once and exit]'
+                    ;;
+                urn)
+                    _arguments '1:action:(publish search install)'
                     ;;
                 completion)
                     _arguments '1:shell:(bash zsh)'
@@ -1019,6 +1031,21 @@ def main() -> None:
     sub.add_parser("contributors", help="List named contributors recorded in the ledger")
     sub.add_parser("verify", help="Verify quasi-ledger chain integrity")
 
+    p_urn = sub.add_parser("urn", help="Publish, search, and install packages from Urnery")
+    p_urn.add_argument("--registry", default=DEFAULT_URNERY, help="Urnery base URL")
+    urn_sub = p_urn.add_subparsers(dest="urn_cmd")
+
+    p_urn_publish = urn_sub.add_parser("publish", help="Publish a JSON urn payload to the registry")
+    p_urn_publish.add_argument("file", help="Path to a JSON file matching the Urnery publish schema")
+
+    p_urn_search = urn_sub.add_parser("search", help="Search urns by name or description")
+    p_urn_search.add_argument("query", help="Search text")
+
+    p_urn_install = urn_sub.add_parser("install", help="Download an urn artifact")
+    p_urn_install.add_argument("name", help="Urn package name")
+    p_urn_install.add_argument("--version", help="Specific version (defaults to latest)")
+    p_urn_install.add_argument("--output", help="Output path for downloaded artifact")
+
     p_completion = sub.add_parser("completion", help="Generate a shell completion script")
     p_completion.add_argument("shell", choices=["bash", "zsh"], help="Target shell (bash or zsh)")
 
@@ -1049,6 +1076,16 @@ def main() -> None:
         cmd_contributors(board)
     elif args.cmd == "verify":
         cmd_verify(board)
+    elif args.cmd == "urn":
+        registry = args.registry.rstrip("/")
+        if args.urn_cmd == "publish":
+            cmd_urn_publish(registry, args.file)
+        elif args.urn_cmd == "search":
+            cmd_urn_search(registry, args.query)
+        elif args.urn_cmd == "install":
+            cmd_urn_install(registry, args.name, getattr(args, "version", None), getattr(args, "output", None))
+        else:
+            p_urn.print_help()
     elif args.cmd == "completion":
         cmd_completion(args.shell)
 
