@@ -382,7 +382,6 @@ def main() -> None:
         sys.exit(1)
 
     state = load_state()
-    mode_key = "solve" if args.solve else "generate"
 
     if args.solve:
         # ── Solve mode ──────────────────────────────────────────────────────
