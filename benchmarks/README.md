@@ -27,6 +27,12 @@ python3 benchmarks/report.py
 python3 benchmarks/report.py --input benchmarks/results/simulator_20260226.json
 ```
 
+## CI
+
+Pull requests that change `benchmarks/` run the simulator suite in GitHub Actions via
+`.github/workflows/benchmarks-ci.yml`. The workflow executes the simulator runner,
+renders the markdown report, and validates the helper functions with `pytest`.
+
 ## Add a new circuit
 
 1. Add a `.qasm` file under `benchmarks/circuits/`.
