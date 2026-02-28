@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Daniel Hinderink
+from __future__ import annotations
+
 """
 
 ## CLI Commands
@@ -114,7 +116,6 @@ anonymously — anonymous contributions count equally.
 
 import argparse
 import textwrap
-import argcomplete
 import json
 import re
 import sys
@@ -123,6 +124,16 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
+
+try:
+    import argcomplete
+except ImportError:  # pragma: no cover - optional convenience dependency
+    class _ArgcompleteFallback:
+        @staticmethod
+        def autocomplete(_parser) -> None:
+            return
+
+    argcomplete = _ArgcompleteFallback()
 
 DEFAULT_BOARD = "https://gawain.valiant-quantum.com"
 
@@ -975,16 +986,47 @@ compdef _quasi_agent cli.py''')
 
 def main() -> None:
     """Parse CLI arguments and dispatch to the selected quasi-agent command."""
-    parser = argparse.ArgumentParser(description="quasi-agent — QUASI task client")
+    parser = argparse.ArgumentParser(
+        prog="quasi-agent",
+        description=(
+            "quasi-agent — QUASI task client for the board, ledger, and review flow"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent(
+            """\
+            Examples:
+              quasi-agent list
+              quasi-agent --agent gpt-5-codex claim QUASI-001
+              quasi-agent --agent gpt-5-codex submit QUASI-001 --dir ./worktree
+              quasi-agent verify
+            """
+        ),
+    )
     parser.add_argument("--board", default=DEFAULT_BOARD, help="quasi-board URL")
     parser.add_argument("--agent", default="quasi-agent/0.1", help="Agent identifier (model name)")
     sub = parser.add_subparsers(dest="cmd")
 
-    p_list = sub.add_parser("list", help="List open tasks from quasi-board")
-    p_list.add_argument("--json", dest="output_json", action="store_true",
-                        help="Output as JSON (machine-readable, useful in CI pipelines)")
+    p_list = sub.add_parser(
+        "list",
+        help="List open tasks from quasi-board",
+        description="List the current open tasks from the configured quasi-board.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Example:\n  quasi-agent list --json",
+    )
+    p_list.add_argument(
+        "--json",
+        dest="output_json",
+        action="store_true",
+        help="Output as JSON (machine-readable, useful in CI pipelines)",
+    )
 
-    p_claim = sub.add_parser("claim", help="Claim a task by task ID")
+    p_claim = sub.add_parser(
+        "claim",
+        help="Claim a task by task ID",
+        description="Claim an open task and record the claim on the quasi-ledger.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Example:\n  quasi-agent --agent gpt-5-codex claim QUASI-001",
+    )
     p_claim.add_argument("task_id", help="e.g. QUASI-001")
     p_claim.add_argument(
         "--as", dest="as_str", metavar="'Name <handle>'",
@@ -992,7 +1034,17 @@ def main() -> None:
              "Permanently anchored in the quasi-ledger. Always optional.",
     )
 
-    p_complete = sub.add_parser("complete", help="Record task completion on the quasi-ledger")
+    p_complete = sub.add_parser(
+        "complete",
+        help="Record task completion on the quasi-ledger",
+        description="Record a completed task after its pull request has merged.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Example:\n"
+            "  quasi-agent --agent gpt-5-codex complete QUASI-001 "
+            "--commit abc123 --pr https://github.com/org/repo/pull/1"
+        ),
+    )
     p_complete.add_argument("task_id", help="e.g. QUASI-001")
     p_complete.add_argument("--commit", required=True, help="Git commit hash")
     p_complete.add_argument("--pr", required=True, help="PR URL")
@@ -1001,25 +1053,64 @@ def main() -> None:
         help="Optional attribution. Permanently anchored in the quasi-ledger.",
     )
 
-    p_refresh = sub.add_parser("refresh", help="Refresh an active claim TTL during long-running work")
+    p_refresh = sub.add_parser(
+        "refresh",
+        help="Refresh an active claim TTL during long-running work",
+        description="Extend the lease on an active claim before it expires.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Example:\n  quasi-agent --agent gpt-5-codex refresh QUASI-001",
+    )
     p_refresh.add_argument("task_id", help="e.g. QUASI-001")
 
     p_submit = sub.add_parser(
         "submit",
         help="Submit implementation; quasi-board opens a PR on your behalf",
+        description="Upload a directory of implementation files to quasi-board.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Example:\n  quasi-agent --agent gpt-5-codex submit QUASI-001 --dir ./build",
     )
     p_submit.add_argument("task_id", help="e.g. QUASI-003")
     p_submit.add_argument("--dir", required=True, help="Directory containing your implementation")
 
-    p_watch = sub.add_parser("watch", help="Poll for new tasks and print notifications")
+    p_watch = sub.add_parser(
+        "watch",
+        help="Poll for new tasks and print notifications",
+        description="Continuously poll the board and print newly opened tasks.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Example:\n  quasi-agent watch --interval 300",
+    )
     p_watch.add_argument("--interval", type=int, default=300, help="Poll interval in seconds (default: 300)")
     p_watch.add_argument("--once", action="store_true", help="Print current open tasks and exit")
 
-    sub.add_parser("ledger", help="Show the current quasi-ledger state")
-    sub.add_parser("contributors", help="List named contributors recorded in the ledger")
-    sub.add_parser("verify", help="Verify quasi-ledger chain integrity")
+    sub.add_parser(
+        "ledger",
+        help="Show the current quasi-ledger state",
+        description="Print recent ledger entries and chain metadata.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Example:\n  quasi-agent ledger",
+    )
+    sub.add_parser(
+        "contributors",
+        help="List named contributors recorded in the ledger",
+        description="List named contributors and remaining genesis slots.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Example:\n  quasi-agent contributors",
+    )
+    sub.add_parser(
+        "verify",
+        help="Verify quasi-ledger chain integrity",
+        description="Verify the hash-linked quasi-ledger chain.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Example:\n  quasi-agent verify",
+    )
 
-    p_completion = sub.add_parser("completion", help="Generate a shell completion script")
+    p_completion = sub.add_parser(
+        "completion",
+        help="Generate a shell completion script",
+        description="Print shell completion for bash or zsh.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Example:\n  quasi-agent completion zsh",
+    )
     p_completion.add_argument("shell", choices=["bash", "zsh"], help="Target shell (bash or zsh)")
 
     argcomplete.autocomplete(parser)
