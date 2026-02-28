@@ -261,7 +261,8 @@ def find_rotation_entry(model_arg: str) -> dict:
 
 
 LEVEL_NAMES = {
-    0: "L0 — Interfaces & Contracts (HAL Contract bindings, ActivityPub API endpoints, CLI UX, quasi-board task lifecycle)",
+    0: "L0 — Interfaces & Contracts (HAL Contract bindings, ActivityPub API endpoints,"
+       " CLI UX, quasi-board task lifecycle)",
     1: "L1 — Language Foundations (Ehrenfest syntax, parser, AST, type system, CBOR schema)",
     2: "L2 — Compiler / Afana (ZX-IR generation, rewriting rules, QASM3 output, optimisation passes)",
     3: "L3 — Hardware Backends (IBM/IQM adapters, HAL Contract execution, error mitigation, shot noise)",
@@ -350,7 +351,8 @@ def open_github_issue_titles(n: int = 40) -> str:
     }
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    url = f"https://api.github.com/repos/ehrenfest-quantum/quasi/issues?state=open&per_page={n}&sort=created&direction=desc"
+    url = (f"https://api.github.com/repos/ehrenfest-quantum/quasi/issues"
+           f"?state=open&per_page={n}&sort=created&direction=desc")
     try:
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=10) as resp:
