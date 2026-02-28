@@ -456,6 +456,8 @@ def _effective_task_status(task_id: str) -> dict:
         t = entry.get("type")
         ts_str = entry.get("timestamp")
         try:
+            if isinstance(ts_str, str) and ts_str.endswith("Z"):
+                ts_str = ts_str[:-1] + "+00:00"
             ts = datetime.fromisoformat(ts_str)
         except Exception:
             continue
