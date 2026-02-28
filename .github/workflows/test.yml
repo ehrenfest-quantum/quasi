@@ -1,0 +1,61 @@
+name: Python Package Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "afana/**"
+      - "quasi-board/**"
+      - ".github/workflows/test.yml"
+  pull_request:
+    paths:
+      - "afana/**"
+      - "quasi-board/**"
+      - ".github/workflows/test.yml"
+
+jobs:
+  afana:
+    name: "afana tests (Python ${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install afana test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r afana/requirements.txt pytest
+
+      - name: Run afana tests
+        run: pytest afana/tests/ -v --tb=short
+
+  quasi-board:
+    name: "quasi-board tests (Python ${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install quasi-board test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r quasi-board/requirements.txt pytest pytest-anyio anyio[asyncio]
+
+      - name: Run quasi-board tests
+        run: pytest quasi-board/tests/ -v --tb=short
