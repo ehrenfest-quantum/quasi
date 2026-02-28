@@ -5,6 +5,8 @@
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-1f6feb)](LICENSE-APACHE-2.0)
 [![GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-0a7b83)](LICENSE-GPL-3.0)
 [![Version](https://img.shields.io/badge/version-v0.1-brightgreen)](https://github.com/ehrenfest-quantum/quasi/releases)
+[![Docs](https://img.shields.io/badge/docs-reference-blue)](docs/)
+[![Coverage](https://img.shields.io/badge/coverage-not%20reported-lightgrey)](#status)
 
 [![Ledger](https://img.shields.io/badge/quasi--ledger-live-brightgreen)](https://gawain.valiant-quantum.com/quasi-board/ledger)
 [![Issues](https://img.shields.io/github/issues/ehrenfest-quantum/quasi)](https://github.com/ehrenfest-quantum/quasi/issues)
