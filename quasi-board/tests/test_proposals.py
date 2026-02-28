@@ -108,17 +108,17 @@ async def test_accept_proposal_success():
                 "proposed_by": "bot", "status": "pending"}]
 
     with patch("server._admin_token", return_value="secret"), \
-         patch("server._load_proposals", return_value=pending), \
-         patch(
-             "server._create_github_issue_for_proposal",
-             return_value={
-                 "number": 42,
-                 "html_url": "https://github.com/ehrenfest-quantum/quasi/issues/42",
-             },
-         ), \
-         patch("server._save_proposals"), \
-         patch("server.append_ledger", return_value={"id": 99, "entry_hash": "a" * 64}), \
-         patch("server._notify_daniel", new_callable=AsyncMock):
+        patch("server._load_proposals", return_value=pending), \
+        patch(
+            "server._create_github_issue_for_proposal",
+            return_value={
+                "number": 42,
+                "html_url": "https://github.com/ehrenfest-quantum/quasi/issues/42",
+            },
+        ), \
+        patch("server._save_proposals"), \
+        patch("server.append_ledger", return_value={"id": 99, "entry_hash": "a" * 64}), \
+        patch("server._notify_daniel", new_callable=AsyncMock):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
             resp = await ac.post(
