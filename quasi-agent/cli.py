@@ -1006,7 +1006,7 @@ def main() -> None:
 
     p_submit = sub.add_parser(
         "submit",
-        help="Submit implementation — board opens PR on your behalf (no GitHub account needed)",
+        help="Submit implementation; quasi-board opens a PR on your behalf",
     )
     p_submit.add_argument("task_id", help="e.g. QUASI-003")
     p_submit.add_argument("--dir", required=True, help="Directory containing your implementation")
@@ -1015,9 +1015,9 @@ def main() -> None:
     p_watch.add_argument("--interval", type=int, default=300, help="Poll interval in seconds (default: 300)")
     p_watch.add_argument("--once", action="store_true", help="Print current open tasks and exit")
 
-    sub.add_parser("ledger", help="Show the ledger")
-    sub.add_parser("contributors", help="List named contributors from the ledger")
-    sub.add_parser("verify", help="Verify ledger chain integrity")
+    sub.add_parser("ledger", help="Show the current quasi-ledger state")
+    sub.add_parser("contributors", help="List named contributors recorded in the ledger")
+    sub.add_parser("verify", help="Verify quasi-ledger chain integrity")
 
     p_completion = sub.add_parser("completion", help="Generate shell completion script")
     p_completion.add_argument("shell", choices=["bash", "zsh"], help="Shell type")
