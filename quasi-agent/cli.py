@@ -415,15 +415,10 @@ def cmd_list(board: str, output_json: bool = False) -> None:
 
     Args:
         board (str): The quasi-board URL to query.
-        output_json (bool): If True, output JSON format instead of human-readable.
+        output_json (bool): If True, print machine-readable JSON instead of text.
 
     Returns:
-        None: Prints results to stdout.
-
-    Side effects:
-        - Makes network requests to the quasi-board outbox and ledger.
-        - Prints task information to stdout.
-        - Prints error messages to stderr on failure.
+        None: Prints the current open-task view to stdout.
     """
     outbox = get(f"{board}{OUTBOX_PATH}")
     tasks = outbox.get("orderedItems", [])
@@ -467,21 +462,6 @@ def cmd_list(board: str, output_json: bool = False) -> None:
         print()
     print(f"Genesis slots remaining: {remaining}/50")
     print()
-    """List open tasks from the quasi-board.
-
-    Args:
-        board (str): The quasi-board URL to query.
-        output_json (bool): If True, output JSON format instead of human-readable.
-
-    Returns:
-        None: Prints results to stdout.
-
-    Side effects:
-        - Makes network requests to the quasi-board outbox and ledger.
-        - Prints task information to stdout.
-        - Prints error messages to stderr on failure.
-    """
-    outbox = get(f"{board}{OUTBOX_PATH}")
     tasks = outbox.get("orderedItems", [])
     ledger = get(f"{board}{LEDGER_PATH}")
     remaining = ledger.get("quasi:slotsRemaining", "?")
