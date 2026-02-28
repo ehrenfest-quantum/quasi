@@ -14,7 +14,7 @@ from .noise_model import (
     validate_noise_channel,
     validate_noise_channels,
 )
-from .optimize import optimize_qasm, optimize_qasm_with_stats
+from .optimize import optimize_qasm, optimize_qasm_with_stats, reduce_t_gates
 from .parametric import ParametricCompileError, bind_parameters, compile_parametric
 from .parser import (
     ConditionalGate, EhrenfestAST, Gate, Measure, Expect,
@@ -43,6 +43,7 @@ __all__ = [
     "validate_noise_channels",
     "optimize_qasm",
     "optimize_qasm_with_stats",
+    "reduce_t_gates",
     "ParametricCompileError",
     "bind_parameters",
     "compile_parametric",
