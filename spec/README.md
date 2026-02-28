@@ -1,53 +1,29 @@
-# Ehrenfest Language Specification
+# Ehrenfest Specification
 
-Ehrenfest is the QUASI quantum programming language designed for AI agents to express quantum physics problems in a hardware-agnostic format. It uses CBOR binary encoding and focuses on Hamiltonians and observables rather than gate sequences.
+The `spec/` directory defines the machine-facing representation of Ehrenfest programs and related examples.
 
-## Syntax
+## Contents
 
-Ehrenfest programs are defined using a CDDL schema with the following key components:
+- `ehrenfest-v0.1.cddl`: Base CDDL schema for the current Ehrenfest format
+- `examples/`: Reference example payloads and companion explanations
+- `tools/validate.py`: Lightweight validator for checking example payloads against the schema
+- `tools/generate_examples.py`: Helper script used to regenerate bundled examples
 
-- `version`: Must be 1 for v0.1
-- `system`: Physical context including number of qubits
-- `hamiltonian`: Energy operator of the system
-- `evolution`: Evolution time
-- `observables`: List of measurable quantities
-- `noise`: Noise constraints
+## Validation
 
-## Semantics
+Validate the bundled examples with:
 
-Ehrenfest expresses quantum programs in terms of physics rather than circuits:
-
-- Programs describe expectation values and Hamiltonians
-- The compiler (Afana) derives gate sequences
-- Uses natural units (GHz·rad) for energy
-- Supports Pauli operators (I, X, Y, Z)
-
-## Type System
-
-Ehrenfest uses a strong static type system with these core types:
-
-- `uint`: Natural numbers
-- `float`: Real numbers
-- `tstr`: Text strings
-- `PauliAxis`: Enum {I: 0, X: 1, Y: 2, Z: 3}
-- `Observable`: Union of SigmaZ, SigmaX, Energy, Density, Fidelity
-
-## Example Programs
-
-### 1. Simple Rabi Oscillation
-
-```cbor
-{ "version": 1, "system": { "n_qubits": 1 }, "hamiltonian": { "terms": [ { "coefficient": 1.0, "paulis": [ { "qubit": 0, "axis": 1 } ] } ], "constant_offset": 0.0 }, "evolution": 3.14159, "observables": [ { "type": "SX", "qubit": 0 } ], "noise": { "type": "none" } }
+```bash
+python3 spec/tools/validate.py
 ```
 
-### 2. Two-Qubit Transverse Ising Model
+## Example files
 
-```cbor
-{ "version": 1, "system": { "n_qubits": 2 }, "hamiltonian": { "terms": [ { "coefficient": 1.0, "paulis": [ { "qubit": 0, "axis": 1 }, { "qubit": 1, "axis": 1 } ] } ], "constant_offset": 0.0 }, "evolution": 1.5708, "observables": [ { "type": "SZ", "qubit": 0 } ], "noise": { "type": "none" } }
-```
+Each example in `spec/examples/` is provided in two forms:
 
-### 3. Single Qubit with Noise
+- `*.md`: human-readable explanation of the modeled quantum program
+- `*.cbor.hex`: the encoded binary payload represented as hexadecimal
 
-```cbor
-{ "version": 1, "system": { "n_qubits": 1 }, "hamiltonian": { "terms": [ { "coefficient": 1.0, "paulis": [ { "qubit": 0, "axis": 3 } ] } ], "constant_offset": 0.0 }, "evolution": 1.0, "observables": [ { "type": "SZ", "qubit": 0 } ], "noise": { "type": "depolarizing", "rate": 0.01 } }
-```
+## Compatibility
+
+The current schema is `ehrenfest-v0.1.cddl`. Future schema revisions should be added alongside it rather than replacing it in place so tooling can remain backward-compatible.
