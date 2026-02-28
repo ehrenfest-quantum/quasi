@@ -24,7 +24,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 import hmac as _hmac
@@ -50,6 +50,7 @@ PENDING_MERGES_FILE = Path("/home/vops/quasi-board/pending-merges.json")
 ACTOR_KEY_ID = f"{ACTOR_URL}#main-key"
 
 AP_CONTENT_TYPE = "application/activity+json"
+_STREAM_CLIENTS: list[WebSocket] = []
 
 
 @asynccontextmanager
@@ -237,6 +238,20 @@ async def _deliver_to_followers(activity: dict) -> None:
                         await _deliver(inbox, activity)
         except Exception:
             pass
+
+
+async def _broadcast_stream_event(event_type: str, task: dict[str, Any]) -> None:
+    """Broadcast a real-time task event to connected dashboard clients."""
+    stale: list[WebSocket] = []
+    payload = {"type": event_type, "task": task}
+    for client in _STREAM_CLIENTS:
+        try:
+            await client.send_json(payload)
+        except Exception:
+            stale.append(client)
+    for client in stale:
+        if client in _STREAM_CLIENTS:
+            _STREAM_CLIENTS.remove(client)
 
 
 # ── Proposals ─────────────────────────────────────────────────────────────────
@@ -1028,6 +1043,16 @@ async def _process_activity(body: dict) -> JSONResponse:
             "quasi:agent": agent,
             "quasi:ledgerEntry": entry["id"],
         })
+        await _broadcast_stream_event(
+            "task_claimed",
+            {
+                "id": task_id,
+                "url": f"{ACTOR_URL}/tasks/{task_id}",
+                "status": "claimed",
+                "agent": agent,
+                "ledger_entry": entry["id"],
+            },
+        )
         return JSONResponse({"status": "claimed", "ledger_entry": entry["id"], "entry_hash": entry["entry_hash"]})
 
     if activity_type == "Create" and body.get("quasi:type") == "patch":
@@ -1149,6 +1174,16 @@ async def _process_activity(body: dict) -> JSONResponse:
                 "quasi:ledgerEntry": entry["id"],
             },
         })
+        await _broadcast_stream_event(
+            "task_completed",
+            {
+                "id": task_id,
+                "url": pr_url or f"https://github.com/{GITHUB_REPO}",
+                "status": "done",
+                "agent": agent,
+                "ledger_entry": entry["id"],
+            },
+        )
         return JSONResponse({"status": "recorded", "ledger_entry": entry["id"], "entry_hash": entry["entry_hash"]})
 
     if activity_type == "Create" and body.get("quasi:type") == "issue_generated":
@@ -1160,6 +1195,15 @@ async def _process_activity(body: dict) -> JSONResponse:
             "issue_url": str(body.get("quasi:issueUrl", ""))[:500],
         }
         entry = append_ledger(gen_entry)
+        await _broadcast_stream_event(
+            "new_task",
+            {
+                "url": gen_entry["issue_url"],
+                "level": gen_entry["level"],
+                "generator_model": gen_entry["generator_model"],
+                "ledger_entry": entry["id"],
+            },
+        )
         return JSONResponse({"status": "recorded", "ledger_entry": entry["id"], "entry_hash": entry["entry_hash"]})
 
     if activity_type == "quasi:Propose":
@@ -1368,6 +1412,23 @@ async def openapi_spec():
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
+
+@app.websocket("/quasi-board/stream")
+async def stream(websocket: WebSocket):
+    """WebSocket stream for real-time task activity updates."""
+    await websocket.accept()
+    _STREAM_CLIENTS.append(websocket)
+    try:
+        while True:
+            message = await websocket.receive()
+            if message["type"] == "websocket.disconnect":
+                break
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if websocket in _STREAM_CLIENTS:
+            _STREAM_CLIENTS.remove(websocket)
+
 
 @app.get("/quasi-board/health")
 async def health():
