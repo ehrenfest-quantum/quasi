@@ -531,6 +531,45 @@ def _github_token() -> str:
     return os.environ.get("QUASI_GITHUB_TOKEN", "")
 
 
+async def _create_github_issue_for_proposal(proposal: dict[str, Any]) -> dict[str, Any]:
+    """Create a GitHub issue for an accepted proposal."""
+    token = _github_token()
+    if not token:
+        raise HTTPException(500, "quasi-board: no GitHub token configured")
+
+    title = proposal["title"]
+    body = "\n\n".join(
+        [
+            proposal["description"],
+            f"Estimated effort: {proposal.get('estimated_effort') or 'unspecified'}",
+            f"Rationale: {proposal.get('rationale') or 'n/a'}",
+            f"Proposed by: {proposal.get('proposed_by', 'unknown')}",
+            f"Accepted from proposal: {proposal['id']}",
+        ]
+    )
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    payload = {
+        "title": title,
+        "body": body,
+        "labels": ["good-first-task"],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"https://api.github.com/repos/{GITHUB_REPO}/issues",
+                headers=headers,
+                json=payload,
+            )
+            resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, "Could not create GitHub issue for accepted proposal") from exc
+    return resp.json()
+
+
 async def _open_pr_from_files(task_id: str, agent: str, files: dict, message: str) -> str:
     """Create a branch with agent-supplied files and open a PR. Returns PR URL."""
     token = _github_token()
@@ -1350,19 +1389,27 @@ async def accept_proposal(prop_id: str, request: Request):
         if p["id"] == prop_id:
             if p["status"] != "pending":
                 raise HTTPException(409, f"Proposal is already '{p['status']}'")
+            issue = await _create_github_issue_for_proposal(p)
             p["status"] = "accepted"
             p["accepted_at"] = datetime.now(timezone.utc).isoformat()
+            p["task_issue_number"] = issue["number"]
+            p["task_issue_url"] = issue["html_url"]
             _save_proposals(proposals)
             entry = append_ledger({
                 "type": "proposal_accepted",
                 "proposal_id": prop_id,
                 "title": p["title"],
                 "proposed_by": p["proposed_by"],
+                "issue_number": issue["number"],
             })
             await _notify_daniel(f"✅ Proposal accepted: {p['title']} ({prop_id})")
             return JSONResponse({
                 "status": "accepted",
                 "proposal": p,
+                "task": {
+                    "number": issue["number"],
+                    "url": issue["html_url"],
+                },
                 "ledger_entry": entry["id"],
                 "entry_hash": entry["entry_hash"],
             })
