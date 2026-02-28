@@ -128,8 +128,6 @@ ROTATION: list[dict] = [
      "provider": "openrouter", "license": "Llama Community", "origin": "US / Meta"},
     {"id": "llama3.3", "model": "meta-llama/llama-3.3-70b-instruct",
      "provider": "openrouter", "license": "Llama Community", "origin": "US / Meta"},
-    {"id": "codestral", "model": "mistralai/codestral-2508",
-     "provider": "openrouter", "license": "MNPL", "origin": "France / Mistral (code specialist)"},
     # ── Tier 2 — EU / competitive coding ─────────────────────────────────
     {"id": "mistral-small", "model": "mistralai/mistral-small-3.1-24b-instruct",
      "provider": "openrouter", "license": "Apache-2.0", "origin": "France / Mistral"},
