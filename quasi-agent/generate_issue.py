@@ -94,6 +94,14 @@ PROVIDERS: dict[str, dict] = {
         "headers": {},
         "verify_header": None,
     },
+    # Fireworks AI — fast inference, pay-per-token, OpenAI-compatible
+    # https://fireworks.ai — model IDs use accounts/{org}/models/{name} format
+    "fireworks": {
+        "url": "https://api.fireworks.ai/inference/v1/chat/completions",
+        "env": "FIREWORKS_API_KEY",
+        "headers": {},
+        "verify_header": None,
+    },
     # Swiss National Supercomputing Centre (CSCS) — hosts Apertus-70B
     # Register at https://serving.swissai.cscs.ch to obtain a token.
     # Env var name matches their official docs and CLI repo.
@@ -222,6 +230,17 @@ ROTATION: list[dict] = [
     {"id": "allam-2", "model": "allam-2-7b",
      "provider": "groq", "license": "Apache-2.0",
      "origin": "Saudi Arabia / SDAIA"},
+    # ── Fireworks additions — Tier 1 ──────────────────────────────────────
+    # Cogito-671B: Deep Cogito (US). MIT. Fine-tuned on DeepSeek-V3-Base.
+    # 671B MoE, 128k context. Strong coding and reasoning.
+    {"id": "cogito-671b", "model": "accounts/cogito/models/cogito-671b-v2-p1",
+     "provider": "fireworks", "license": "MIT",
+     "origin": "US / Deep Cogito"},
+    # MiniMax-M2.1: MiniMax (Shanghai, China). Modified MIT. Open weights.
+    # 230B total / 10B active MoE. Strong on coding and agent tasks.
+    {"id": "minimax-m2", "model": "accounts/fireworks/models/minimax-m2p1",
+     "provider": "fireworks", "license": "Modified MIT",
+     "origin": "China / MiniMax (Shanghai)"},
 ]
 
 DEFAULT_MODEL_ID = "deepseek-v3"
