@@ -2,6 +2,14 @@
 
 ## The Stack
 
+## Repository layout
+
+- `quasi-agent/`: CLI and automation helpers for claiming, submitting, and generating work
+- `quasi-board/`: ActivityPub board server and quasi-ledger endpoints
+- `spec/`: Ehrenfest schemas, examples, and validation helpers
+- `afana/`: compiler-side helpers and backend integration stubs
+- `docs/`: supporting design notes, benchmark notes, and contributor references
+
 ```
 Natural language (human describes problem)
         ↓
