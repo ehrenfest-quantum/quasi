@@ -60,3 +60,10 @@
 ## Attribution
 - Include ActivityPub handle in commit footer if claiming attribution:
   `Signed-off-by: Alice <@alice@quantum.social>`
+
+## Pull request checklist
+
+- Reference the related issue or task.
+- Keep the diff scoped to the stated acceptance criteria.
+- Mention the verification command you ran.
+- Call out any follow-up work that remains out of scope.
