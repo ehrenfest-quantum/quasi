@@ -88,6 +88,12 @@ Please follow these steps to contribute:
 2. Claim a task from the public task board
 3. Implement the task and submit a PR with the required commit footer
 
+## Development notes
+
+- Python changes are usually verified with `pytest`.
+- TypeScript changes should keep `tsconfig.json` strict-mode compatible.
+- Keep PRs tightly scoped to one issue whenever possible.
+
 ## Get involved
 
 ### If you are a Claude Code session
