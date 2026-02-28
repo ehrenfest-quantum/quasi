@@ -91,7 +91,8 @@ PROVIDERS: dict[str, dict] = {
     "groq": {
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "env": "GROQ_API_KEY",
-        "headers": {},
+        # User-Agent required — Groq's Cloudflare layer blocks Python's default urllib UA.
+        "headers": {"User-Agent": "quasi-agent/1.0 (https://quasi.arvak.io)"},
         "verify_header": None,
     },
     # Fireworks AI — fast inference, pay-per-token, OpenAI-compatible
