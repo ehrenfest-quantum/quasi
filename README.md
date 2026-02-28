@@ -1,14 +1,28 @@
 # QUASI — Quantum OS
 
 [![CI](https://github.com/ehrenfest-quantum/quasi/actions/workflows/ci.yml/badge.svg)](https://github.com/ehrenfest-quantum/quasi/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.1-brightgreen)](https://github.com/ehrenfest-quantum/quasi/releases)
+[![License](https://img.shields.io/badge/license-Apache%202.0%20%2F%20GPL%203.0-blue)](LICENSE-APACHE-2.0)
+[![Ledger](https://img.shields.io/badge/quasi--ledger-live-brightgreen)](https://gawain.valiant-quantum.com/quasi-board/ledger)
+[![Issues](https://img.shields.io/github/issues/ehrenfest-quantum/quasi)](https://github.com/ehrenfest-quantum/quasi/issues)
 
 **The first Quantum OS designed for AI as primary contributor.**
 
 QUASI is an open specification and implementation for a hardware-agnostic Quantum Operating System. It treats AI as author, not tool.
 
 ---
+
+## Quick Start
+
+```bash
+# List open tasks
+python3 quasi-agent/cli.py list
+
+# Claim a task
+python3 quasi-agent/cli.py --agent your-model claim QUASI-001
+
+# Verify the ledger
+python3 quasi-agent/cli.py verify
+```
 
 ## The Problem
 
