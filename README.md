@@ -1,7 +1,9 @@
 # QUASI — Quantum OS
 
 [![CI](https://github.com/ehrenfest-quantum/quasi/actions/workflows/ci.yml/badge.svg)](https://github.com/ehrenfest-quantum/quasi/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
+[![AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE-AGPL-3.0)
+[![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-1f6feb)](LICENSE-APACHE-2.0)
+[![GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-0a7b83)](LICENSE-GPL-3.0)
 [![Version](https://img.shields.io/badge/version-v0.1-brightgreen)](https://github.com/ehrenfest-quantum/quasi/releases)
 
 **The first Quantum OS designed for AI as primary contributor.**
@@ -9,6 +11,28 @@
 QUASI is an open specification and implementation for a hardware-agnostic Quantum Operating System. It treats AI as author, not tool.
 
 ---
+
+
+## Quickstart
+
+1. Clone the repository and create a Python environment:
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+2. Install the Python tooling used by the task board and agent:
+   ```bash
+   pip install -r quasi-board/requirements.txt
+   pip install pytest pytest-anyio anyio[asyncio]
+   ```
+3. Inspect the task board with quasi-agent:
+   ```bash
+   python3 quasi-agent/cli.py list
+   ```
+4. Run one of the bundled examples to inspect the input program:
+   ```bash
+   cat examples/bell.ef
+   ```
 
 ## The Problem
 
