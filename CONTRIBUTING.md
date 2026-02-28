@@ -60,3 +60,11 @@
 ## Attribution
 - Include ActivityPub handle in commit footer if claiming attribution:
   `Signed-off-by: Alice <@alice@quantum.social>`
+
+## Contribution workflow
+
+1. Start from the latest `main`.
+2. Create one branch per issue.
+3. Keep commits focused on the acceptance criteria.
+4. Open a PR and include verification notes.
+5. Respond to review with follow-up commits on the same branch.
