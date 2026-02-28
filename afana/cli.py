@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Iterable, Optional
 
+from .backends.ibm import compile_to_ibm_native, ibm_native_stats
 from .compile import compile_qasm
 
 
@@ -20,8 +21,23 @@ def _print_gate_report(path: str, stats: dict) -> None:
     )
 
 
-def cmd_compile(path: str, optimize: bool, output: Optional[str]) -> int:
+def cmd_compile(path: str, optimize: bool, output: Optional[str], emit: str = "qasm") -> int:
     qasm = _read_text(path)
+
+    if emit == "qiskit":
+        try:
+            transpiled = compile_to_ibm_native(qasm)
+            stats = ibm_native_stats(qasm, transpiled)
+        except RuntimeError as exc:
+            print(f"Qiskit not available: {exc}")
+            return 1
+        print(
+            f"{path}: circuit depth {stats['depth_before']} → {stats['depth_after']} "
+            f"(IBM optimization), gate count {stats['gates_before']} → {stats['gates_after']}"
+        )
+        print(transpiled)
+        return 0
+
     result = compile_qasm(qasm, optimize=optimize)
     _print_gate_report(path, result["stats"])
     if output:
@@ -57,6 +73,10 @@ def main() -> int:
     p_compile.add_argument("input", help="Path to OpenQASM file")
     p_compile.add_argument("--optimize", action="store_true", help="Enable ZX optimization")
     p_compile.add_argument("--output", help="Optional output path for compiled QASM")
+    p_compile.add_argument(
+        "--emit", choices=["qasm", "qiskit"], default="qasm",
+        help="Output format: 'qasm' (default) or 'qiskit' (IBM-native transpilation via Qiskit)",
+    )
 
     p_bench = sub.add_parser("benchmark", help="Benchmark gate count before/after")
     p_bench.add_argument("inputs", nargs="+", help="One or more OpenQASM files")
@@ -64,7 +84,7 @@ def main() -> int:
 
     args = parser.parse_args()
     if args.cmd == "compile":
-        return cmd_compile(args.input, optimize=args.optimize, output=args.output)
+        return cmd_compile(args.input, optimize=args.optimize, output=args.output, emit=args.emit)
     if args.cmd == "benchmark":
         return cmd_benchmark(args.inputs, optimize=args.optimize)
     parser.print_help()
