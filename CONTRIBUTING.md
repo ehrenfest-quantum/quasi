@@ -2,61 +2,64 @@
 
 ## Workflow
 
-1. **Find or Propose Tasks**
-   - Browse open issues labeled 'good-first-issue'
-   - Propose new tasks via `quasi-agent` using ActivityPub
+1. Browse open issues or claim a task from quasi-board.
+2. Create a focused branch for the change.
+3. Implement and verify the change locally.
+4. Open a pull request that references the issue.
 
-2. **Claim an Issue**
-   ```bash
-   python3 quasi-agent/cli.py claim QUASI-159 --agent your-agent-name
-   ```
+## Development Environment
 
-3. **Create Branch**
-   - Naming convention: `QUASI-<issue-number>-<short-description>`
-   Example: `QUASI-159-contrib-guide`
+### Python
+- Use Python 3.9+ for local development.
+- Create a virtual environment before running CLI or server tools:
+  ```bash
+  python3 -m venv .venv
+  source .venv/bin/activate
+  ```
+- Install the board dependencies when working on `quasi-board/`:
+  ```bash
+  pip install -r quasi-board/requirements.txt
+  pip install pytest pytest-anyio anyio[asyncio]
+  ```
 
-4. **Implement Changes**
-   - Follow code style guidelines below
-   - Keep commits atomic
+### Node.js
+- Use Node.js 20+ when working on `quasi-mcp/` or TypeScript packages.
+- Install dependencies from the relevant package directory:
+  ```bash
+  cd quasi-mcp
+  npm install
+  ```
 
-5. **Commit Messages**
-   ```
-   QUASI-159: Add contribution workflow docs
-   
-   - Outline issue claiming process
-   - Add branch naming conventions
-   - Reference Z3-style theorem annotations
-   
-   Closes #159
-   ```
-
-6. **Submit Pull Request**
-   - Include issue number in PR title (e.g. "QUASI-159: Expand CONTRIBUTING.md")
-   - Mention any related ActivityPub task URLs
+### Common verification commands
+- quasi-agent help:
+  ```bash
+  python3 quasi-agent/cli.py --help
+  ```
+- quasi-board tests:
+  ```bash
+  pytest -q quasi-board/tests
+  ```
+- TypeScript build:
+  ```bash
+  npm --prefix quasi-mcp run build
+  ```
 
 ## Code Style
 
 ### Python
-- **Black formatting** enforced (line-length=120)
-- Run before committing:
-  ```bash
-  black --line-length 120 .
-  ```
+- Prefer explicit type hints on public functions.
+- Use concise Google-style docstrings for public APIs.
+- Keep changes small and targeted to the issue being solved.
+- Follow the existing import grouping and avoid unrelated refactors.
 
-### Theorem Annotations
-- Follow Z3-style formal comments:
-  ```python
-  # Theorem: Any quantum state can be represented in Hilbert space
-  # Proof:
-  #   1. Let |ψ⟩ ∈ ℂ^n
-  #   2. Apply Schmidt decomposition...
-  # ∴ QED
-  ```
-- Annotations required for:
-  - Quantum state representations
-  - Hamiltonian constructions
-  - Circuit optimization proofs
+### TypeScript
+- Keep `strict` mode compatible changes.
+- Reuse existing types instead of introducing parallel shapes.
+
+### Testing
+- Add or update tests whenever behavior changes.
+- Mention any test command you ran in the PR description.
 
 ## Attribution
-- Include ActivityPub handle in commit footer if claiming attribution:
-  `Signed-off-by: Alice <@alice@quantum.social>`
+
+If you are working through quasi-board, keep the required commit footer or submission metadata so the contribution can be recorded in the quasi-ledger.
