@@ -504,9 +504,14 @@ def main() -> None:
         description="Solve a QUASI GitHub issue with an eligible model and open a PR.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""Examples:
+  # Inspect open issues first
   python3 quasi-agent/solve.py --list-open
-  python3 quasi-agent/solve.py --issue 67 --model deepseek-v3
+
+  # Preview the proposed patch without creating a commit or PR
   python3 quasi-agent/solve.py --issue 67 --model deepseek-v3 --dry-run
+
+  # Solve a specific issue with a selected model
+  python3 quasi-agent/solve.py --issue 67 --model deepseek-v3
 """,
     )
     parser.add_argument(
@@ -517,9 +522,9 @@ def main() -> None:
     parser.add_argument("--model", default="deepseek-v3",
                         help="Model short ID from ROTATION (default: %(default)s)")
     parser.add_argument("--dry-run", action="store_true",
-                        help="Show proposed changes without committing or opening a PR")
+                        help="Show the planned patch without committing, pushing, or opening a PR")
     parser.add_argument("--list-open", action="store_true",
-                        help="List currently open GitHub issues, then exit")
+                        help="List open issues that are eligible for solving, then exit")
     args = parser.parse_args()
 
     if args.list_open:

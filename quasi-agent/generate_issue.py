@@ -624,9 +624,9 @@ def main() -> None:
                         help=f"Model short ID or full API string (default: {DEFAULT_MODEL_ID}). "
                              f"Run --list-models to see all eligible IDs.")
     parser.add_argument("--dry-run", action="store_true",
-                        help="Print the generated draft issue without opening it on GitHub")
+                        help="Print the generated draft issue locally without opening it on GitHub")
     parser.add_argument("--list-models", action="store_true",
-                        help="Print the eligible model rotation table and exit")
+                        help="Print the eligible model rotation table, then exit")
     args = parser.parse_args()
 
     if args.list_models:
