@@ -102,6 +102,21 @@ async def test_task_detail_github_unavailable():
 
 
 @pytest.mark.anyio
+async def test_task_detail_not_found_returns_json_404():
+    from httpx import ASGITransport, AsyncClient
+    from server import TaskNotFoundError, app
+
+    with patch("server.load_ledger", return_value=[]), \
+         patch("server._fetch_github_issue", side_effect=TaskNotFoundError(54)):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            resp = await ac.get("/quasi-board/tasks/QUASI-054")
+
+    assert resp.status_code == 404
+    assert resp.json() == {"error": "task_not_found", "quasi:taskId": "QUASI-054"}
+
+
+@pytest.mark.anyio
 async def test_task_detail_invalid_id():
     from httpx import ASGITransport, AsyncClient
     from server import app

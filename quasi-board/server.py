@@ -54,6 +54,10 @@ app = FastAPI(title="quasi-board", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
 
 
+class TaskNotFoundError(Exception):
+    """Raised when GitHub confirms that a task issue does not exist."""
+
+
 # Prometheus-compatible metrics for quasi-board
 @app.get("/quasi-board/metrics", response_class=PlainTextResponse)
 def metrics() -> PlainTextResponse:
@@ -333,7 +337,11 @@ def _save_pending_merges(merges: list) -> None:
 
 
 async def _fetch_github_issue(issue_number: int) -> dict | None:
-    """Fetch a single GitHub issue by number. Returns None on failure."""
+    """Fetch a single GitHub issue by number.
+
+    Returns None on transient failure. Raises TaskNotFoundError when GitHub
+    explicitly returns 404 for the issue lookup.
+    """
     token = _github_token()
     headers: dict[str, str] = {"Accept": "application/vnd.github+json"}
     if token:
@@ -346,6 +354,10 @@ async def _fetch_github_issue(issue_number: int) -> dict | None:
             )
             if resp.status_code == 200:
                 return resp.json()
+            if resp.status_code == 404:
+                raise TaskNotFoundError(issue_number)
+    except TaskNotFoundError:
+        raise
     except Exception:
         pass
     return None
@@ -1137,7 +1149,13 @@ async def task_status(task_id: str):
 
     # Fetch GitHub issue data (graceful degradation on failure)
     if issue_number is not None:
-        github_issue = await _fetch_github_issue(issue_number)
+        try:
+            github_issue = await _fetch_github_issue(issue_number)
+        except TaskNotFoundError:
+            return JSONResponse(
+                {"error": "task_not_found", "quasi:taskId": task_id},
+                status_code=404,
+            )
         if github_issue is not None:
             result["task"] = github_issue
 
