@@ -14,12 +14,6 @@ import binascii
 import sys
 from pathlib import Path
 
-try:
-    import cbor2
-except ImportError:
-    print("cbor2 required: pip install cbor2", file=sys.stderr)
-    sys.exit(1)
-
 REQUIRED_TOP_LEVEL = {"version", "system", "hamiltonian", "evolution", "observables", "noise"}
 VALID_OBSERVABLE_TYPES = {"SZ", "SX", "E", "rho", "F"}
 VALID_PAULI_AXES = {0, 1, 2, 3}
@@ -34,8 +28,12 @@ def check(cond: bool, msg: str) -> None:
         raise ValidationError(msg)
 
 
+def _is_parameter_ref(value: object) -> bool:
+    return isinstance(value, dict) and set(value.keys()) == {"param"} and isinstance(value["param"], str)
+
+
 def validate_program(p: dict) -> None:
-    """Validate a decoded EhrenfestProgram dict against the v0.1 schema."""
+    """Validate a decoded EhrenfestProgram dict against the v0.1/v0.2 schema."""
 
     # Top-level fields
     check(isinstance(p, dict), "root must be a map")
@@ -44,7 +42,16 @@ def validate_program(p: dict) -> None:
 
     # version
     check(isinstance(p["version"], int), "version must be uint")
-    check(p["version"] == 1, f"version must be 1 for v0.1, got {p['version']}")
+    check(p["version"] in (1, 2), f"version must be 1 or 2, got {p['version']}")
+    version = p["version"]
+
+    declared_params = p.get("parameters", {})
+    if declared_params:
+        check(version == 2, "parameters are only allowed in v0.2")
+        check(isinstance(declared_params, dict), "parameters must be a map")
+        for name, value in declared_params.items():
+            check(isinstance(name, str) and name, "parameter names must be non-empty strings")
+            check(isinstance(value, (int, float)), f"parameter {name!r} must be a float")
 
     # system
     sys_ = p["system"]
@@ -75,6 +82,18 @@ def validate_program(p: dict) -> None:
         check(isinstance(term, dict), f"hamiltonian.terms[{i}] must be a map")
         check("coefficient" in term, f"hamiltonian.terms[{i}].coefficient is required")
         check("paulis" in term, f"hamiltonian.terms[{i}].paulis is required")
+        coeff = term["coefficient"]
+        if _is_parameter_ref(coeff):
+            check(version == 2, f"hamiltonian.terms[{i}].coefficient parameter refs require v0.2")
+            check(
+                coeff["param"] in declared_params,
+                f"hamiltonian.terms[{i}].coefficient references unknown parameter {coeff['param']!r}",
+            )
+        else:
+            check(
+                isinstance(coeff, (int, float)),
+                f"hamiltonian.terms[{i}].coefficient must be a float or ParameterRef",
+            )
         check(isinstance(term["paulis"], list),
               f"hamiltonian.terms[{i}].paulis must be an array")
         for j, op in enumerate(term["paulis"]):
@@ -146,6 +165,11 @@ def validate_program(p: dict) -> None:
 
 def validate_file(path: Path) -> bool:
     try:
+        try:
+            import cbor2
+        except ImportError:
+            print("cbor2 required: pip install cbor2", file=sys.stderr)
+            return False
         raw = bytes.fromhex(path.read_text().strip())
         program = cbor2.loads(raw)
         validate_program(program)
@@ -176,7 +200,7 @@ def main() -> None:
     else:
         files = [target]
 
-    print(f"Validating {len(files)} file(s) against Ehrenfest v0.1 schema...")
+    print(f"Validating {len(files)} file(s) against Ehrenfest v0.1/v0.2 schema...")
     results = [validate_file(f) for f in files]
     passed = sum(results)
     print(f"\n{passed}/{len(results)} passed")

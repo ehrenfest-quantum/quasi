@@ -1,0 +1,170 @@
+; Ehrenfest v0.2 — CBOR Schema for QUASI Physics Programs
+; QUASI-001 | RFC 8610 CDDL
+;
+; Validate: gem install cddl && cddl spec/ehrenfest-v0.2.cddl validate <example.cbor>
+;
+; Ehrenfest is the QUASI specification language: physics-native, CBOR binary,
+; AI-primary. There is no canonical text form. The canonical form is this.
+; Programs describe quantum expectation values and Hamiltonians — not gate sequences.
+; The compiler (Afana) chooses gates. The program expresses physics.
+;
+; All fields use text keys for schema clarity. Production encodings MAY use
+; integer keys (CBOR map key compression) with a registered key table.
+
+; ─── Root ────────────────────────────────────────────────────────────────────
+
+EhrenfestProgram = {
+  "version":      uint,            ; must be 2 for v0.2
+  "system":       PhysicalContext,
+  "hamiltonian":  Hamiltonian,
+  "evolution":    EvolutionTime,
+  "observables":  [+ Observable],  ; at least one observable required
+  "noise":        NoiseConstraint,
+  ? "parameters": { * tstr => ParameterValue }, ; optional named float parameters
+}
+
+; ─── Physical System ─────────────────────────────────────────────────────────
+
+; Description of the quantum system: qubit count, optional cooling, optional
+; non-binding backend hint for Afana's hardware selection pass.
+PhysicalContext = {
+  "n_qubits":           uint,
+  ? "cooling_profile":  CoolingProfile,
+  ? "backend_hint":     tstr,  ; e.g. "ibm_torino" — non-binding
+}
+
+; Hardware cooling requirements (Alsvid integration).
+; Required when the program demands sub-15mK operating temperature,
+; e.g. trapped-ion or superconducting qubit experiments.
+CoolingProfile = {
+  "target_temp_mk":  float,   ; target temperature in millikelvin
+  ? "ramp_time_us":  float,   ; cooldown ramp duration in microseconds
+}
+
+; ─── Hamiltonian ─────────────────────────────────────────────────────────────
+
+; The energy operator of the quantum system.
+; H = Σᵢ coefficient_i × ⊗ⱼ PauliOp_j  +  constant_offset
+;
+; Energy units: GHz·rad (natural units for superconducting QPUs).
+; Do NOT use gate vocabulary here. This is physics, not circuit compilation.
+; Afana derives gates from this representation — they are not specified here.
+Hamiltonian = {
+  "terms":            [+ PauliTerm],
+  "constant_offset":  float,         ; zero-point energy offset in GHz·rad
+}
+
+; A single term: coefficient × tensor-product of Pauli operators.
+; Empty paulis list = identity on all qubits (scalar term).
+PauliTerm = {
+  "coefficient":  float / ParameterRef,
+  "paulis":       [* PauliOp],
+}
+
+ParameterRef = {
+  "param":  tstr,
+}
+
+ParameterValue = float
+
+; Single-qubit Pauli operator on a specific qubit index.
+PauliOp = {
+  "qubit":  uint,
+  "axis":   PauliAxis,
+}
+
+; The four Pauli operators. Encoding matches standard convention.
+PauliAxis = &(
+  I: 0,  ; identity
+  X: 1,  ; σˣ — bit-flip
+  Y: 2,  ; σʸ — bit+phase-flip
+  Z: 3,  ; σᶻ — phase-flip
+)
+
+; ─── Observables ─────────────────────────────────────────────────────────────
+
+; What the program measures. Named variants enforce physics vocabulary.
+; Arbitrary bit-string outcomes are not Ehrenfest observables — those are
+; HAL Contract outputs, handled by Afana after compilation.
+Observable = SigmaZ / SigmaX / Energy / Density / Fidelity
+
+; Expectation value of σᶻ on a single qubit: ⟨ψ|Z_q|ψ⟩ ∈ [-1, +1]
+SigmaZ = {
+  "type":   "SZ",
+  "qubit":  uint,
+}
+
+; Expectation value of σˣ on a single qubit: ⟨ψ|X_q|ψ⟩ ∈ [-1, +1]
+SigmaX = {
+  "type":   "SX",
+  "qubit":  uint,
+}
+
+; Expectation value of the full Hamiltonian: ⟨ψ|H|ψ⟩ in GHz·rad
+UrnManifest = {
+  "name": tstr,             ; lowercase, hyphenated, e.g. "grover-search"
+  "version": tstr,          ; semver string, e.g. "0.1.0"
+  "description": tstr,
+  "license": tstr,          ; SPDX identifier
+  ? "author": tstr,
+  ? "homepage": uri,
+}
+
+Urn = {
+  "version": uint,           ; urn format version, must be 1
+  "manifest": UrnManifest,
+  "program": EhrenfestProgram,   ; from ehrenfest-v0.1.cddl
+  "interface": UrnInterface,
+  "noise_requirements": NoiseRequirements,  ; reuse from Ehrenfest noise type
+  ? "dependencies": [* UrnDependency],
+  ? "provenance": ProvenanceCertificate,
+}
+
+UrnInterface = {
+  ? "parameters": [* UrnParameter],  ; named float inputs (variational angles etc.)
+  "observables": [+ ObservableType], ; what the urn measures
+}
+
+ObservableType = SigmaZ / SigmaX / Energy / Density / Fidelity
+
+Energy = {
+  "type":  "E",
+}
+
+; Reduced density matrix on a subset of qubits.
+; Output is a 2^n × 2^n Hermitian matrix encoded as CBOR array of complex pairs.
+Density = {
+  "type":    "rho",
+  "qubits":  [+ uint],
+}
+
+; State fidelity ⟨ψ|ρ_target|ψ⟩ against a reference statevector.
+; target_state: little-endian complex128 pairs, 2^n entries, CBOR bstr.
+Fidelity = {
+  "type":          "F",
+  "target_state":  bstr,
+}
+
+; ─── Time Evolution ──────────────────────────────────────────────────────────
+
+; How long the system evolves under the Hamiltonian and how to discretize it.
+; dt_us MUST equal total_us / steps (enforced by Afana).
+EvolutionTime = {
+  "total_us":  float,  ; total evolution time in microseconds
+  "steps":     uint,   ; Trotter steps (minimum 1)
+  "dt_us":     float,  ; timestep in microseconds = total_us / steps
+}
+
+; ─── Noise Constraints ───────────────────────────────────────────────────────
+
+; Hardware noise parameters. Afana enforces these at compile time.
+; A program that cannot be executed without violating t1_us or t2_us
+; on the target backend is a TYPE ERROR — not a runtime error.
+;
+; Physical bound: t2_us ≤ 2 × t1_us (enforced by Afana, not this schema).
+NoiseConstraint = {
+  "t1_us":                    float,  ; minimum required T1 relaxation time (μs) — REQUIRED
+  "t2_us":                    float,  ; minimum required T2 dephasing time (μs)  — REQUIRED
+  ? "gate_fidelity_min":      float,  ; minimum single-qubit gate fidelity [0.0, 1.0]
+  ? "readout_fidelity_min":   float,  ; minimum readout fidelity [0.0, 1.0]
+}

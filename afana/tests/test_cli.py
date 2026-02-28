@@ -49,3 +49,23 @@ def test_cmd_benchmark_prints_json(tmp_path, monkeypatch, capsys):
     printed = capsys.readouterr().out
     assert "before=2 after=2" in printed
     assert "\"results\"" in printed
+
+
+def test_cmd_compile_supports_parametric_ehrenfest(tmp_path, monkeypatch, capsys):
+    src = tmp_path / "vqe_h2.cbor.hex"
+    src.write_text("a0\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "afana.cli.compile_ehrenfest_hex",
+        lambda path, bindings: {
+            "qasm": "OPENQASM 3.0;\ninput float theta_1;\nqubit[2] q;\nrz(0.5) q[0];\n",
+            "stats": {"gate_count_before": 1, "gate_count_after": 1},
+        },
+    )
+
+    rc = cmd_compile(str(src), optimize=False, output=None, params=["theta_0=0.5"])
+    assert rc == 0
+    printed = capsys.readouterr().out
+    assert "before=1 after=1" in printed
+    assert "OPENQASM 3.0;" in printed
+    assert "rz(0.5) q[0];" in printed
