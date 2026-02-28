@@ -261,14 +261,18 @@ def find_rotation_entry(model_arg: str) -> dict:
 
 
 LEVEL_NAMES = {
-    0: "L0 — Scaffolding (README, badges, CI config, docs)",
-    1: "L1 — Language Foundations (Ehrenfest syntax, parser, AST, type system)",
-    2: "L2 — Compiler / Afana (ZX-IR generation, rewriting rules, QASM3 output)",
-    3: "L3 — Hardware Backends (IBM/IQM adapters, HAL Contract, error mitigation)",
-    4: "L4 — Turing-Complete Runtime (quantum memory model, classical control flow)",
+    0: "L0 — Interfaces & Contracts (HAL Contract bindings, ActivityPub API endpoints, CLI UX, quasi-board task lifecycle)",
+    1: "L1 — Language Foundations (Ehrenfest syntax, parser, AST, type system, CBOR schema)",
+    2: "L2 — Compiler / Afana (ZX-IR generation, rewriting rules, QASM3 output, optimisation passes)",
+    3: "L3 — Hardware Backends (IBM/IQM adapters, HAL Contract execution, error mitigation, shot noise)",
+    4: "L4 — Turing-Complete Runtime (quantum memory model, classical control flow, variational loops)",
 }
 
-LABEL_TAXONOMY = "compiler · specification · infrastructure · agent-ux · docs · good-first-issue"
+# Labels available for issue proposals.
+# 'infrastructure' and 'docs' are intentionally omitted — CI is complete and
+# documentation issues are low-priority scaffolding. Use 'good-first-issue'
+# only for genuinely self-contained tasks with clear acceptance criteria.
+LABEL_TAXONOMY = "compiler · specification · core · agent-ux · good-first-issue"
 
 # ── Repo context ──────────────────────────────────────────────────────────────
 
@@ -314,7 +318,7 @@ def recent_commits(root: Path, n: int = 10) -> str:
 
 
 def open_issues_summary() -> str:
-    """Fetch open tasks from the quasi-board."""
+    """Fetch open tasks from the quasi-board (last 10 items)."""
     req = urllib.request.Request(
         "https://gawain.valiant-quantum.com/quasi-board/outbox",
         headers={"Accept": "application/json", "User-Agent": "quasi-agent/generate_issue"},
@@ -337,11 +341,33 @@ def open_issues_summary() -> str:
         return f"(could not reach quasi-board: {e})"
 
 
+def open_github_issue_titles(n: int = 40) -> str:
+    """Fetch up to n open GitHub issue titles for deduplication context."""
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "quasi-agent/generate_issue",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    url = f"https://api.github.com/repos/ehrenfest-quantum/quasi/issues?state=open&per_page={n}&sort=created&direction=desc"
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            issues = json.loads(resp.read())
+        if not issues:
+            return "(no open issues)"
+        return "\n".join(f"  #{i['number']}: {i['title']}" for i in issues)
+    except Exception as e:
+        return f"(could not fetch GitHub issues: {e})"
+
+
 def build_context(level: int, root: Path) -> str:
     """Assemble the full context passed to the generator model."""
     tree = file_tree(root)
     commits = recent_commits(root)
-    issues = open_issues_summary()
+    board_issues = open_issues_summary()
+    github_titles = open_github_issue_titles(40)
     level_name = LEVEL_NAMES.get(level, f"L{level}")
 
     return f"""You are analysing the QUASI Quantum OS project.
@@ -355,8 +381,14 @@ QUASI is an open-source quantum operating system. Key components:
 - **quasi-board** — ActivityPub task board with a SHA256 hash-linked ledger
 - **quasi-agent** — CLI for task management and ledger interaction
 
-The project is at an early stage. The Pauli-Test benchmark measures AI engineering
-agents by having them resolve GitHub issues from this project.
+**MVP goal:** a quantum program written in Ehrenfest compiles, optimises via ZX-calculus,
+and executes on real hardware (IBM Torino / IQM Garnet) with verified output counts.
+Every issue should advance one of: (a) Ehrenfest language, (b) Afana compiler,
+(c) hardware execution, or (d) the quasi-board task distribution system.
+
+The Pauli-Test benchmark measures AI engineering agents by having them resolve GitHub
+issues from this project. Solvers are external AI agents — issues must be self-contained
+and unambiguous.
 
 ## Current file tree
 
@@ -368,7 +400,24 @@ agents by having them resolve GitHub issues from this project.
 
 ## Open tasks on the quasi-board
 
-{issues}
+{board_issues}
+
+## Already-open GitHub issues — DO NOT duplicate these
+
+The following issues are already open. Your proposal must be meaningfully different
+from every title below — do not restate, split, or reframe any of them.
+
+{github_titles}
+
+## Already done — DO NOT propose these topics
+
+CI/CD, GitHub Actions workflows, and README/CONTRIBUTING documentation are complete.
+Do not propose:
+- Adding or modifying CI workflows or GitHub Actions
+- Writing or expanding CONTRIBUTING.md, README.md, or any Markdown documentation
+- Adding docstrings, comments, or type annotations to existing files
+- Adding badges, shields, or status indicators
+- Any issue whose primary deliverable is a Markdown or YAML file
 
 ## Capability Ladder
 
@@ -382,7 +431,8 @@ Current frontier level: **{level_name}**
 
 ## Your task
 
-Identify what the project needs next at the current frontier level ({level_name}).
+Identify what the project needs next at the current frontier level ({level_name})
+that advances the MVP goal above.
 
 Write one GitHub issue. Requirements:
 - Title: concise, imperative, specific (not "improve X" — say exactly what to do)
