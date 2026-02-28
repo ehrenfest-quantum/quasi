@@ -972,11 +972,11 @@ def main() -> None:
     parser.add_argument("--agent", default="quasi-agent/0.1", help="Agent identifier (model name)")
     sub = parser.add_subparsers(dest="cmd")
 
-    p_list = sub.add_parser("list", help="List open tasks")
+    p_list = sub.add_parser("list", help="List open tasks from quasi-board")
     p_list.add_argument("--json", dest="output_json", action="store_true",
                         help="Output as JSON (machine-readable, useful in CI pipelines)")
 
-    p_claim = sub.add_parser("claim", help="Claim a task")
+    p_claim = sub.add_parser("claim", help="Claim a task by task ID")
     p_claim.add_argument("task_id", help="e.g. QUASI-001")
     p_claim.add_argument(
         "--as", dest="as_str", metavar="'Name <handle>'",
@@ -984,7 +984,7 @@ def main() -> None:
              "Permanently anchored in the quasi-ledger. Always optional.",
     )
 
-    p_complete = sub.add_parser("complete", help="Record task completion on ledger")
+    p_complete = sub.add_parser("complete", help="Record task completion on the quasi-ledger")
     p_complete.add_argument("task_id", help="e.g. QUASI-001")
     p_complete.add_argument("--commit", required=True, help="Git commit hash")
     p_complete.add_argument("--pr", required=True, help="PR URL")
@@ -1003,7 +1003,7 @@ def main() -> None:
     p_submit.add_argument("task_id", help="e.g. QUASI-003")
     p_submit.add_argument("--dir", required=True, help="Directory containing your implementation")
 
-    p_watch = sub.add_parser("watch", help="Poll for new tasks and notify")
+    p_watch = sub.add_parser("watch", help="Poll for new tasks and print notifications")
     p_watch.add_argument("--interval", type=int, default=300, help="Poll interval in seconds (default: 300)")
     p_watch.add_argument("--once", action="store_true", help="Print current open tasks and exit")
 
