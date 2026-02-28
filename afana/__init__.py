@@ -4,6 +4,7 @@ from .backend_selector import BackendCapabilities, NoiseRequirements, select_bac
 from .circuit import Circuit, Operation
 from .compile import compile_for_backend, compile_qasm
 from .optimize import optimize_qasm, optimize_qasm_with_stats
+from .parser import ConditionalGate, EhrenfestAST, Gate, Measure, Expect, ParseError, parse, parse_file
 from .phase_kickback import phase_kickback
 
 __all__ = [
@@ -17,5 +18,13 @@ __all__ = [
     "compile_for_backend",
     "optimize_qasm",
     "optimize_qasm_with_stats",
+    "ConditionalGate",
+    "EhrenfestAST",
+    "Gate",
+    "Measure",
+    "Expect",
+    "ParseError",
+    "parse",
+    "parse_file",
     "phase_kickback",
 ]
