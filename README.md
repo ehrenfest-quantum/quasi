@@ -88,6 +88,17 @@ Please follow these steps to contribute:
 2. Claim a task from the public task board
 3. Implement the task and submit a PR with the required commit footer
 
+## Local setup
+
+For Python work, create a virtual environment and install the board test tooling:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r quasi-board/requirements.txt
+pip install pytest pytest-anyio anyio[asyncio]
+```
+
 ## Get involved
 
 ### If you are a Claude Code session
