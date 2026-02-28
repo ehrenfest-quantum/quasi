@@ -649,8 +649,16 @@ def cmd_ledger(board: str) -> None:
 
 
 def cmd_submit(board: str, task_id: str, agent: str, directory: str) -> None:
-    """Submit implementation to the board — board opens a PR on your behalf.
-    No GitHub account required on the agent side.
+    """Submit a local implementation directory to quasi-board as a patch.
+
+    Args:
+        board (str): The quasi-board base URL that receives the patch.
+        task_id (str): The claimed task ID associated with the submission.
+        agent (str): Agent identifier recorded in the submission metadata.
+        directory (str): Directory containing the implementation files to upload.
+
+    Returns:
+        None: Prints the opened PR URL and ledger metadata.
     """
     from pathlib import Path as _Path
 
@@ -707,7 +715,16 @@ def cmd_submit(board: str, task_id: str, agent: str, directory: str) -> None:
 
 
 def cmd_refresh(board: str, task_id: str, agent: str) -> None:
-    """Refresh the TTL on an active claim to prevent expiry during long implementations."""
+    """Refresh the TTL on an active claim.
+
+    Args:
+        board (str): The quasi-board base URL to post to.
+        task_id (str): The task whose claim should be extended.
+        agent (str): Agent identifier that owns the current claim.
+
+    Returns:
+        None: Prints the new expiry timestamp and ledger metadata.
+    """
     result = post(f"{board}{INBOX_PATH}", {
         "@context": "https://www.w3.org/ns/activitystreams",
         "type": "quasi:Refresh",
@@ -760,7 +777,14 @@ SEEN_TASKS_FILE = Path("~/.quasi/seen_tasks.json").expanduser()
 
 
 def _get_quiet(url: str) -> dict | None:
-    """Like get() but returns None on error instead of exiting."""
+    """Fetch JSON from a URL, returning ``None`` on any failure.
+
+    Args:
+        url (str): The URL to request.
+
+    Returns:
+        dict | None: Parsed JSON response, or ``None`` if the request fails.
+    """
     req = urllib.request.Request(url, headers={
         "Accept": "application/activity+json, application/json",
         "User-Agent": "quasi-agent/0.1",
@@ -773,7 +797,14 @@ def _get_quiet(url: str) -> dict | None:
 
 
 def _extract_task_info(item: dict) -> dict | None:
-    """Extract task_id, title, url, status from an outbox item."""
+    """Normalize an outbox item into lightweight task metadata.
+
+    Args:
+        item (dict): ActivityPub outbox item or embedded object.
+
+    Returns:
+        dict | None: Task metadata dictionary, or ``None`` when no task ID exists.
+    """
     t = item.get("object", item) if item.get("type") == "Create" else item
     task_id = t.get("quasi:taskId")
     if not task_id:
@@ -792,6 +823,11 @@ def _extract_task_info(item: dict) -> dict | None:
 
 
 def _load_seen() -> set[str]:
+    """Load the set of task IDs already announced by ``cmd_watch``.
+
+    Returns:
+        set[str]: Previously seen task IDs, or an empty set if no cache exists.
+    """
     if SEEN_TASKS_FILE.exists():
         try:
             return set(json.loads(SEEN_TASKS_FILE.read_text()))
@@ -801,11 +837,29 @@ def _load_seen() -> set[str]:
 
 
 def _save_seen(seen: set[str]) -> None:
+    """Persist the watch cache of previously seen task IDs.
+
+    Args:
+        seen (set[str]): Task IDs that should be stored locally.
+
+    Returns:
+        None: Writes the cache file to disk.
+    """
     SEEN_TASKS_FILE.parent.mkdir(parents=True, exist_ok=True)
     SEEN_TASKS_FILE.write_text(json.dumps(sorted(seen)))
 
 
 def cmd_watch(board: str, interval: int, once: bool) -> None:
+    """Poll the quasi-board and print notifications for newly opened tasks.
+
+    Args:
+        board (str): The quasi-board base URL to poll.
+        interval (int): Poll interval in seconds.
+        once (bool): If True, perform one polling pass and then exit.
+
+    Returns:
+        None: Prints status updates and exits when the watch loop ends.
+    """
     seen = _load_seen()
     first_run = True
 
@@ -874,7 +928,14 @@ def cmd_verify(board: str) -> None:
 
 
 def cmd_completion(shell: str) -> None:
-    """Print shell completion script to stdout."""
+    """Print a shell completion script for the requested shell.
+
+    Args:
+        shell (str): Target shell name (`bash` or `zsh`).
+
+    Returns:
+        None: Writes the completion script to standard output.
+    """
     commands = "list claim complete submit watch ledger contributors verify completion"
     if shell == "bash":
         print(f'''_quasi_agent() {{
@@ -959,6 +1020,11 @@ compdef _quasi_agent cli.py''')
 
 
 def main() -> None:
+    """Parse CLI arguments and dispatch to the selected command handler.
+
+    Returns:
+        None: Exits after running the selected command or printing help.
+    """
     parser = argparse.ArgumentParser(description="quasi-agent — QUASI task client")
     parser.add_argument("--board", default=DEFAULT_BOARD, help="quasi-board URL")
     parser.add_argument("--agent", default="quasi-agent/0.1", help="Agent identifier (model name)")
