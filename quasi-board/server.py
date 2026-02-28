@@ -10,12 +10,14 @@ Outbox: https://gawain.valiant-quantum.com/quasi-board/outbox
 Ledger: https://gawain.valiant-quantum.com/quasi-board/ledger
 """
 
+import asyncio
 import base64
 import hashlib
 import json
 import os
 import time
-from datetime import datetime, timezone
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone, timedelta
 from email.utils import formatdate
 from pathlib import Path
 from typing import Any
@@ -50,7 +52,14 @@ ACTOR_KEY_ID = f"{ACTOR_URL}#main-key"
 AP_CONTENT_TYPE = "application/activity+json"
 
 
-app = FastAPI(title="quasi-board", version="0.1.0")
+@asynccontextmanager
+async def lifespan(app_: Any):
+    task = asyncio.create_task(_expiry_loop())
+    yield
+    task.cancel()
+
+
+app = FastAPI(title="quasi-board", version="0.1.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
 
 
@@ -444,7 +453,6 @@ def _effective_task_status(task_id: str) -> dict:
       {"status": "claimed", "agent": str, "expires_at": str}
       {"status": "done", "agent": str}
     """
-    from datetime import datetime, timezone, timedelta
     chain = load_ledger()
     relevant = [e for e in chain if e.get("task") == task_id]
 
@@ -490,6 +498,76 @@ def _effective_task_status(task_id: str) -> dict:
         "agent": last_claim.get("contributor_agent"),
         "expires_at": expires_at.isoformat(),
     }
+
+
+# ── Claim expiry ───────────────────────────────────────────────────────────────
+
+def _expire_stale_claims() -> list[str]:
+    """Write an expiry ledger entry for every claimed task whose TTL has elapsed.
+
+    Returns the list of task IDs that were expired.
+    """
+    chain = load_ledger()
+    # Collect all task IDs that appear in the ledger as claims
+    claimed_tasks: set[str] = set()
+    for entry in chain:
+        if entry.get("type") == "claim" and entry.get("task"):
+            claimed_tasks.add(entry["task"])
+
+    expired = []
+    for task_id in claimed_tasks:
+        status = _effective_task_status(task_id)
+        # _effective_task_status returns "open" when TTL has elapsed —
+        # but only if the task was never completed and has no active claim.
+        # We need to distinguish "expired" from "never claimed": check for a
+        # claim entry combined with expired TTL by re-examining the chain.
+        task_entries = [e for e in chain if e.get("task") == task_id]
+        has_completion = any(e.get("type") == "completion" for e in task_entries)
+        if has_completion:
+            continue
+        if status["status"] == "open":
+            # Task is open but had a claim — check if the last claim is past TTL
+            last_claim = next(
+                (e for e in reversed(task_entries) if e.get("type") == "claim"), None
+            )
+            if last_claim is None:
+                continue
+            # Check if we already wrote an expiry entry after this claim
+            last_claim_id = last_claim.get("id", 0)
+            already_expired = any(
+                e.get("type") == "expiry"
+                and e.get("task") == task_id
+                and e.get("id", 0) > last_claim_id
+                for e in chain
+            )
+            if already_expired:
+                continue
+            # Write the expiry ledger entry
+            append_ledger({
+                "type": "expiry",
+                "contributor_agent": last_claim.get("contributor_agent", "unknown"),
+                "task": task_id,
+                "commit_hash": None,
+                "pr_url": None,
+            })
+            expired.append(task_id)
+    return expired
+
+
+async def _expiry_loop() -> None:
+    """Background task: scan for stale claims every 30 minutes."""
+    while True:
+        await asyncio.sleep(1800)  # 30 minutes
+        try:
+            expired = _expire_stale_claims()
+            if expired:
+                import logging
+                logging.getLogger("quasi-board").info(
+                    "Claim expiry: released %d stale claim(s): %s",
+                    len(expired), ", ".join(expired),
+                )
+        except Exception:
+            pass
 
 
 # ── Agent token store (C2S auth) ──────────────────────────────────────────────
@@ -917,12 +995,16 @@ async def _process_activity(body: dict) -> JSONResponse:
         effective = _effective_task_status(task_id)
         if effective["status"] == "claimed" and effective.get("agent") != agent:
             raise HTTPException(409, f"{task_id} is already claimed by {effective['agent']!r}")
+        claim_expires_at = (
+            datetime.now(timezone.utc) + timedelta(minutes=CLAIM_TTL_MINUTES)
+        ).isoformat()
         ledger_entry: dict[str, Any] = {
             "type": "claim",
             "contributor_agent": agent,
             "task": task_id,
             "commit_hash": None,
             "pr_url": None,
+            "claim_expires_at": claim_expires_at,
         }
         contributor = body.get("quasi:contributor")
         if contributor and isinstance(contributor, dict):
