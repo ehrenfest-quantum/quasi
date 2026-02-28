@@ -30,7 +30,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --quiet flake8 argcomplete requests
+          pip install --quiet flake8 pytest argcomplete requests
 
       - name: Lint (flake8)
         run: |
@@ -45,8 +45,5 @@ jobs:
           python -m py_compile quasi-agent/generate_issue.py
           echo "✅ Syntax OK"
 
-      - name: Smoke-test CLI entry-points
-        run: |
-          python3 quasi-agent/cli.py --help > /dev/null
-          python3 quasi-agent/generate_issue.py --list-models
-          echo "✅ CLI loads cleanly"
+      - name: Run quasi-agent tests
+        run: pytest quasi-agent -v --tb=short
