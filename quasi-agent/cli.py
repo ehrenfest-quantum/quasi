@@ -649,8 +649,16 @@ def cmd_ledger(board: str) -> None:
 
 
 def cmd_submit(board: str, task_id: str, agent: str, directory: str) -> None:
-    """Submit implementation to the board — board opens a PR on your behalf.
-    No GitHub account required on the agent side.
+    """Submit implementation files so quasi-board can open a PR.
+
+    Args:
+        board (str): The quasi-board base URL.
+        task_id (str): Claimed task ID associated with the patch.
+        agent (str): Agent identifier recorded in the submission.
+        directory (str): Source directory that contains the implementation files.
+
+    Returns:
+        None: Prints submission details and the PR URL opened by quasi-board.
     """
     from pathlib import Path as _Path
 
