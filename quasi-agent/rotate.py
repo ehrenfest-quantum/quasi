@@ -110,12 +110,17 @@ def github_get(path: str, token: str) -> list | dict:
     return results
 
 
+def _model_string_to_id() -> dict[str, str]:
+    """Build a reverse map: full API model string -> short rotation ID."""
+    return {e["model"]: e["id"] for e in ROTATION}
+
+
 def count_issues_per_model_level(token: str) -> dict[str, dict[int, int]]:
     """
     Parse all open+closed QUASI issues and count how many each model has
     generated at each level.
 
-    Returns: {model_id: {level: count}}
+    Returns: {short_id: {level: count}}
     """
     # Fetch open issues
     all_issues: list[dict] = []
@@ -156,13 +161,20 @@ def count_issues_per_model_level(token: str) -> dict[str, dict[int, int]]:
                 break
             pages += 1
 
+    # Build reverse map so we can normalise the full model string in the issue
+    # footer back to the short rotation ID used as the count key.
+    model_str_to_id = _model_string_to_id()
+
     counts: dict[str, dict[int, int]] = defaultdict(lambda: defaultdict(int))
     matched = 0
     for issue in all_issues:
         body = issue.get("body") or ""
         m = GENERATOR_PATTERN.search(body)
         if m:
-            model_id = m.group(1)
+            raw_model = m.group(1)
+            # Normalise: footer stores the full API model string; map to short id.
+            # Falls back to the raw string so old issues with unknown models still count.
+            model_id = model_str_to_id.get(raw_model, raw_model)
             level = int(m.group(2))
             counts[model_id][level] += 1
             matched += 1
