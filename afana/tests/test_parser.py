@@ -3,6 +3,7 @@
 import pytest
 from afana.parser import (
     EhrenfestAST, Gate, Measure, Expect, TypeDecl,
+    VariationalGate, VariationalLoop,
     ParseError, parse, parse_file,
 )
 
@@ -345,3 +346,156 @@ def test_parse_types_ef_example():
     assert "QubitPair" in names
     assert "QubitTriple" in names
     assert "AngleRad" in names
+
+
+# ── Variational loops ─────────────────────────────────────────────────────────
+
+def test_variational_loop_basic():
+    """A simple variational block is parsed into a VariationalLoop AST node."""
+    src = _src(
+        'program "vqe"',
+        "qubits 2",
+        "variational params theta phi max_iter 50",
+        "  ry theta q0",
+        "  ry phi q1",
+        "  cnot q0 q1",
+        "end",
+    )
+    ast = parse(src)
+    assert isinstance(ast, EhrenfestAST)
+    assert len(ast.variational_loops) == 1
+    vl = ast.variational_loops[0]
+    assert isinstance(vl, VariationalLoop)
+    assert vl.params == ["theta", "phi"]
+    assert vl.max_iter == 50
+    assert len(vl.body) == 3
+
+
+def test_variational_loop_body_gates():
+    """Body gates have correct names, qubits, and param_refs."""
+    src = _src(
+        'program "vqe"',
+        "qubits 2",
+        "variational params theta phi max_iter 100",
+        "  ry theta q0",
+        "  ry phi q1",
+        "  cnot q0 q1",
+        "end",
+    )
+    ast = parse(src)
+    vl = ast.variational_loops[0]
+    ry0, ry1, cnot = vl.body
+    assert isinstance(ry0, VariationalGate)
+    assert ry0.name == "ry"
+    assert ry0.qubits == [0]
+    assert ry0.param_refs == ["theta"]
+    assert ry1.name == "ry"
+    assert ry1.qubits == [1]
+    assert ry1.param_refs == ["phi"]
+    assert cnot.name == "cx"   # normalised
+    assert cnot.qubits == [0, 1]
+    assert cnot.param_refs == []
+
+
+def test_variational_loop_default_max_iter():
+    """max_iter defaults to 100 when not specified."""
+    src = _src(
+        'program "p"',
+        "qubits 1",
+        "variational params alpha",
+        "  rx alpha q0",
+        "end",
+    )
+    ast = parse(src)
+    assert ast.variational_loops[0].max_iter == 100
+
+
+def test_variational_loop_to_qasm3():
+    """VariationalLoop.to_qasm3() emits valid QASM3 with input float declarations."""
+    vl = VariationalLoop(
+        params=["theta", "phi"],
+        max_iter=100,
+        body=[
+            VariationalGate(name="ry", qubits=[0], param_refs=["theta"]),
+            VariationalGate(name="ry", qubits=[1], param_refs=["phi"]),
+            VariationalGate(name="cx", qubits=[0, 1], param_refs=[]),
+        ],
+    )
+    qasm3 = vl.to_qasm3(n_qubits=2)
+    assert "OPENQASM 3.0;" in qasm3
+    assert "input float[64] theta;" in qasm3
+    assert "input float[64] phi;" in qasm3
+    assert "ry(theta) q[0];" in qasm3
+    assert "ry(phi) q[1];" in qasm3
+    assert "cx q[0], q[1];" in qasm3
+
+
+def test_variational_loop_no_loops_gives_empty_list():
+    """Programs without variational blocks have an empty variational_loops list."""
+    src = _src('program "p"', "qubits 1", "h q0")
+    ast = parse(src)
+    assert ast.variational_loops == []
+
+
+def test_variational_loop_and_regular_gates_coexist():
+    """Variational blocks and regular gates coexist in the same program."""
+    src = _src(
+        'program "hybrid"',
+        "qubits 2",
+        "h q0",
+        "variational params theta max_iter 10",
+        "  rx theta q1",
+        "end",
+        "measure q0 -> c0",
+    )
+    ast = parse(src)
+    assert len(ast.gates) == 1
+    assert ast.gates[0].name == "h"
+    assert len(ast.variational_loops) == 1
+    assert len(ast.measures) == 1
+
+
+def test_variational_loop_missing_end():
+    """Unclosed variational block raises ParseError."""
+    with pytest.raises(ParseError, match="never closed with 'end'"):
+        parse(_src(
+            'program "p"',
+            "qubits 1",
+            "variational params theta",
+            "  rx theta q0",
+        ))
+
+
+def test_variational_loop_missing_params_keyword():
+    """variational without 'params' keyword raises ParseError."""
+    with pytest.raises(ParseError, match="'variational' syntax"):
+        parse(_src(
+            'program "p"',
+            "qubits 1",
+            "variational theta phi",
+            "end",
+        ))
+
+
+def test_variational_loop_empty_params():
+    """variational params with no parameter names raises ParseError."""
+    with pytest.raises(ParseError, match="requires at least one parameter"):
+        parse(_src(
+            'program "p"',
+            "qubits 1",
+            "variational params",
+            "  h q0",
+            "end",
+        ))
+
+
+def test_parse_vqe_example():
+    """examples/vqe.ef parses to a valid AST with one variational loop."""
+    import pathlib
+    vqe_ef = pathlib.Path(__file__).parent.parent.parent / "examples" / "vqe.ef"
+    ast = parse_file(vqe_ef)
+    assert isinstance(ast, EhrenfestAST)
+    assert len(ast.variational_loops) == 1
+    vl = ast.variational_loops[0]
+    assert "theta" in vl.params
+    assert "phi" in vl.params
