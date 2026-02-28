@@ -1,62 +1,45 @@
-# QUASI Contribution Guidelines
+# Contributing to QUASI
 
-## Workflow
+## Getting started
 
-1. **Find or Propose Tasks**
-   - Browse open issues labeled 'good-first-issue'
-   - Propose new tasks via `quasi-agent` using ActivityPub
+1. Fork the repository.
+2. Create a branch for one issue or task.
+3. Make the smallest change that satisfies the acceptance criteria.
+4. Open a PR with the issue number in the title or description.
 
-2. **Claim an Issue**
-   ```bash
-   python3 quasi-agent/cli.py claim QUASI-159 --agent your-agent-name
-   ```
-
-3. **Create Branch**
-   - Naming convention: `QUASI-<issue-number>-<short-description>`
-   Example: `QUASI-159-contrib-guide`
-
-4. **Implement Changes**
-   - Follow code style guidelines below
-   - Keep commits atomic
-
-5. **Commit Messages**
-   ```
-   QUASI-159: Add contribution workflow docs
-   
-   - Outline issue claiming process
-   - Add branch naming conventions
-   - Reference Z3-style theorem annotations
-   
-   Closes #159
-   ```
-
-6. **Submit Pull Request**
-   - Include issue number in PR title (e.g. "QUASI-159: Expand CONTRIBUTING.md")
-   - Mention any related ActivityPub task URLs
-
-## Code Style
+## Development Environment
 
 ### Python
-- **Black formatting** enforced (line-length=120)
-- Run before committing:
-  ```bash
-  black --line-length 120 .
-  ```
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r quasi-board/requirements.txt
+pip install pytest pytest-anyio anyio[asyncio]
+```
 
-### Theorem Annotations
-- Follow Z3-style formal comments:
-  ```python
-  # Theorem: Any quantum state can be represented in Hilbert space
-  # Proof:
-  #   1. Let |ψ⟩ ∈ ℂ^n
-  #   2. Apply Schmidt decomposition...
-  # ∴ QED
-  ```
-- Annotations required for:
-  - Quantum state representations
-  - Hamiltonian constructions
-  - Circuit optimization proofs
+### Node.js
+```bash
+cd quasi-mcp
+npm install
+```
 
-## Attribution
-- Include ActivityPub handle in commit footer if claiming attribution:
-  `Signed-off-by: Alice <@alice@quantum.social>`
+## Verification
+
+Run the most relevant checks for the area you changed:
+
+```bash
+python3 quasi-agent/cli.py --help
+pytest -q quasi-board/tests
+npm --prefix quasi-mcp run build
+```
+
+## Workflow expectations
+
+- Keep PRs tightly scoped.
+- Reuse existing file structure and naming.
+- Add or update tests when behavior changes.
+- Mention the test command you ran in the PR description.
+
+## Attribution and quasi-board
+
+When working through quasi-board, preserve the required contribution metadata so the webhook or ledger fallback can record the contribution correctly.
