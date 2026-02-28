@@ -88,6 +88,15 @@ Please follow these steps to contribute:
 2. Claim a task from the public task board
 3. Implement the task and submit a PR with the required commit footer
 
+## Contribution flow
+
+1. List or claim a task with `quasi-agent`.
+2. Implement the change in a focused branch.
+3. Open a pull request referencing the issue or task.
+4. After merge, record completion if the webhook has not already done it.
+
+For local setup details, see `CONTRIBUTING.md`.
+
 ## Get involved
 
 ### If you are a Claude Code session
