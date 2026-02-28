@@ -31,7 +31,7 @@ class Gate:
     """A single gate application, e.g. ``h q0`` or ``cnot q0 q1``."""
     name: str          # lower-cased gate name, e.g. "h", "cnot", "rx"
     qubits: List[int]  # qubit indices, e.g. [0] or [0, 1]
-    params: List[float] = field(default_factory=list)  # rotation angles
+    params: List[float | str] = field(default_factory=list)  # rotation angles or symbolic loop params
 
 
 @dataclass
@@ -57,6 +57,16 @@ class Expect:
 
 
 @dataclass
+class VariationalLoop:
+    """A variational loop with symbolic parameter updates."""
+    parameter: str
+    start: float
+    stop: float
+    step: float
+    gates: List[Gate]
+
+
+@dataclass
 class EhrenfestAST:
     """Root AST node for a parsed .ef program."""
     name: str
@@ -66,6 +76,7 @@ class EhrenfestAST:
     measures: List[Measure]
     conditionals: List[ConditionalGate]
     expects: List[Expect]
+    variational_loops: List[VariationalLoop]
 
 
 # ── Tokenisation helpers ───────────────────────────────────────────────────────
@@ -77,6 +88,7 @@ _GATE_RE = re.compile(
 _QUBIT_RE = re.compile(r"^q(\d+)$", re.IGNORECASE)
 _CBIT_RE = re.compile(r"^c(\d+)$", re.IGNORECASE)
 _FLOAT_RE = re.compile(r"^-?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?(pi)?$", re.IGNORECASE)
+_PARAM_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def _parse_qubit(token: str, lineno: int) -> int:
@@ -108,6 +120,12 @@ def _parse_float_param(token: str, lineno: int) -> float:
         raise ParseError(f"line {lineno}: invalid float parameter {token!r}")
 
 
+def _parse_gate_param(token: str, lineno: int, allowed_symbols: set[str] | None = None) -> float | str:
+    if allowed_symbols and token in allowed_symbols:
+        return token
+    return _parse_float_param(token, lineno)
+
+
 def _strip_comment(line: str) -> str:
     """Remove inline // comment and return stripped content."""
     idx = line.find("//")
@@ -118,6 +136,42 @@ def _strip_comment(line: str) -> str:
 
 class ParseError(ValueError):
     """Raised when .ef source cannot be parsed."""
+
+
+def _parse_gate_tokens(
+    toks: List[str],
+    lineno: int,
+    n_qubits: int,
+    allowed_symbols: set[str] | None = None,
+) -> Gate:
+    gate_name = toks[0].lower()
+    if gate_name == "cnot":
+        gate_name = "cx"
+    if gate_name == "toffoli":
+        gate_name = "ccx"
+
+    params: List[float | str] = []
+    qubit_tokens: List[str] = toks[1:]
+
+    if gate_name in ("rx", "ry", "rz"):
+        if not qubit_tokens:
+            raise ParseError(f"line {lineno}: {gate_name} requires an angle parameter")
+        params.append(_parse_gate_param(qubit_tokens[0], lineno, allowed_symbols))
+        qubit_tokens = qubit_tokens[1:]
+
+    qubit_indices: List[int] = []
+    for qt in qubit_tokens:
+        idx = _parse_qubit(qt, lineno)
+        if idx >= n_qubits:
+            raise ParseError(
+                f"line {lineno}: qubit q{idx} out of range (n_qubits={n_qubits})"
+            )
+        qubit_indices.append(idx)
+
+    if not qubit_indices:
+        raise ParseError(f"line {lineno}: gate {toks[0]!r} requires at least one qubit")
+
+    return Gate(name=gate_name, qubits=qubit_indices, params=params)
 
 
 def parse(source: str) -> EhrenfestAST:
@@ -172,6 +226,7 @@ def parse(source: str) -> EhrenfestAST:
     measures: List[Measure] = []
     conditionals: List[ConditionalGate] = []
     expects: List[Expect] = []
+    variational_loops: List[VariationalLoop] = []
 
     for lineno, toks in it:
         kw = toks[0].lower()
@@ -207,6 +262,50 @@ def parse(source: str) -> EhrenfestAST:
                     f" got {toks[1]!r}"
                 )
             expects.append(Expect(kind=kind, value=toks[2]))
+
+        elif kw == "vary":
+            if len(toks) != 8 or toks[2].lower() != "from" or toks[4].lower() != "to" or toks[6].lower() != "step":
+                raise ParseError(
+                    f"line {lineno}: 'vary' syntax: vary <param> from <start> to <stop> step <delta>"
+                )
+            parameter = toks[1]
+            if not _PARAM_RE.match(parameter):
+                raise ParseError(f"line {lineno}: invalid variational parameter name {parameter!r}")
+            start = _parse_float_param(toks[3], lineno)
+            stop = _parse_float_param(toks[5], lineno)
+            step = _parse_float_param(toks[7], lineno)
+            if step <= 0:
+                raise ParseError(f"line {lineno}: variational loop step must be > 0")
+
+            loop_gates: List[Gate] = []
+            for body_lineno, body_toks in it:
+                body_kw = body_toks[0].lower()
+                if body_kw == "endvary":
+                    break
+                if not _GATE_RE.match(body_kw):
+                    raise ParseError(
+                        f"line {body_lineno}: variational loop body must contain only gate statements"
+                    )
+                loop_gates.append(
+                    _parse_gate_tokens(
+                        body_toks,
+                        body_lineno,
+                        n_qubits,
+                        allowed_symbols={parameter},
+                    )
+                )
+            else:
+                raise ParseError("unexpected end of file while expecting 'endvary'")
+
+            variational_loops.append(
+                VariationalLoop(
+                    parameter=parameter,
+                    start=start,
+                    stop=stop,
+                    step=step,
+                    gates=loop_gates,
+                )
+            )
 
         elif kw == "if":
             # if cN == M: gate qN ...
@@ -249,37 +348,7 @@ def parse(source: str) -> EhrenfestAST:
             conditionals.append(ConditionalGate(cbit=cbit, cbit_value=cbit_value, gate=cond_gate))
 
         elif _GATE_RE.match(kw):
-            gate_name = kw
-            # Normalise aliases
-            if gate_name == "cnot":
-                gate_name = "cx"
-            if gate_name == "toffoli":
-                gate_name = "ccx"
-
-            # Collect optional float params (for rx/ry/rz), then qubits
-            params: List[float] = []
-            qubit_tokens: List[str] = toks[1:]
-
-            # Rotation gates carry one float param before qubits
-            if gate_name in ("rx", "ry", "rz"):
-                if not qubit_tokens:
-                    raise ParseError(f"line {lineno}: {gate_name} requires an angle parameter")
-                params.append(_parse_float_param(qubit_tokens[0], lineno))
-                qubit_tokens = qubit_tokens[1:]
-
-            qubit_indices: List[int] = []
-            for qt in qubit_tokens:
-                idx = _parse_qubit(qt, lineno)
-                if idx >= n_qubits:
-                    raise ParseError(
-                        f"line {lineno}: qubit q{idx} out of range (n_qubits={n_qubits})"
-                    )
-                qubit_indices.append(idx)
-
-            if not qubit_indices:
-                raise ParseError(f"line {lineno}: gate {toks[0]!r} requires at least one qubit")
-
-            gates.append(Gate(name=gate_name, qubits=qubit_indices, params=params))
+            gates.append(_parse_gate_tokens(toks, lineno, n_qubits))
 
         else:
             raise ParseError(f"line {lineno}: unknown directive {toks[0]!r}")
@@ -292,6 +361,7 @@ def parse(source: str) -> EhrenfestAST:
         measures=measures,
         conditionals=conditionals,
         expects=expects,
+        variational_loops=variational_loops,
     )
 
 

@@ -6,7 +6,15 @@ import json
 from pathlib import Path
 from typing import Iterable, Optional
 
-from .compile import compile_qasm
+if __package__ in (None, ""):
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from afana.compile import compile_qasm
+    from afana.variational import compile_variational_file
+else:
+    from .compile import compile_qasm
+    from .variational import compile_variational_file
 
 
 def _read_text(path: str) -> str:
@@ -20,9 +28,12 @@ def _print_gate_report(path: str, stats: dict) -> None:
     )
 
 
-def cmd_compile(path: str, optimize: bool, output: Optional[str]) -> int:
-    qasm = _read_text(path)
-    result = compile_qasm(qasm, optimize=optimize)
+def cmd_compile(path: str, optimize: bool, output: Optional[str], backend: str = "ibm_torino") -> int:
+    if path.endswith(".ef"):
+        result = compile_variational_file(path, backend=backend)
+    else:
+        qasm = _read_text(path)
+        result = compile_qasm(qasm, optimize=optimize)
     _print_gate_report(path, result["stats"])
     if output:
         Path(output).write_text(result["qasm"], encoding="utf-8")
@@ -53,10 +64,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Afana compiler CLI")
     sub = parser.add_subparsers(dest="cmd")
 
-    p_compile = sub.add_parser("compile", help="Compile OpenQASM input")
-    p_compile.add_argument("input", help="Path to OpenQASM file")
+    p_compile = sub.add_parser("compile", help="Compile OpenQASM or Ehrenfest source")
+    p_compile.add_argument("input", help="Path to OpenQASM or .ef source file")
     p_compile.add_argument("--optimize", action="store_true", help="Enable ZX optimization")
     p_compile.add_argument("--output", help="Optional output path for compiled QASM")
+    p_compile.add_argument("--backend", default="ibm_torino", help="Target backend for emitted QASM3")
 
     p_bench = sub.add_parser("benchmark", help="Benchmark gate count before/after")
     p_bench.add_argument("inputs", nargs="+", help="One or more OpenQASM files")
@@ -64,7 +76,7 @@ def main() -> int:
 
     args = parser.parse_args()
     if args.cmd == "compile":
-        return cmd_compile(args.input, optimize=args.optimize, output=args.output)
+        return cmd_compile(args.input, optimize=args.optimize, output=args.output, backend=args.backend)
     if args.cmd == "benchmark":
         return cmd_benchmark(args.inputs, optimize=args.optimize)
     parser.print_help()

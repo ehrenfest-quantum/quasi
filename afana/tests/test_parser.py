@@ -2,7 +2,7 @@
 
 import pytest
 from afana.parser import (
-    EhrenfestAST, Gate, Measure, Expect,
+    EhrenfestAST, Gate, Measure, Expect, VariationalLoop,
     ParseError, parse, parse_file,
 )
 
@@ -24,6 +24,7 @@ def test_parse_minimal():
     assert ast.gates == []
     assert ast.measures == []
     assert ast.expects == []
+    assert ast.variational_loops == []
 
 
 def test_parse_bell():
@@ -210,6 +211,30 @@ def test_conditional_gate():
     assert cg.cbit_value == 1
     assert cg.gate.name == "x"
     assert cg.gate.qubits == [2]
+
+
+def test_variational_loop_parses_into_ast():
+    src = _src(
+        'program "vqe"',
+        "qubits 2",
+        "vary theta_0 from 0.0 to 3.14 step 0.1",
+        "rz theta_0 q0",
+        "cx q0 q1",
+        "endvary",
+    )
+    ast = parse(src)
+    assert ast.variational_loops == [
+        VariationalLoop(
+            parameter="theta_0",
+            start=0.0,
+            stop=3.14,
+            step=0.1,
+            gates=[
+                Gate(name="rz", qubits=[0], params=["theta_0"]),
+                Gate(name="cx", qubits=[0, 1]),
+            ],
+        )
+    ]
 
 
 def test_empty_source():
