@@ -43,7 +43,7 @@ jobs:
         run: pip install -r quasi-board/requirements.txt
 
       - name: Run afana tests
-        run: pytest afana/tests/ -v --tb=short
+        run: PYTHONPATH=. pytest afana/tests/ -v --tb=short
 
       - name: Run quasi-board tests
         run: pytest quasi-board/tests/ -v --tb=short
