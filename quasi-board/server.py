@@ -252,6 +252,55 @@ def _save_proposals(proposals: list[dict]) -> None:
     PROPOSALS_FILE.write_text(json.dumps({"proposals": proposals}, indent=2))
 
 
+def _proposal_keywords(text: str) -> set[str]:
+    return {token for token in _re.findall(r"[a-z0-9]+", text.lower()) if len(token) >= 3}
+
+
+def _is_duplicate_title(title: str, existing_title: str) -> bool:
+    new_keywords = _proposal_keywords(title)
+    existing_keywords = _proposal_keywords(existing_title)
+    if not new_keywords or not existing_keywords:
+        return title.strip().lower() == existing_title.strip().lower()
+    overlap = len(new_keywords & existing_keywords)
+    union = len(new_keywords | existing_keywords)
+    return union > 0 and (overlap / union) >= 0.85
+
+
+def _validate_proposal(
+    proposal_obj: dict[str, Any], proposals: list[dict]
+) -> tuple[str, list[str], list[str], int]:
+    effort = str(proposal_obj.get("quasi:estimatedEffort", "")).strip().lower()
+    affected_components = proposal_obj.get("quasi:affectedComponents") or []
+    success_criteria = proposal_obj.get("quasi:successCriteria") or []
+
+    if effort not in {"trivial", "small", "medium", "large", "xlarge"}:
+        raise HTTPException(400, "quasi:estimatedEffort must be one of trivial|small|medium|large|xlarge")
+    if effort == "trivial":
+        raise HTTPException(400, "trivial proposals are not accepted")
+    if not isinstance(affected_components, list) or not all(str(item).strip() for item in affected_components):
+        raise HTTPException(400, "quasi:affectedComponents must be a non-empty list")
+    if not isinstance(success_criteria, list) or not all(str(item).strip() for item in success_criteria):
+        raise HTTPException(400, "quasi:successCriteria must be a non-empty list")
+
+    normalized_components = [str(item).strip()[:100] for item in affected_components]
+    normalized_criteria = [str(item).strip()[:200] for item in success_criteria]
+
+    if effort == "small" and len(normalized_components) < 2 and len(normalized_criteria) < 3:
+        raise HTTPException(400, "small proposals must affect >=2 components or define >=3 success criteria")
+
+    level = int(proposal_obj.get("quasi:level", 1))
+    if level == 0:
+        open_l0 = sum(
+            1
+            for item in proposals
+            if item.get("status") == "pending" and int(item.get("level", 1)) == 0
+        )
+        if open_l0 >= 2:
+            raise HTTPException(409, "L0 proposal cap reached")
+
+    return effort, normalized_components, normalized_criteria, level
+
+
 def _admin_token() -> str:
     return os.environ.get("QUASI_ADMIN_TOKEN", "")
 
@@ -1170,12 +1219,24 @@ async def _process_activity(body: dict) -> JSONResponse:
             raise HTTPException(400, "quasi:title and quasi:description are required")
 
         proposals = _load_proposals()
+        effort, affected_components, success_criteria, level = _validate_proposal(proposal_obj, proposals)
+
+        duplicate_titles = [
+            item.get("title", "") for item in proposals if item.get("status") in {"pending", "accepted"}
+        ]
+        duplicate_titles.extend(task.get("title", "") for task in fetch_tasks())
+        if any(_is_duplicate_title(title, existing_title) for existing_title in duplicate_titles if existing_title):
+            raise HTTPException(409, "Duplicate proposal title")
+
         prop_id = f"prop-{len(proposals) + 1:03d}"
         proposal: dict[str, Any] = {
             "id": prop_id,
             "title": title,
             "description": description,
-            "estimated_effort": str(proposal_obj.get("quasi:estimatedEffort", ""))[:200],
+            "estimated_effort": effort,
+            "affected_components": affected_components,
+            "success_criteria": success_criteria,
+            "level": level,
             "rationale": str(proposal_obj.get("quasi:rationale", ""))[:500],
             "proposed_by": str(body.get("actor", "unknown"))[:200],
             "proposed_at": datetime.now(timezone.utc).isoformat(),
