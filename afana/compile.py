@@ -51,14 +51,23 @@ def compile_for_backend(qasm: str, backend: str = "ibm_torino") -> Dict[str, Any
     transpiled = ehrenfest_to_ibm(program, backend_name=backend)
 
     before = _count_qasm_ops(qasm)
+    depth_before = before
     try:
         after = int(transpiled.count_ops().total())  # qiskit OrderedDict with total()
     except Exception:
         # fallback when mocked/transpiled object does not expose count_ops
         after = before
+    try:
+        depth_after = int(transpiled.depth())
+    except Exception:
+        depth_after = after
 
     return {
         "backend": backend,
         "transpiled": transpiled,
-        "stats": asdict(CompileStats(backend=backend, gate_count_before=before, gate_count_after=after)),
+        "stats": {
+            **asdict(CompileStats(backend=backend, gate_count_before=before, gate_count_after=after)),
+            "depth_before": depth_before,
+            "depth_after": depth_after,
+        },
     }

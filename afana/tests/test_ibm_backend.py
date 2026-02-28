@@ -1,4 +1,4 @@
-from afana.backends.ibm import EhrenfestProgram, ehrenfest_to_ibm
+from afana.backends.ibm import EhrenfestProgram, ehrenfest_to_ibm, run_on_ibm_simulator
 from afana.compile import compile_for_backend
 
 
@@ -15,6 +15,9 @@ class _FakeTranspiled:
 
     def count_ops(self):
         return self._Ops(self._ops)
+
+    def depth(self):
+        return self._ops + 1
 
 
 def test_ehrenfest_to_ibm_uses_transpiler(monkeypatch):
@@ -60,4 +63,34 @@ def test_compile_for_backend_returns_gate_stats(monkeypatch):
     out = compile_for_backend(qasm, backend="ibm_torino")
     assert out["stats"]["gate_count_before"] == 2
     assert out["stats"]["gate_count_after"] == 2
+    assert out["stats"]["depth_before"] == 2
+    assert out["stats"]["depth_after"] == 3
     assert out["backend"] == "ibm_torino"
+
+
+def test_run_on_ibm_simulator_returns_counts(monkeypatch):
+    def fake_ehrenfest_to_ibm(_program, backend_name):
+        assert backend_name == "ibm_torino"
+        return "transpiled-circuit"
+
+    class _FakeRun:
+        @staticmethod
+        def result():
+            class _FakeResult:
+                @staticmethod
+                def get_counts():
+                    return {"00": 7, "11": 1}
+
+            return _FakeResult()
+
+    class _FakeAerSimulator:
+        def run(self, circuit):
+            assert circuit == "transpiled-circuit"
+            return _FakeRun()
+
+    monkeypatch.setattr("afana.backends.ibm.ehrenfest_to_ibm", fake_ehrenfest_to_ibm)
+    monkeypatch.setattr("afana.backends.ibm._load_aer_simulator", lambda: _FakeAerSimulator)
+
+    program = EhrenfestProgram(n_qubits=2, qasm="OPENQASM 2.0;\nqreg q[2];", metadata={})
+    counts = run_on_ibm_simulator(program, backend_name="ibm_torino")
+    assert counts == {"00": 7, "11": 1}

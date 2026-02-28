@@ -49,3 +49,27 @@ def test_cmd_benchmark_prints_json(tmp_path, monkeypatch, capsys):
     printed = capsys.readouterr().out
     assert "before=2 after=2" in printed
     assert "\"results\"" in printed
+
+
+def test_cmd_compile_backend_emit_qiskit(tmp_path, monkeypatch, capsys):
+    src = tmp_path / "in.qasm"
+    src.write_text(QASM_IN, encoding="utf-8")
+
+    monkeypatch.setattr(
+        "afana.cli.compile_for_backend",
+        lambda qasm, backend: {
+            "transpiled": "qiskit-circuit",
+            "stats": {
+                "gate_count_before": 2,
+                "gate_count_after": 1,
+                "depth_before": 2,
+                "depth_after": 1,
+            },
+        },
+    )
+
+    rc = cmd_compile(str(src), optimize=False, output=None, backend="ibm_torino", emit="qiskit")
+    assert rc == 0
+    printed = capsys.readouterr().out
+    assert "depth_before=2 depth_after=1" in printed
+    assert "qiskit-circuit" in printed
