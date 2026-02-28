@@ -625,6 +625,11 @@ async def _open_pr_from_files(task_id: str, agent: str, files: dict, message: st
 # ── Ledger ────────────────────────────────────────────────────────────────────
 
 def load_ledger() -> list[dict]:
+    """Load the quasi-ledger JSON chain from disk.
+
+    Returns:
+        list[dict]: Ledger entries in append order, or an empty list when no ledger exists.
+    """
     if not LEDGER_FILE.exists():
         return []
     return json.loads(LEDGER_FILE.read_text())
@@ -645,6 +650,11 @@ def append_ledger(entry: dict) -> dict:
 
 
 def verify_ledger() -> bool:
+    """Verify hash continuity and content hashes for the quasi-ledger chain.
+
+    Returns:
+        bool: True when the chain is intact, otherwise False.
+    """
     chain = load_ledger()
     for i, entry in enumerate(chain):
         prev_hash = chain[i - 1]["entry_hash"] if i > 0 else "0" * 64
