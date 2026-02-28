@@ -1,5 +1,6 @@
 """Backend-specific Afana compilation paths."""
 
+from .dynamical_decoupling import DD_SEQUENCES, apply_dynamical_decoupling
 from .error_mitigation import (
     MeasurementErrorMitigation,
     MitigationStrategy,
@@ -10,6 +11,8 @@ from .error_mitigation import (
 from .ibm import EhrenfestProgram, ehrenfest_to_ibm, transpile_for_ibm
 
 __all__ = [
+    "DD_SEQUENCES",
+    "apply_dynamical_decoupling",
     "EhrenfestProgram",
     "ehrenfest_to_ibm",
     "transpile_for_ibm",
