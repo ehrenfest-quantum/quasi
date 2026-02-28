@@ -128,15 +128,14 @@ DEFAULT_BOARD = "https://gawain.valiant-quantum.com"
 
 
 def format_help(text: str) -> str:
-    """Dedent and wrap help text.
+    """Dedent and wrap help text for consistent CLI formatting.
 
     Args:
-        text (str): The text to format.
+        text (str): Raw help text that may contain indentation.
 
     Returns:
-        str: The formatted text.
+        str: Wrapped help text formatted for terminal output.
     """
-    """Dedent and wrap help text."""
     return textwrap.fill(textwrap.dedent(text).strip(), width=72)
 
 
