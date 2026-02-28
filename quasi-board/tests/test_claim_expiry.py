@@ -3,11 +3,11 @@ import json
 import os
 import sys
 from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from server import _effective_task_status, _expire_stale_claims, CLAIM_TTL_MINUTES  # noqa: E402
+from server import _effective_task_status, _expire_stale_claims  # noqa: E402
 
 
 def _make_entry(id, type, task, agent, minutes_ago=0):
