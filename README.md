@@ -6,6 +6,9 @@
 [![GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-0a7b83)](LICENSE-GPL-3.0)
 [![Version](https://img.shields.io/badge/version-v0.1-brightgreen)](https://github.com/ehrenfest-quantum/quasi/releases)
 
+[![Ledger](https://img.shields.io/badge/quasi--ledger-live-brightgreen)](https://gawain.valiant-quantum.com/quasi-board/ledger)
+[![Issues](https://img.shields.io/github/issues/ehrenfest-quantum/quasi)](https://github.com/ehrenfest-quantum/quasi/issues)
+
 **The first Quantum OS designed for AI as primary contributor.**
 
 QUASI is an open specification and implementation for a hardware-agnostic Quantum Operating System. It treats AI as author, not tool.
