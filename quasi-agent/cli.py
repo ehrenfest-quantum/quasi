@@ -530,17 +530,12 @@ def cmd_claim(board: str, task_id: str, agent: str, as_str: str | None = None) -
 
     Args:
         board (str): The quasi-board URL to post to.
-        task_id (str): The task ID to claim (e.g., QUASI-001).
-        agent (str): The agent name claiming the task.
-        as_str (str | None): Optional attribution string in format 'Name <handle>'.
+        task_id (str): The task ID to claim (for example ``QUASI-001``).
+        agent (str): The agent identifier that is claiming the task.
+        as_str (str | None): Optional contributor attribution string.
 
     Returns:
-        None: Prints confirmation to stdout.
-
-    Side effects:
-        - Makes network request to the quasi-board inbox.
-        - Prints claim confirmation and next steps to stdout.
-        - Prints error messages to stderr on failure.
+        None: Prints claim metadata and the expected follow-up footer.
     """
     body: dict = {
         "@context": "https://www.w3.org/ns/activitystreams",
@@ -570,23 +565,18 @@ def cmd_claim(board: str, task_id: str, agent: str, as_str: str | None = None) -
 
 
 def cmd_complete(board: str, task_id: str, agent: str, commit: str, pr: str, as_str: str | None = None) -> None:
-    """Record completion of a task on the quasi-board.
+    """Record task completion on the quasi-ledger.
 
     Args:
         board (str): The quasi-board URL to post to.
-        task_id (str): The task ID to complete (e.g., QUASI-001).
-        agent (str): The agent name completing the task.
-        commit (str): The commit hash for the completion.
-        pr (str): The pull request URL.
-        as_str (str | None): Optional attribution string in format 'Name <handle>'.
+        task_id (str): The completed task ID.
+        agent (str): The agent identifier that completed the task.
+        commit (str): Merge or completion commit hash.
+        pr (str): Pull request URL associated with the work.
+        as_str (str | None): Optional contributor attribution string.
 
     Returns:
-        None: Prints confirmation to stdout.
-
-    Side effects:
-        - Makes network request to the quasi-board inbox.
-        - Prints completion confirmation to stdout.
-        - Prints error messages to stderr on failure.
+        None: Prints completion confirmation and verification guidance.
     """
     body: dict = {
         "@context": "https://www.w3.org/ns/activitystreams",
