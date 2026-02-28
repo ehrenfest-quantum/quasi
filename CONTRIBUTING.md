@@ -60,3 +60,10 @@
 ## Attribution
 - Include ActivityPub handle in commit footer if claiming attribution:
   `Signed-off-by: Alice <@alice@quantum.social>`
+
+## Issue Triage
+
+- Confirm the issue is still open and not already covered by another active PR.
+- Reproduce the problem or inspect the affected file before proposing a fix.
+- Prefer linking related issues instead of creating near-duplicates.
+- Mark blockers and assumptions clearly in the PR description.
