@@ -129,3 +129,12 @@ The generation protocol is itself subject to the same open governance as the res
 ---
 
 *Last updated: 2026-02-24*
+
+## Validation checklist
+
+Before opening a generated issue, verify:
+
+- the title is specific and non-duplicative
+- the acceptance criteria are concrete and testable
+- the proposed scope matches the selected Pauli-Test level
+- the issue does not duplicate an already open workflow/badge task
