@@ -259,12 +259,19 @@ def run_generator(model_id: str, level: int, dry_run: bool = False) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Rotate through QUASI eligible models and generate the next issue."
+        prog="quasi-agent/rotate.py",
+        description="Select the next eligible model/level pair and run the issue generator.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Examples:
+  python3 quasi-agent/rotate.py
+  python3 quasi-agent/rotate.py --dry-run
+  python3 quasi-agent/rotate.py --level 2
+""",
     )
     parser.add_argument("--dry-run", action="store_true",
-                        help="Show selection and prompt, do not create a real issue.")
+                        help="Show the chosen model/level and generator output without creating a real issue")
     parser.add_argument("--level", type=int, choices=list(LEVEL_NAMES.keys()),
-                        help="Fix the capability level (0–4). Default: auto-select.")
+                        help="Fix the capability level (0-4). Default: auto-select across all levels.")
     args = parser.parse_args()
 
     token = os.environ.get("GITHUB_TOKEN")

@@ -510,6 +510,7 @@ def record_ledger(model: str, provider: str, level: int, issue_url: str) -> None
 
 def main() -> None:
     parser = argparse.ArgumentParser(
+        prog="quasi-agent/generate_issue.py",
         description="QUASI Pauli-Test — Stage 1 issue generator",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""Examples:
@@ -529,14 +530,14 @@ def main() -> None:
 """,
     )
     parser.add_argument("--level", type=int, default=0, choices=range(5),
-                        help="Capability Ladder level to target (default: 0)")
+                        help="Capability Ladder level to target (0-4, default: %(default)s)")
     parser.add_argument("--model", default=None,
                         help=f"Model short ID or full API string (default: {DEFAULT_MODEL_ID}). "
                              f"Run --list-models to see all eligible IDs.")
     parser.add_argument("--dry-run", action="store_true",
-                        help="Print the draft issue without opening it on GitHub")
+                        help="Print the generated draft issue without opening it on GitHub")
     parser.add_argument("--list-models", action="store_true",
-                        help="Print the eligible model rotation and exit")
+                        help="Print the eligible model rotation table and exit")
     args = parser.parse_args()
 
     if args.list_models:

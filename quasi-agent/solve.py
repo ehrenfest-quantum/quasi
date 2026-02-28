@@ -500,15 +500,26 @@ def list_open_issues() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="QUASI autonomous issue solver — Pauli-Test Leaderboard B"
+        prog="quasi-agent/solve.py",
+        description="Solve a QUASI GitHub issue with an eligible model and open a PR.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Examples:
+  python3 quasi-agent/solve.py --list-open
+  python3 quasi-agent/solve.py --issue 67 --model deepseek-v3
+  python3 quasi-agent/solve.py --issue 67 --model deepseek-v3 --dry-run
+""",
     )
-    parser.add_argument("--issue", type=int, help="GitHub issue number to solve")
+    parser.add_argument(
+        "--issue",
+        type=int,
+        help="GitHub issue number to solve (integer, required unless --list-open is used)",
+    )
     parser.add_argument("--model", default="deepseek-v3",
-                        help="Model short ID from ROTATION (default: deepseek-v3)")
+                        help="Model short ID from ROTATION (default: %(default)s)")
     parser.add_argument("--dry-run", action="store_true",
-                        help="Show proposed changes without committing or opening PR")
+                        help="Show proposed changes without committing or opening a PR")
     parser.add_argument("--list-open", action="store_true",
-                        help="List open issues and exit")
+                        help="List currently open GitHub issues, then exit")
     args = parser.parse_args()
 
     if args.list_open:
