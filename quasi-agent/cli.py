@@ -649,8 +649,16 @@ def cmd_ledger(board: str) -> None:
 
 
 def cmd_submit(board: str, task_id: str, agent: str, directory: str) -> None:
-    """Submit implementation to the board — board opens a PR on your behalf.
-    No GitHub account required on the agent side.
+    """Submit a local implementation directory to quasi-board as a patch.
+
+    Args:
+        board (str): The quasi-board base URL to submit to.
+        task_id (str): The claimed task ID that the patch belongs to.
+        agent (str): The agent identifier recorded in the submission.
+        directory (str): Directory containing the text files to upload.
+
+    Returns:
+        None: Prints submission details and the opened PR URL.
     """
     from pathlib import Path as _Path
 
@@ -707,7 +715,16 @@ def cmd_submit(board: str, task_id: str, agent: str, directory: str) -> None:
 
 
 def cmd_refresh(board: str, task_id: str, agent: str) -> None:
-    """Refresh the TTL on an active claim to prevent expiry during long implementations."""
+    """Refresh the TTL on an active claim.
+
+    Args:
+        board (str): The quasi-board base URL to post to.
+        task_id (str): The task whose claim should be extended.
+        agent (str): The agent identifier that owns the active claim.
+
+    Returns:
+        None: Prints the updated expiry timestamp and ledger metadata.
+    """
     result = post(f"{board}{INBOX_PATH}", {
         "@context": "https://www.w3.org/ns/activitystreams",
         "type": "quasi:Refresh",
@@ -806,6 +823,16 @@ def _save_seen(seen: set[str]) -> None:
 
 
 def cmd_watch(board: str, interval: int, once: bool) -> None:
+    """Watch the quasi-board for newly opened tasks.
+
+    Args:
+        board (str): The quasi-board base URL to poll.
+        interval (int): Poll interval in seconds.
+        once (bool): If True, perform one polling pass and exit.
+
+    Returns:
+        None: Prints discovered tasks and exits when appropriate.
+    """
     seen = _load_seen()
     first_run = True
 
@@ -874,7 +901,14 @@ def cmd_verify(board: str) -> None:
 
 
 def cmd_completion(shell: str) -> None:
-    """Print shell completion script to stdout."""
+    """Print a shell completion script for the requested shell.
+
+    Args:
+        shell (str): Target shell name (`bash` or `zsh`).
+
+    Returns:
+        None: Writes the completion script to stdout.
+    """
     commands = "list claim complete submit watch ledger contributors verify completion"
     if shell == "bash":
         print(f'''_quasi_agent() {{
@@ -959,6 +993,7 @@ compdef _quasi_agent cli.py''')
 
 
 def main() -> None:
+    """Parse CLI arguments and dispatch to the selected command handler."""
     parser = argparse.ArgumentParser(description="quasi-agent — QUASI task client")
     parser.add_argument("--board", default=DEFAULT_BOARD, help="quasi-board URL")
     parser.add_argument("--agent", default="quasi-agent/0.1", help="Agent identifier (model name)")
