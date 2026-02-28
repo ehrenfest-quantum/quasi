@@ -1,0 +1,123 @@
+; Ehrenfest v0.2 — CBOR Schema for QUASI Physics Programs (Parametric Extension)
+; QUASI-014 | RFC 8610 CDDL
+;
+; Validate: gem install cddl && cddl spec/ehrenfest-v0.2.cddl validate <example.cbor>
+;
+; v0.2 extends v0.1 with backward-compatible parametric support:
+;   - PauliTerm coefficients may be a ParameterRef (named symbolic float)
+;   - EhrenfestProgram gains an optional "parameters" map for initial/default values
+;   - "version" must be 2 for v0.2 programs
+;
+; v0.1 programs (version=1) remain valid — Afana accepts both versions.
+
+; ─── Root ────────────────────────────────────────────────────────────────────
+
+EhrenfestProgram = {
+  "version":      uint,            ; 1 for v0.1, 2 for v0.2
+  "system":       PhysicalContext,
+  "hamiltonian":  Hamiltonian,
+  "evolution":    EvolutionTime,
+  "observables":  [+ Observable],  ; at least one observable required
+  "noise":        NoiseConstraint,
+  ? "parameters": ParameterMap,    ; NEW in v0.2: named variational parameters
+}
+
+; ─── Parameters ──────────────────────────────────────────────────────────────
+
+; Map of parameter name → initial (default) value.
+; Parameters declared here are the universe of valid ParameterRef names.
+; Afana enforces that every ParameterRef in the Hamiltonian appears in this map.
+;
+; Example:
+;   "parameters": {"theta_0": 0.5, "theta_1": 1.2}
+ParameterMap = {* tstr => float}
+
+; A symbolic reference to a named parameter from ParameterMap.
+; When a PauliTerm coefficient is a ParameterRef, Afana emits an
+; `input float[64] <name>` declaration in the OpenQASM 3.0 output.
+ParameterRef = {
+  "param": tstr,    ; parameter name, e.g. "theta_0"
+}
+
+; ─── Physical System ─────────────────────────────────────────────────────────
+
+PhysicalContext = {
+  "n_qubits":           uint,
+  ? "cooling_profile":  CoolingProfile,
+  ? "backend_hint":     tstr,
+}
+
+CoolingProfile = {
+  "target_temp_mk":  float,
+  ? "ramp_time_us":  float,
+}
+
+; ─── Hamiltonian ─────────────────────────────────────────────────────────────
+
+Hamiltonian = {
+  "terms":            [+ PauliTerm],
+  "constant_offset":  float,
+}
+
+; v0.2: coefficient may be a literal float or a ParameterRef.
+PauliTerm = {
+  "coefficient":  float / ParameterRef,   ; CHANGED: now accepts symbolic refs
+  "paulis":       [* PauliOp],
+}
+
+PauliOp = {
+  "qubit":  uint,
+  "axis":   PauliAxis,
+}
+
+PauliAxis = &(
+  I: 0,
+  X: 1,
+  Y: 2,
+  Z: 3,
+)
+
+; ─── Observables ─────────────────────────────────────────────────────────────
+
+Observable = SigmaZ / SigmaX / Energy / Density / Fidelity
+
+SigmaZ = {
+  "type":   "SZ",
+  "qubit":  uint,
+}
+
+SigmaX = {
+  "type":   "SX",
+  "qubit":  uint,
+}
+
+Energy = {
+  "type":  "E",
+}
+
+Density = {
+  "type":    "rho",
+  "qubits":  [+ uint],
+}
+
+Fidelity = {
+  "type":          "F",
+  "target_state":  bstr,
+}
+
+; ─── Time Evolution ──────────────────────────────────────────────────────────
+
+EvolutionTime = {
+  "total_us":  float,
+  "steps":     uint,
+  "dt_us":     float,
+}
+
+; ─── Noise Constraints ───────────────────────────────────────────────────────
+
+NoiseConstraint = {
+  "t1_us":                    float,
+  "t2_us":                    float,
+  ? "gate_fidelity_min":      float,
+  ? "readout_fidelity_min":   float,
+}

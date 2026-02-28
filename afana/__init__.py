@@ -15,6 +15,7 @@ from .noise_model import (
     validate_noise_channels,
 )
 from .optimize import optimize_qasm, optimize_qasm_with_stats
+from .parametric import ParametricCompileError, bind_parameters, compile_parametric
 from .parser import ConditionalGate, EhrenfestAST, Gate, Measure, Expect, ParseError, parse, parse_file
 from .phase_kickback import phase_kickback
 
@@ -43,6 +44,9 @@ __all__ = [
     "Gate",
     "Measure",
     "Expect",
+    "ParametricCompileError",
+    "bind_parameters",
+    "compile_parametric",
     "ParseError",
     "parse",
     "parse_file",
