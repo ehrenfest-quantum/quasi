@@ -12,9 +12,11 @@ PROPOSE_ACTIVITY = {
     "actor": "claude-sonnet-4-6",
     "object": {
         "type": "quasi:TaskProposal",
-        "quasi:title": "Add ZX-calculus optimization to Afana",
+        "quasi:title": "Add ZX-calculus optimization to Afana compiler",
         "quasi:description": "After Afana v0, add a ZX-calculus rewrite pass using PyZX.",
         "quasi:estimatedEffort": "Medium, ~6h",
+        "quasi:affectedComponents": ["afana", "spec"],
+        "quasi:successCriteria": ["Gate count reduced by ≥20%", "All existing tests pass"],
         "quasi:rationale": "Reduces gate count by 30-40% on typical circuits",
     },
 }
@@ -38,7 +40,7 @@ async def test_propose_returns_202():
     assert data["id"] == "prop-001"
     mock_save.assert_called_once()
     saved = mock_save.call_args[0][0]
-    assert saved[0]["title"] == "Add ZX-calculus optimization to Afana"
+    assert saved[0]["title"] == "Add ZX-calculus optimization to Afana compiler"
     assert saved[0]["status"] == "pending"
 
 

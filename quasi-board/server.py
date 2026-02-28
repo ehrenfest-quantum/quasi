@@ -1221,14 +1221,79 @@ async def _process_activity(body: dict) -> JSONResponse:
         if not title or not description:
             raise HTTPException(400, "quasi:title and quasi:description are required")
 
-        proposals = _load_proposals()
+        # ── Pauli-Test quality gate ────────────────────────────────────────────
+        effort_raw = str(proposal_obj.get("quasi:estimatedEffort", "")).strip()
+        affected = proposal_obj.get("quasi:affectedComponents", [])
+        criteria = proposal_obj.get("quasi:successCriteria", [])
+
+        if not effort_raw:
+            raise HTTPException(400, "quasi:estimatedEffort is required (trivial|small|medium|large|xlarge)")
+
+        # Accept both exact labels and phrases like "Medium, ~6h"
+        _EFFORT_RE = _re.compile(r"\b(trivial|small|medium|large|xlarge)\b", _re.IGNORECASE)
+        _effort_match = _EFFORT_RE.search(effort_raw)
+        if not _effort_match:
+            raise HTTPException(400, "quasi:estimatedEffort must contain one of: trivial, small, medium, large, xlarge")
+        effort = _effort_match.group(1).lower()
+
+        if effort == "trivial":
+            raise HTTPException(400, "trivial-effort proposals are not accepted — minimum scope is 'small'")
+
+        if not isinstance(affected, list) or len(affected) == 0:
+            raise HTTPException(400, "quasi:affectedComponents (list) is required")
+
+        if not isinstance(criteria, list) or len(criteria) == 0:
+            raise HTTPException(400, "quasi:successCriteria (list with at least one criterion) is required")
+
+        if effort == "small" and len(affected) < 2 and len(criteria) < 3:
+            raise HTTPException(
+                400,
+                "'small' effort proposals must affect ≥2 components OR have ≥3 success criteria"
+            )
+
+        # L0 global cap: reject if ≥2 open L0 proposals already exist
+        level = str(proposal_obj.get("quasi:level", "")).strip().upper()
+        if level == "L0":
+            existing = _load_proposals()
+            open_l0 = sum(
+                1 for p in existing
+                if p.get("status") == "pending"
+                and str(p.get("level", "")).upper() == "L0"
+            )
+            if open_l0 >= 2:
+                raise HTTPException(
+                    429,
+                    "L0 task cap reached: maximum 2 open L0 proposals at a time"
+                )
+
+        # Semantic dedup: reject near-duplicates by title keyword overlap
+        _title_words = {w.lower() for w in _re.findall(r"\w+", title) if len(w) > 3}
+        existing_proposals = _load_proposals()
+        for p in existing_proposals:
+            if p.get("status") in ("accepted", "rejected"):
+                continue
+            existing_words = {w.lower() for w in _re.findall(r"\w+", p.get("title", "")) if len(w) > 3}
+            if existing_words and _title_words:
+                overlap = len(_title_words & existing_words) / max(len(_title_words), len(existing_words))
+                if overlap >= 0.6:
+                    raise HTTPException(
+                        409,
+                        f"Near-duplicate proposal detected (similarity {overlap:.0%}) — "
+                        f"see existing proposal {p['id']}: {p['title']!r}"
+                    )
+        # ── End Pauli-Test gate ────────────────────────────────────────────────
+
+        proposals = existing_proposals
         prop_id = f"prop-{len(proposals) + 1:03d}"
         proposal: dict[str, Any] = {
             "id": prop_id,
             "title": title,
             "description": description,
-            "estimated_effort": str(proposal_obj.get("quasi:estimatedEffort", ""))[:200],
+            "estimated_effort": effort,
+            "affected_components": [str(c)[:100] for c in affected],
+            "success_criteria": [str(c)[:500] for c in criteria],
             "rationale": str(proposal_obj.get("quasi:rationale", ""))[:500],
+            "level": level or "L1",
             "proposed_by": str(body.get("actor", "unknown"))[:200],
             "proposed_at": datetime.now(timezone.utc).isoformat(),
             "status": "pending",

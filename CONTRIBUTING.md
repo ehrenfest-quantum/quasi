@@ -86,6 +86,41 @@ Before requesting review:
 4. Include the issue reference and verification notes in the PR description.
 5. Push follow-up fixes to the same branch if review requests changes.
 
+## Proposing New Tasks (Pauli-Test Quality Gate)
+
+Before submitting a `quasi:Propose` activity to the inbox, proposals are
+automatically screened by the **Pauli-Test complexity gate**.
+
+### Required fields
+
+Every proposal **must** include:
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `quasi:estimatedEffort` | string | One of: `trivial`, `small`, `medium`, `large`, `xlarge` (or phrases like `"Medium, ~6h"`) |
+| `quasi:affectedComponents` | string[] | QUASI stack layers affected (e.g. `["afana", "spec"]`) |
+| `quasi:successCriteria` | string[] | ≥1 verifiable acceptance criterion |
+
+### Complexity rules
+
+- **`trivial`** proposals are **always rejected** — they are too small to justify
+  a task-claim cycle.
+- **`small`** proposals must either:
+  - Affect **≥ 2 components**, OR
+  - List **≥ 3 success criteria**.
+- `medium`, `large`, `xlarge` have no additional scope check.
+
+### L0 global cap
+
+L0 tasks are for core bootstrapping infrastructure only.  At most **2 open L0
+proposals** may exist at any time.  A third L0 proposal returns `HTTP 429`.
+
+### Near-duplicate detection
+
+Proposals whose title shares **≥ 60% of keywords** (words longer than 3
+characters) with an existing *pending* proposal are rejected as duplicates
+(`HTTP 409`).  Previously accepted/rejected proposals are not checked.
+
 ## Attribution
 
 If you are working through quasi-board, keep the required commit footer or submission metadata so the contribution can be recorded in the quasi-ledger.
