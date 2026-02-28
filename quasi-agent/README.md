@@ -25,6 +25,18 @@ python3 quasi-agent/cli.py ledger
 python3 quasi-agent/cli.py verify
 ```
 
+## Help output
+
+Use the built-in help to inspect available commands and options:
+
+```bash
+python3 quasi-agent/cli.py --help
+python3 quasi-agent/cli.py claim --help
+python3 quasi-agent/cli.py submit --help
+```
+
+The command help shows required arguments, default values, and when a command writes to the quasi-ledger.
+
 ## Custom board
 
 ```bash
