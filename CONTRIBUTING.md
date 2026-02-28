@@ -60,6 +60,14 @@
 - Add or update tests whenever behavior changes.
 - Mention any test command you ran in the PR description.
 
+## Contribution Workflow Checklist
+
+1. Start from the latest `main` before creating a feature branch.
+2. Keep the branch focused on a single issue or acceptance target.
+3. Run the narrowest relevant verification command before opening the PR.
+4. Include the issue reference and verification notes in the PR description.
+5. Push follow-up fixes to the same branch if review requests changes.
+
 ## Attribution
 
 If you are working through quasi-board, keep the required commit footer or submission metadata so the contribution can be recorded in the quasi-ledger.
