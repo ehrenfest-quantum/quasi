@@ -2,7 +2,7 @@
 
 import pytest
 from afana.parser import (
-    EhrenfestAST, Gate, Measure, Expect,
+    EhrenfestAST, Gate, Measure, Expect, TypeDecl,
     ParseError, parse, parse_file,
 )
 
@@ -241,3 +241,107 @@ def test_parse_file_examples(tmp_path):
         ast = parse_file(ef)
         assert ast.n_qubits >= 1
         assert ast.name  # non-empty
+
+
+# ── Type declarations ─────────────────────────────────────────────────────────
+
+def test_type_decl_simple():
+    """A single type alias before the program header is collected."""
+    src = _src(
+        "type AngleRad = Float",
+        'program "p"',
+        "qubits 1",
+    )
+    ast = parse(src)
+    assert len(ast.type_decls) == 1
+    td = ast.type_decls[0]
+    assert td.name == "AngleRad"
+    assert td.definition == "Float"
+
+
+def test_type_decl_tuple():
+    """Tuple type expressions are preserved verbatim."""
+    src = _src(
+        "type QubitPair = ( Qubit Qubit )",
+        'program "p"',
+        "qubits 2",
+    )
+    ast = parse(src)
+    assert len(ast.type_decls) == 1
+    assert ast.type_decls[0].name == "QubitPair"
+    assert ast.type_decls[0].definition == "( Qubit Qubit )"
+
+
+def test_type_decl_multiple():
+    """Three or more type declarations are all collected (acceptance criterion)."""
+    src = _src(
+        "type QubitPair = ( Qubit Qubit )",
+        "type QubitTriple = ( Qubit Qubit Qubit )",
+        "type AngleRad = Float",
+        'program "types-demo"',
+        "qubits 3",
+        "h q0",
+        "cnot q0 q1",
+        "cnot q0 q2",
+    )
+    ast = parse(src)
+    assert isinstance(ast, EhrenfestAST)
+    assert len(ast.type_decls) == 3
+    names = [td.name for td in ast.type_decls]
+    assert names == ["QubitPair", "QubitTriple", "AngleRad"]
+
+
+def test_type_decl_cbor_tag():
+    """TypeDecl.to_dict() returns a CBOR-compatible dict with the schema v0.3+ tag."""
+    td = TypeDecl(name="QubitPair", definition="( Qubit Qubit )")
+    d = td.to_dict()
+    assert d["_tag"] == "quasi.org/ast/type-alias"
+    assert d["name"] == "QubitPair"
+    assert d["definition"] == "( Qubit Qubit )"
+
+
+def test_type_decl_no_decls_gives_empty_list():
+    """Programs without type declarations have an empty type_decls list."""
+    src = _src('program "p"', "qubits 1")
+    ast = parse(src)
+    assert ast.type_decls == []
+
+
+def test_type_decl_in_body():
+    """Type declarations inside the program body (after qubits) are also parsed."""
+    src = _src(
+        'program "p"',
+        "qubits 1",
+        "type Angle = Float",
+        "h q0",
+    )
+    ast = parse(src)
+    assert len(ast.type_decls) == 1
+    assert ast.type_decls[0].name == "Angle"
+    assert len(ast.gates) == 1
+
+
+def test_type_decl_missing_equals():
+    """Missing '=' in type declaration raises ParseError."""
+    with pytest.raises(ParseError, match="'type' declaration expects '='"):
+        # 4 tokens but wrong separator: "type Foo Bar Baz" -> toks[2]=="Bar" != "="
+        parse(_src("type Foo Bar Baz", 'program "p"', "qubits 1"))
+
+
+def test_type_decl_missing_expression():
+    """Type declaration without a type expression raises ParseError."""
+    with pytest.raises(ParseError, match="'type' declaration requires a type expression"):
+        parse(_src("type Foo =", 'program "p"', "qubits 1"))
+
+
+def test_parse_types_ef_example():
+    """examples/types.ef parses to a valid TypedAST with 3 type declarations."""
+    import pathlib
+    types_ef = pathlib.Path(__file__).parent.parent.parent / "examples" / "types.ef"
+    ast = parse_file(types_ef)
+    assert isinstance(ast, EhrenfestAST)
+    assert len(ast.type_decls) >= 3
+    names = [td.name for td in ast.type_decls]
+    assert "QubitPair" in names
+    assert "QubitTriple" in names
+    assert "AngleRad" in names
