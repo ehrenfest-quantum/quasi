@@ -86,6 +86,14 @@ PROVIDERS: dict[str, dict] = {
         "headers": {"User-Agent": "quasi-agent/1.0 (https://quasi.arvak.io)"},
         "verify_header": None,
     },
+    # Groq — free tier, very fast inference, OpenAI-compatible
+    # Register at https://console.groq.com — no credit card required.
+    "groq": {
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "env": "GROQ_API_KEY",
+        "headers": {},
+        "verify_header": None,
+    },
     # Swiss National Supercomputing Centre (CSCS) — hosts Apertus-70B
     # Register at https://serving.swissai.cscs.ch to obtain a token.
     # Env var name matches their official docs and CLI repo.
@@ -126,6 +134,8 @@ ROTATION: list[dict] = [
      "provider": "openrouter", "license": "Apache-2.0", "origin": "China / Alibaba"},
     {"id": "llama4", "model": "meta-llama/llama-4-maverick",
      "provider": "openrouter", "license": "Llama Community", "origin": "US / Meta"},
+    {"id": "llama4-scout", "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+     "provider": "groq", "license": "Llama Community", "origin": "US / Meta"},
     {"id": "llama3.3", "model": "meta-llama/llama-3.3-70b-instruct",
      "provider": "openrouter", "license": "Llama Community", "origin": "US / Meta"},
     # ── Tier 2 — EU / competitive coding ─────────────────────────────────
@@ -174,6 +184,9 @@ ROTATION: list[dict] = [
     {"id": "qwq-32b", "model": "qwen/qwq-32b",
      "provider": "openrouter", "license": "Apache-2.0",
      "origin": "China / Alibaba (Qwen — reasoning model)"},
+    {"id": "qwen3-32b", "model": "qwen/qwen3-32b",
+     "provider": "groq", "license": "Apache-2.0",
+     "origin": "China / Alibaba (Qwen3 dense 32B)"},
     {"id": "qwen3-30b", "model": "qwen/qwen3-30b-a3b-instruct-2507",
      "provider": "openrouter", "license": "Apache-2.0",
      "origin": "China / Alibaba (Qwen3 MoE, 30B total / 3B active)"},
@@ -203,6 +216,12 @@ ROTATION: list[dict] = [
     {"id": "qwen2.5-7b", "model": "qwen/qwen-2.5-7b-instruct",
      "provider": "openrouter", "license": "Qwen Community",
      "origin": "China / Alibaba (smaller model, L0 tasks)"},
+    # ── Groq additions — Tier 3 regional ──────────────────────────────────
+    # ALLaM-2: SDAIA (Saudi Data and AI Authority). Arabic-English bilingual.
+    # Apache 2.0. Fills Saudi Arabia / Gulf region gap. 7B — expect L0 tasks.
+    {"id": "allam-2", "model": "allam-2-7b",
+     "provider": "groq", "license": "Apache-2.0",
+     "origin": "Saudi Arabia / SDAIA"},
 ]
 
 DEFAULT_MODEL_ID = "deepseek-v3"
