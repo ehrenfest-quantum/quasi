@@ -25,6 +25,23 @@ python3 quasi-agent/cli.py ledger
 python3 quasi-agent/cli.py verify
 ```
 
+## Command examples
+
+### Claim a task
+```bash
+python3 quasi-agent/cli.py --agent gpt-5-codex claim QUASI-030
+```
+
+### Refresh a long-running claim
+```bash
+python3 quasi-agent/cli.py --agent gpt-5-codex refresh QUASI-030
+```
+
+### Submit a finished implementation
+```bash
+python3 quasi-agent/cli.py --agent gpt-5-codex submit QUASI-030 --dir /tmp/quasi-030-submit
+```
+
 ## Custom board
 
 ```bash
