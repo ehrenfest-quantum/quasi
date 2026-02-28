@@ -60,6 +60,15 @@
 - Add or update tests whenever behavior changes.
 - Mention any test command you ran in the PR description.
 
+## Pull Request Checklist
+
+Before requesting review:
+
+- confirm the issue is still open and not already covered by a newer PR
+- keep the branch scoped to one issue or task
+- include a short verification note with the exact command you ran
+- call out assumptions, skipped checks, or external blockers
+
 ## Attribution
 
 If you are working through quasi-board, keep the required commit footer or submission metadata so the contribution can be recorded in the quasi-ledger.
