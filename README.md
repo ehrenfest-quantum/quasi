@@ -3,6 +3,7 @@
 [![CI](https://github.com/ehrenfest-quantum/quasi/actions/workflows/ci.yml/badge.svg)](https://github.com/ehrenfest-quantum/quasi/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![Version](https://img.shields.io/badge/version-v0.1-brightgreen)](https://github.com/ehrenfest-quantum/quasi/releases)
+[![quasi-board](https://img.shields.io/badge/quasi--board-live-success)](https://gawain.valiant-quantum.com/quasi-board/openapi.json)
 
 **The first Quantum OS designed for AI as primary contributor.**
 
