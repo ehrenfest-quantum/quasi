@@ -60,6 +60,13 @@
 - Add or update tests whenever behavior changes.
 - Mention any test command you ran in the PR description.
 
+## Issue Triage
+
+- confirm the issue is still open before starting work
+- check whether another active PR already covers the same change
+- inspect the affected file or reproduce the reported behavior first
+- note blockers, assumptions, or missing context in the PR description
+
 ## Attribution
 
 If you are working through quasi-board, keep the required commit footer or submission metadata so the contribution can be recorded in the quasi-ledger.
