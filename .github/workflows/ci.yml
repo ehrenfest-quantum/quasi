@@ -149,6 +149,45 @@ jobs:
           echo "✅ CLI loads cleanly"
 
 
+  # ── HAL Contract Validation ───────────────────────────────────────────
+  hal-contract:
+    name: "Layer 0 · HAL Contract validation"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install jsonschema
+        run: pip install jsonschema
+
+      - name: Validate HAL Contract schema
+        run: |
+          python3 -c "
+          import json
+          import jsonschema
+          import os
+          
+          # Load the HAL contract schema
+          with open('afana/hal-contract.json', 'r') as f:
+              schema = json.load(f)
+          
+          # Validate all fixture files against the schema
+          fixtures_dir = 'afana/tests/fixtures/hal_requests/'
+          if os.path.exists(fixtures_dir):
+              for filename in os.listdir(fixtures_dir):
+                  if filename.endswith('.json'):
+                      with open(os.path.join(fixtures_dir, filename), 'r') as f:
+                          instance = json.load(f)
+                      jsonschema.validate(instance, schema)
+                      print(f'✅ {filename} validates against HAL contract')
+          print('✅ HAL Contract validation passed')
+          "
+
   # ── Quality Radar ①: Compiler boundary — no vendor SDKs in afana/ ────────
   compiler-boundary:
     name: "Quality Radar ① · Compiler boundary"

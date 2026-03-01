@@ -1,0 +1,14 @@
+{
+  "circuit_payload": {
+    "operations": [
+      {"gate": "RX", "qubits": [0], "parameters": [1.57]},
+      {"gate": "RY", "qubits": [1], "parameters": [0.78]}
+    ]
+  },
+  "backend_policy": "simulator",
+  "shots": 2048,
+  "error_mitigation": {
+    "enabled": false
+  },
+  "signature_blob": "def456signature"
+}

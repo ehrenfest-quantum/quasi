@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HAL Contract for Quantum Execution Requests",
+  "description": "Schema for quantum hardware execution requests in the QUASI OS",
+  "type": "object",
+  "required": [
+    "circuit_payload",
+    "backend_policy",
+    "shots",
+    "error_mitigation",
+    "signature_blob"
+  ],
+  "properties": {
+    "circuit_payload": {
+      "type": "object",
+      "description": "The quantum circuit to execute, in a backend-agnostic format"
+    },
+    "backend_policy": {
+      "type": "string",
+      "description": "Backend selection policy for execution",
+      "enum": ["least_busy", "simulator", "specific_backend"]
+    },
+    "shots": {
+      "type": "integer",
+      "description": "Number of shots to execute",
+      "minimum": 1
+    },
+    "error_mitigation": {
+      "type": "object",
+      "description": "Error mitigation settings",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "technique": {
+          "type": "string",
+          "enum": ["none", "zero_noise_extrapolation", "probabilistic_error_cancellation"]
+        }
+      },
+      "required": ["enabled"]
+    },
+    "signature_blob": {
+      "type": "string",
+      "description": "Deterministic signature for request authentication"
+    }
+  }
+}

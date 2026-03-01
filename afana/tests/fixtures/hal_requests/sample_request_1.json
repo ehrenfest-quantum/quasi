@@ -1,0 +1,15 @@
+{
+  "circuit_payload": {
+    "operations": [
+      {"gate": "H", "qubits": [0]},
+      {"gate": "CX", "qubits": [0, 1]}
+    ]
+  },
+  "backend_policy": "least_busy",
+  "shots": 1024,
+  "error_mitigation": {
+    "enabled": true,
+    "technique": "zero_noise_extrapolation"
+  },
+  "signature_blob": "abc123signature"
+}
