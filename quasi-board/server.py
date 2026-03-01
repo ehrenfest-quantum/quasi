@@ -20,11 +20,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from email.utils import formatdate
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 import hmac as _hmac
@@ -50,6 +50,51 @@ PENDING_MERGES_FILE = Path("/home/vops/quasi-board/pending-merges.json")
 ACTOR_KEY_ID = f"{ACTOR_URL}#main-key"
 
 AP_CONTENT_TYPE = "application/activity+json"
+
+
+# ── WebSocket connection manager ──────────────────────────────────────────────
+
+class _StreamManager:
+    """Manages active WebSocket connections for the /quasi-board/stream endpoint."""
+
+    def __init__(self) -> None:
+        self._connections: set[WebSocket] = set()
+
+    async def connect(self, ws: WebSocket) -> None:
+        await ws.accept()
+        self._connections.add(ws)
+
+    def disconnect(self, ws: WebSocket) -> None:
+        self._connections.discard(ws)
+
+    async def broadcast(self, event: dict) -> None:
+        """Send *event* as JSON to all connected clients.
+
+        Silently drops clients that have already disconnected.
+        """
+        payload = json.dumps(event)
+        dead: list[WebSocket] = []
+        for ws in list(self._connections):
+            try:
+                await ws.send_text(payload)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self._connections.discard(ws)
+
+
+_stream = _StreamManager()
+
+
+async def _broadcast_event(event_type: str, task: dict) -> None:
+    """Broadcast a task event to all connected WebSocket clients.
+
+    Args:
+        event_type: One of ``"new_task"``, ``"task_claimed"``, ``"task_completed"``,
+            ``"task_expired"``, ``"task_submitted"``.
+        task: Task payload dict (at minimum ``{"id": ..., "type": event_type}``).
+    """
+    await _stream.broadcast({"type": event_type, "task": task})
 
 
 @asynccontextmanager
@@ -345,7 +390,7 @@ def _save_pending_merges(merges: list) -> None:
     PENDING_MERGES_FILE.write_text(json.dumps(merges, indent=2))
 
 
-async def _fetch_github_issue(issue_number: int) -> dict | None:
+async def _fetch_github_issue(issue_number: int) -> Optional[dict]:
     """Fetch a single GitHub issue by number.
 
     Returns None on transient failure. Raises TaskNotFoundError when GitHub
@@ -566,6 +611,8 @@ async def _expiry_loop() -> None:
                     "Claim expiry: released %d stale claim(s): %s",
                     len(expired), ", ".join(expired),
                 )
+                for task_id in expired:
+                    await _broadcast_event("task_expired", {"id": task_id})
         except Exception:
             pass
 
@@ -1028,6 +1075,7 @@ async def _process_activity(body: dict) -> JSONResponse:
             "quasi:agent": agent,
             "quasi:ledgerEntry": entry["id"],
         })
+        await _broadcast_event("task_claimed", {"id": task_id, "agent": agent, "ledger_entry": entry["id"]})
         return JSONResponse({"status": "claimed", "ledger_entry": entry["id"], "entry_hash": entry["entry_hash"]})
 
     if activity_type == "Create" and body.get("quasi:type") == "patch":
@@ -1149,6 +1197,10 @@ async def _process_activity(body: dict) -> JSONResponse:
                 "quasi:ledgerEntry": entry["id"],
             },
         })
+        await _broadcast_event(
+            "task_completed",
+            {"id": task_id, "agent": agent, "pr_url": pr_url, "ledger_entry": entry["id"]},
+        )
         return JSONResponse({"status": "recorded", "ledger_entry": entry["id"], "entry_hash": entry["entry_hash"]})
 
     if activity_type == "Create" and body.get("quasi:type") == "issue_generated":
@@ -1374,6 +1426,39 @@ async def health():
     return {"status": "ok", "domain": DOMAIN, "ledger_entries": len(load_ledger())}
 
 
+# ── WebSocket stream ──────────────────────────────────────────────────────────
+
+@app.websocket("/quasi-board/stream")
+async def stream(ws: WebSocket):
+    """Real-time task event feed.
+
+    Clients connect and receive JSON messages whenever a task is claimed,
+    completed, submitted, expired, or a new task proposal is accepted.
+
+    Event format::
+
+        {"type": "new_task"|"task_claimed"|"task_completed"|"task_submitted"|"task_expired",
+         "task": {"id": str, ...}}
+
+    The connection is kept open until the client disconnects.
+    A ``{"type": "ping"}`` frame is sent every 30 seconds to keep NAT
+    connections alive.
+    """
+    await _stream.connect(ws)
+    try:
+        while True:
+            # Keep connection alive; real events are pushed via _broadcast_event.
+            # 30-second ping interval is short enough to survive most NAT timeouts.
+            await asyncio.sleep(30)
+            await ws.send_text(json.dumps({"type": "ping"}))
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        _stream.disconnect(ws)
+
+
 # ── Stats ──────────────────────────────────────────────────────────────────────
 
 def _fetch_open_issue_count() -> int:
@@ -1472,6 +1557,7 @@ async def accept_proposal(prop_id: str, request: Request):
                 "proposed_by": p["proposed_by"],
             })
             await _notify_daniel(f"✅ Proposal accepted: {p['title']} ({prop_id})")
+            await _broadcast_event("new_task", {"id": prop_id, "title": p["title"], "proposed_by": p["proposed_by"]})
             return JSONResponse({
                 "status": "accepted",
                 "proposal": p,
