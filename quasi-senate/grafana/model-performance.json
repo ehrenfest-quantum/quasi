@@ -1,0 +1,2177 @@
+{
+  "__inputs": [
+    {
+      "description": "quasi_senate postgres datasource on Camelot",
+      "label": "PostgreSQL",
+      "name": "DS_POSTGRESQL",
+      "pluginId": "postgres",
+      "pluginName": "PostgreSQL",
+      "type": "datasource"
+    }
+  ],
+  "__requires": [
+    {
+      "id": "grafana",
+      "name": "Grafana",
+      "type": "grafana",
+      "version": "10.0.0"
+    },
+    {
+      "id": "postgres",
+      "name": "PostgreSQL",
+      "type": "datasource",
+      "version": "1.0.0"
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "description": "Rolling 7-day model performance: approval rate, JSON compliance, latency, provider fidelity \u2014 across all five Senate Loop roles.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "title": "7-Day Overview",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawSql": "SELECT count(*) AS \"LLM Calls\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false"
+        }
+      ],
+      "title": "LLM Calls (7 days)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawSql": "SELECT count(DISTINCT base_model) AS \"Models\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false"
+        }
+      ],
+      "title": "Active Models (7 days)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 40
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "green",
+                "value": 75
+              }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawSql": "SELECT round(100.0 * sum(CASE WHEN downstream_verdict='approved' THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','rejected','json_fail') THEN 1 END), 0), 1) AS \"Approval %\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false"
+        }
+      ],
+      "title": "Overall Approval Rate (7 days)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 70
+              },
+              {
+                "color": "yellow",
+                "value": 85
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawSql": "SELECT round(100.0 * sum(CASE WHEN json_parse_ok = true THEN 1 ELSE 0 END) / count(*), 1) AS \"JSON %\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false"
+        }
+      ],
+      "title": "JSON Compliance (7 days)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "orange",
+                "value": 30
+              },
+              {
+                "color": "red",
+                "value": 60
+              }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawSql": "SELECT round(avg(latency_ms) / 1000.0, 1) AS \"Avg Latency (s)\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false"
+        }
+      ],
+      "title": "Avg Latency (7 days)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawSql": "SELECT round(100.0 * sum(CASE WHEN model_verified = true THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN model_verified IS NOT NULL THEN 1 END), 0), 1) AS \"Fidelity %\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false"
+        }
+      ],
+      "title": "Provider Fidelity (7 days)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 101,
+      "title": "Hall of Fame / Shame",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "green",
+            "mode": "fixed"
+          },
+          "mappings": []
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 7
+      },
+      "id": 10,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 28
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawSql": "SELECT base_model || ' \u2014 ' || coalesce(round(100.0 * sum(CASE WHEN downstream_verdict='approved' THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','rejected','json_fail') THEN 1 END),0),0)::text,'?') || '% approval' AS \"Best Model\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY round(100.0 * sum(CASE WHEN downstream_verdict='approved' THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','rejected','json_fail') THEN 1 END),0),2) DESC NULLS LAST LIMIT 1"
+        }
+      ],
+      "title": "\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd Top Performer (7 days, \u226510 calls)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "mappings": []
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 7
+      },
+      "id": 11,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 28
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawSql": "SELECT base_model || ' \u2014 ' || coalesce(round(100.0 * sum(CASE WHEN downstream_verdict='approved' THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','rejected','json_fail') THEN 1 END),0),0)::text,'?') || '% approval' AS \"Sir Slopalot\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY round(100.0 * sum(CASE WHEN downstream_verdict='approved' THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','rejected','json_fail') THEN 1 END),0),2) ASC NULLS LAST LIMIT 1"
+        }
+      ],
+      "title": "\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd Sir Slopalot (7 days, \u226510 calls)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "mappings": []
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 7
+      },
+      "id": 12,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "text": {
+          "titleSize": 16,
+          "valueSize": 28
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawSql": "SELECT base_model || ' \u2014 ' || round(avg(latency_ms)/1000.0,1)::text || 's avg' AS \"Fastest\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY avg(latency_ms) ASC LIMIT 1"
+        }
+      ],
+      "title": "\u26a1 Fastest Model (7 days, \u226510 calls)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 102,
+      "title": "Model Rankings",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center",
+            "displayMode": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Approval %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "rgba(220,53,69,0.7)",
+                      "value": null
+                    },
+                    {
+                      "color": "rgba(255,140,0,0.7)",
+                      "value": 40
+                    },
+                    {
+                      "color": "rgba(255,200,0,0.7)",
+                      "value": 60
+                    },
+                    {
+                      "color": "rgba(40,167,69,0.7)",
+                      "value": 75
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "JSON %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "rgba(220,53,69,0.7)",
+                      "value": null
+                    },
+                    {
+                      "color": "rgba(255,140,0,0.7)",
+                      "value": 70
+                    },
+                    {
+                      "color": "rgba(40,167,69,0.7)",
+                      "value": 90
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Latency (s)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "rgba(40,167,69,0.7)",
+                      "value": null
+                    },
+                    {
+                      "color": "rgba(255,200,0,0.7)",
+                      "value": 10
+                    },
+                    {
+                      "color": "rgba(255,140,0,0.7)",
+                      "value": 30
+                    },
+                    {
+                      "color": "rgba(220,53,69,0.7)",
+                      "value": 60
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Fidelity %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "rgba(220,53,69,0.7)",
+                      "value": null
+                    },
+                    {
+                      "color": "rgba(40,167,69,0.7)",
+                      "value": 95
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 20,
+      "options": {
+        "footer": {
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Approval %"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawSql": "SELECT base_model AS \"Model\", count(*) AS \"Calls\", round(100.0 * sum(CASE WHEN downstream_verdict='approved' THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','rejected','json_fail') THEN 1 END),0),1) AS \"Approval %\", round(100.0 * sum(CASE WHEN json_parse_ok = true THEN 1 ELSE 0 END) / count(*),1) AS \"JSON %\", round(avg(latency_ms)/1000.0,1) AS \"Latency (s)\", round(avg(retries),2) AS \"Avg Retries\", round(100.0 * sum(CASE WHEN model_verified = true THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN model_verified IS NOT NULL THEN 1 END),0),1) AS \"Fidelity %\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 3 ORDER BY \"Approval %\" DESC NULLS LAST"
+        }
+      ],
+      "title": "Model Performance \u2014 7 Days (sorted by approval rate)",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "id": 103,
+      "title": "Role Heatmap \u2014 Approval Rate by Model \u00d7 Role",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "description": "Each cell: approval % in that role. Grey = no data. Red < 40% < Orange < 60% < Yellow < 75% < Green.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center",
+            "displayMode": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^A[123]|^B[12]"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "noValue",
+                "value": "\u2014"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "rgba(220,53,69,0.7)",
+                      "value": null
+                    },
+                    {
+                      "color": "rgba(255,140,0,0.7)",
+                      "value": 40
+                    },
+                    {
+                      "color": "rgba(255,200,0,0.7)",
+                      "value": 60
+                    },
+                    {
+                      "color": "rgba(40,167,69,0.7)",
+                      "value": 75
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "id": 30,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Calls"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawSql": "SELECT base_model AS \"Model\", count(*) AS \"Calls\", round(100.0 * sum(CASE WHEN downstream_verdict='approved' AND role='A1_council' THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN role='A1_council' AND downstream_verdict IN ('approved','rejected','json_fail') THEN 1 ELSE 0 END),0),0) AS \"A1 Council\", round(100.0 * sum(CASE WHEN downstream_verdict='approved' AND role='A2_drafter' THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN role='A2_drafter' AND downstream_verdict IN ('approved','rejected','json_fail') THEN 1 ELSE 0 END),0),0) AS \"A2 Drafter\", round(100.0 * sum(CASE WHEN downstream_verdict='approved' AND role='A3_gate' THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN role='A3_gate' AND downstream_verdict IN ('approved','rejected','json_fail') THEN 1 ELSE 0 END),0),0) AS \"A3 Gate\", round(100.0 * sum(CASE WHEN downstream_verdict='approved' AND role='B1_solver' THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN role='B1_solver' AND downstream_verdict IN ('approved','rejected','json_fail') THEN 1 ELSE 0 END),0),0) AS \"B1 Solver\", round(100.0 * sum(CASE WHEN downstream_verdict='approved' AND role='B2_reviewer' THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN role='B2_reviewer' AND downstream_verdict IN ('approved','rejected','json_fail') THEN 1 ELSE 0 END),0),0) AS \"B2 Reviewer\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 2 ORDER BY count(*) DESC"
+        }
+      ],
+      "title": "Approval % by Model \u00d7 Role (7 days)",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 41
+      },
+      "id": 104,
+      "title": "Trends",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "max": 100,
+          "min": 0,
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "id": 40,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('hour', timestamp) + (floor(extract(epoch from timestamp - date_trunc('day',timestamp)) / 14400) * interval '4 hours') AS time, base_model AS metric, round(100.0 * sum(CASE WHEN downstream_verdict='approved' THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','rejected','json_fail') THEN 1 END),0),1) AS \"Approval %\" FROM senate_telemetry WHERE $__timeFilter(timestamp) AND dry_run = false GROUP BY 1, 2 HAVING count(*) >= 2 ORDER BY 1, 2"
+        }
+      ],
+      "title": "Approval Rate Trend \u2014 4-Hour Bins",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "spanNulls": false
+          },
+          "max": 100,
+          "min": 0,
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 52
+      },
+      "id": 41,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('hour', timestamp) + (floor(extract(epoch from timestamp - date_trunc('day',timestamp)) / 14400) * interval '4 hours') AS time, base_model AS metric, round(100.0 * sum(CASE WHEN json_parse_ok = true THEN 1 ELSE 0 END) / count(*),1) AS \"JSON %\" FROM senate_telemetry WHERE $__timeFilter(timestamp) AND dry_run = false GROUP BY 1, 2 HAVING count(*) >= 2 ORDER BY 1, 2"
+        }
+      ],
+      "title": "JSON Compliance Trend \u2014 4-Hour Bins",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "spanNulls": false
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 52
+      },
+      "id": 42,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "asc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('hour', timestamp) + (floor(extract(epoch from timestamp - date_trunc('day',timestamp)) / 14400) * interval '4 hours') AS time, base_model AS metric, round(avg(latency_ms)/1000.0,2) AS \"Latency (s)\" FROM senate_telemetry WHERE $__timeFilter(timestamp) AND dry_run = false GROUP BY 1, 2 HAVING count(*) >= 2 ORDER BY 1, 2"
+        }
+      ],
+      "title": "Latency Trend \u2014 4-Hour Bins",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 62
+      },
+      "id": 105,
+      "title": "Provider Fidelity",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "description": "Rows where model_verified IS NOT NULL (OpenRouter only sends x-finalized-model header). Red rows = served model differed from requested model.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "displayMode": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Verified %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "rgba(220,53,69,0.7)",
+                      "value": null
+                    },
+                    {
+                      "color": "rgba(255,140,0,0.7)",
+                      "value": 80
+                    },
+                    {
+                      "color": "rgba(40,167,69,0.7)",
+                      "value": 95
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 14,
+        "x": 0,
+        "y": 63
+      },
+      "id": 50,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Verified %"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawSql": "SELECT model_id AS \"Model (ID)\", model_string AS \"Requested Model\", count(*) AS \"Calls (OR)\", round(100.0 * sum(CASE WHEN model_verified = true THEN 1 ELSE 0 END) / count(*),1) AS \"Verified %\", string_agg(DISTINCT served_model, ', ' ORDER BY served_model) FILTER (WHERE model_verified = false) AS \"Substituted With\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false AND model_verified IS NOT NULL GROUP BY model_id, model_string HAVING count(*) >= 2 ORDER BY \"Verified %\" ASC"
+        }
+      ],
+      "title": "Model Substitution \u2014 OpenRouter (7 days)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 10,
+        "x": 14,
+        "y": 63
+      },
+      "id": 51,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showUnfilled": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT provider AS metric, round(100.0 * sum(CASE WHEN model_verified = true THEN 1 ELSE 0 END) / count(*),1) AS \"Fidelity %\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false AND model_verified IS NOT NULL GROUP BY provider HAVING count(*) >= 5 ORDER BY \"Fidelity %\" DESC"
+        }
+      ],
+      "title": "Provider Fidelity Summary (7 days)",
+      "type": "bargauge"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 73
+      },
+      "id": 106,
+      "title": "Failure Analysis",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center",
+            "displayMode": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Fail %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "rgba(40,167,69,0.7)",
+                      "value": null
+                    },
+                    {
+                      "color": "rgba(255,200,0,0.7)",
+                      "value": 5
+                    },
+                    {
+                      "color": "rgba(255,140,0,0.7)",
+                      "value": 15
+                    },
+                    {
+                      "color": "rgba(220,53,69,0.7)",
+                      "value": 30
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 74
+      },
+      "id": 60,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Fail %"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawSql": "SELECT base_model AS \"Model\", count(*) AS \"Calls\", sum(CASE WHEN json_parse_ok = false THEN 1 ELSE 0 END) AS \"Failures\", round(100.0 * sum(CASE WHEN json_parse_ok = false THEN 1 ELSE 0 END) / count(*),1) AS \"Fail %\", string_agg(DISTINCT role, ', ') FILTER (WHERE json_parse_ok = false) AS \"Failed In Roles\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 3 ORDER BY \"Fail %\" DESC NULLS LAST"
+        }
+      ],
+      "title": "JSON Parse Failures by Model (7 days)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "ffeagtzfyvvnkf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.3
+              },
+              {
+                "color": "orange",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 1.5
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 74
+      },
+      "id": 61,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showUnfilled": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT base_model AS metric, round(avg(retries),2) AS \"Avg Retries\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 5 ORDER BY avg(retries) DESC LIMIT 20"
+        }
+      ],
+      "title": "Retry Rates by Model (7 days)",
+      "type": "bargauge"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 84
+      },
+      "id": 107,
+      "title": "Pipeline Retry Analysis",
+      "type": "row"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 15
+              },
+              {
+                "color": "red",
+                "value": 30
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 85
+      },
+      "id": 108,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(100.0 * AVG(CASE WHEN pipeline_attempt = 2 THEN 1.0 ELSE 0.0 END), 1) AS value\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false",
+          "refId": "A"
+        }
+      ],
+      "title": "Retry Rate (pipeline_attempt=2)",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 20
+              },
+              {
+                "color": "red",
+                "value": 40
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 4,
+        "y": 85
+      },
+      "id": 109,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT base_model,\n       ROUND(100.0 * AVG(CASE WHEN pipeline_attempt = 2 THEN 1.0 ELSE 0.0 END), 1) AS retry_pct\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\nGROUP BY base_model\nHAVING COUNT(*) >= 3\nORDER BY retry_pct DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Attempts Needed by Model (7 days)",
+      "type": "bargauge"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "approval_pct"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 40
+                    },
+                    {
+                      "color": "green",
+                      "value": 70
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 14,
+        "y": 85
+      },
+      "id": 110,
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "role"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT role,\n       pipeline_attempt,\n       COUNT(*) AS n,\n       ROUND(100.0 * AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.0 END), 1) AS approval_pct,\n       ROUND(AVG(latency_ms)) AS avg_latency_ms\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\n  AND downstream_verdict IS NOT NULL\nGROUP BY role, pipeline_attempt\nORDER BY role, pipeline_attempt",
+          "refId": "A"
+        }
+      ],
+      "title": "Approval Rate: Attempt 1 vs 2",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 93
+      },
+      "id": 111,
+      "title": "Gate & Reviewer Reasoning Quality",
+      "type": "row"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 90
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 94
+      },
+      "id": 112,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(100.0 * AVG(CASE WHEN verdict_reasoning IS NOT NULL THEN 1.0 ELSE 0.0 END), 1) AS value\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\n  AND role IN ('A3_gate','B2_reviewer')",
+          "refId": "A"
+        }
+      ],
+      "title": "Reasoning Coverage (A3+B2)",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 200
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 4,
+        "y": 94
+      },
+      "id": 113,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT base_model,\n       ROUND(AVG(LENGTH(verdict_reasoning))) AS avg_reasoning_chars\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\n  AND role IN ('A3_gate','B2_reviewer')\n  AND verdict_reasoning IS NOT NULL\nGROUP BY base_model\nHAVING COUNT(*) >= 2\nORDER BY avg_reasoning_chars DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg Reasoning Length by Model (chars)",
+      "type": "bargauge"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "width": 0,
+            "wrap": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "timestamp"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "base_model"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "downstream_verdict"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 14,
+        "y": 94
+      },
+      "id": 114,
+      "options": {},
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT timestamp, base_model, downstream_verdict,\n       LEFT(verdict_reasoning, 200) AS reasoning_preview\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\n  AND role = 'A3_gate'\n  AND verdict_reasoning IS NOT NULL\nORDER BY timestamp DESC\nLIMIT 25",
+          "refId": "A"
+        }
+      ],
+      "title": "A3 Gate \u2014 Recent Rejections with Reasoning",
+      "type": "table"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "wrap": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "timestamp"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "base_model"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "downstream_verdict"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 102
+      },
+      "id": 115,
+      "options": {},
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT timestamp, base_model, downstream_verdict,\n       LEFT(verdict_reasoning, 180) AS reasoning_preview,\n       LEFT(verdict_issues, 200) AS issues_json\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\n  AND role = 'B2_reviewer'\n  AND verdict_reasoning IS NOT NULL\nORDER BY timestamp DESC\nLIMIT 25",
+          "refId": "A"
+        }
+      ],
+      "title": "B2 Reviewer \u2014 Recent Verdicts with Reasoning & Issues",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 110
+      },
+      "id": 116,
+      "title": "PR Outcomes & CI Results",
+      "type": "row"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "No data yet",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 111
+      },
+      "id": 117,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(100.0 * AVG(CASE WHEN ci_status = 'passing' THEN 1.0 ELSE 0.0 END), 1) AS value\nFROM pr_outcomes\nWHERE ci_status != 'pending'",
+          "refId": "A"
+        }
+      ],
+      "title": "CI Pass Rate (all senate PRs)",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "No data yet",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 30
+              },
+              {
+                "color": "green",
+                "value": 60
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 111
+      },
+      "id": 118,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(100.0 * AVG(CASE WHEN merged = true THEN 1.0 ELSE 0.0 END), 1) AS value\nFROM pr_outcomes\nWHERE merged IS NOT NULL",
+          "refId": "A"
+        }
+      ],
+      "title": "Merge Rate (senate PRs)",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 100,
+          "min": 0,
+          "noValue": "No data yet",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 111
+      },
+      "id": 119,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT b1_solver_model,\n       COUNT(*) AS prs,\n       ROUND(100.0 * AVG(CASE WHEN ci_status = 'passing' THEN 1.0 ELSE 0.0 END), 1) AS ci_pass_pct,\n       ROUND(100.0 * AVG(CASE WHEN merged = true THEN 1.0 ELSE 0.0 END), 1) AS merge_pct\nFROM pr_outcomes\nWHERE ci_status != 'pending'\nGROUP BY b1_solver_model\nORDER BY ci_pass_pct DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "CI Pass Rate by Solver Model",
+      "type": "bargauge"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ci_status"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "error": {
+                        "color": "orange",
+                        "text": "\u26a0\ufe0f error"
+                      },
+                      "failing": {
+                        "color": "red",
+                        "text": "\u274c failing"
+                      },
+                      "passing": {
+                        "color": "green",
+                        "text": "\u2705 passing"
+                      },
+                      "pending": {
+                        "color": "blue",
+                        "text": "\u23f3 pending"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pr_url"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open PR",
+                    "url": "${__value.text}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 111
+      },
+      "id": 120,
+      "options": {
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "created_at"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT p.created_at, p.pr_number, p.issue_number, p.b1_solver_model,\n       p.ci_status, p.merged, p.merged_at,\n       p.pr_url\nFROM pr_outcomes p\nORDER BY p.created_at DESC\nLIMIT 50",
+          "refId": "A"
+        }
+      ],
+      "title": "Senate PR Log",
+      "type": "table"
+    }
+  ],
+  "refresh": "5m",
+  "schemaVersion": 37,
+  "style": "dark",
+  "tags": [
+    "quasi",
+    "senate",
+    "models",
+    "performance"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "QUASI Pauli-Test \u2014 Model Performance",
+  "uid": "quasi-model-performance"
+}
