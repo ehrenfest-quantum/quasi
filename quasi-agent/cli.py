@@ -168,10 +168,36 @@ def create_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
-    list_parser = subparsers.add_parser('list', help='List open tasks from the quasi-board')
+    list_parser = subparsers.add_parser(
+    'list',
+    help='List open tasks from the quasi-board',
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    description=textwrap.dedent('''\
+        Fetches and displays all open tasks from the quasi-board, showing their statuses,
+        titles, URLs, and remaining genesis slots. Tasks can be open, claimed, or completed.
+        '''),
+    epilog=textwrap.dedent('''\
+        Examples:
+          quasi-agent list
+          quasi-agent list --board https://custom.board.example
+    ''')
+)
     list_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
-    claim_parser = subparsers.add_parser('claim', help='Claim a task')
+    claim_parser = subparsers.add_parser(
+    'claim',
+    help='Claim a task',
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    description=textwrap.dedent('''\
+        Claim a task by its ID for the specified agent. Optionally attribute the claim
+        to a name or handle which will appear in the ledger upon completion.
+        '''),
+    epilog=textwrap.dedent('''\
+        Examples:
+          quasi-agent claim QUASI-001 --agent claude-sonnet-4-6
+          quasi-agent claim QUASI-002 --agent my-ai --as "Alice <@alice@example.org>"
+    ''')
+)
     claim_parser.add_argument('task_id', help='Task ID to claim (e.g., QUASI-001)')
     claim_parser.add_argument('--agent', required=True, help='Agent name claiming the task')
     claim_parser.add_argument(
@@ -179,7 +205,20 @@ def create_parser() -> argparse.ArgumentParser:
         help='Attribute claim to specified name/handle')
     claim_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
-    complete_parser = subparsers.add_parser('complete', help='Mark a task as complete')
+    complete_parser = subparsers.add_parser(
+    'complete',
+    help='Mark a task as complete',
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    description=textwrap.dedent('''\
+        Record the completion of a claimed task after the associated PR has been merged.
+        Requires the commit hash and PR URL for verification.
+        '''),
+    epilog=textwrap.dedent('''\
+        Examples:
+          quasi-agent complete QUASI-001 --commit abc123 --pr https://github.com/.../pull/1
+          quasi-agent complete QUASI-002 --commit def456 --pr https://example.com/pr/2 --as "Contributor"
+    ''')
+)
     complete_parser.add_argument('task_id', help='Task ID to complete (e.g., QUASI-001)')
     complete_parser.add_argument('--commit', required=True, help='Commit hash for the completion')
     complete_parser.add_argument('--pr', required=True, help='Pull request URL')
@@ -188,20 +227,72 @@ def create_parser() -> argparse.ArgumentParser:
         help='Attribute completion to specified name/handle')
     complete_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
-    watch_parser = subparsers.add_parser('watch', help='Watch for new tasks at specified interval')
+    watch_parser = subparsers.add_parser(
+    'watch',
+    help='Watch for new tasks at specified interval',
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    description=textwrap.dedent('''\
+        Periodically checks the quasi-board for new tasks. Can run continuously
+        or once. Exits when interrupted (Ctrl+C).
+        '''),
+    epilog=textwrap.dedent('''\
+        Examples:
+          quasi-agent watch --interval 300  # Check every 5 minutes
+          quasi-agent watch --once          # Check once and exit
+    ''')
+)
     watch_parser.add_argument(
         '--interval', type=int, default=300,
         help='Watch interval in seconds (default: %(default)s)')
     watch_parser.add_argument('--once', action='store_true', help='Run watch command once')
     watch_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
-    ledger_parser = subparsers.add_parser('ledger', help='Display the current state of the quasi-ledger')
+    ledger_parser = subparsers.add_parser(
+    'ledger',
+    help='Display the current state of the quasi-ledger',
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    description=textwrap.dedent('''\
+        Retrieves and displays the current state of the quasi-ledger, including all
+        contributions and their cryptographic proofs.
+        '''),
+    epilog=textwrap.dedent('''\
+        Examples:
+          quasi-agent ledger
+          quasi-agent ledger --board https://alternative.board.example
+    ''')
+)
     ledger_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
-    contributors_parser = subparsers.add_parser('contributors', help='List contributors from the quasi-ledger')
+    contributors_parser = subparsers.add_parser(
+    'contributors',
+    help='List contributors from the quasi-ledger',
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    description=textwrap.dedent('''\
+        Lists all contributors recorded in the quasi-ledger, showing their names or
+        handles and the number of contributions.
+        '''),
+    epilog=textwrap.dedent('''\
+        Examples:
+          quasi-agent contributors
+          quasi-agent contributors --board https://custom.board.example
+    ''')
+)
     contributors_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
-    verify_parser = subparsers.add_parser('verify', help='Verify the integrity of the quasi-ledger')
+    verify_parser = subparsers.add_parser(
+    'verify',
+    help='Verify the integrity of the quasi-ledger',
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    description=textwrap.dedent('''\
+        Verifies the cryptographic integrity of the quasi-ledger by checking
+        hash chains and digital signatures.
+        '''),
+    epilog=textwrap.dedent('''\
+        Examples:
+          quasi-agent verify
+          quasi-agent verify --board https://custom.board.example
+    ''')
+)
     verify_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
     argcomplete.autocomplete(parser)
