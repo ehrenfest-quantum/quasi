@@ -1,0 +1,13 @@
+[Unit]
+Description=QUASI Senate Watchdog — AI health monitor
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+SuccessExitStatus=0 1
+EnvironmentFile=/home/vops/.env.quasi
+EnvironmentFile=/etc/quasi-senate-watchdog.env
+ExecStart=/usr/bin/python3 /usr/local/lib/quasi-senate/senate_watchdog.py
+StandardOutput=journal
+StandardError=journal

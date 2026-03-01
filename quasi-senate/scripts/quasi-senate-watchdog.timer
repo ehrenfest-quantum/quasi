@@ -1,0 +1,11 @@
+[Unit]
+Description=QUASI Senate Watchdog — runs every 15 minutes
+Requires=quasi-senate-watchdog.service
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=15min
+Unit=quasi-senate-watchdog.service
+
+[Install]
+WantedBy=timers.target
