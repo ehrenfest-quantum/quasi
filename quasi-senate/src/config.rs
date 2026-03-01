@@ -237,7 +237,9 @@ pub const ROTATION: &[RotationEntry] = &[
         origin: "US / Meta",
         roles: CODING_ROLES,
         max_tokens: None,
-        max_context: None,
+        // Groq free tier: 6k TPM. Cap context to ~3k tokens (12k chars) so output
+        // has room. Without this the large solver prompt truncates the response mid-JSON.
+        max_context: Some(3000),
     },
     RotationEntry {
         id: "llama3.3-hf",
@@ -258,7 +260,7 @@ pub const ROTATION: &[RotationEntry] = &[
         origin: "US / Meta",
         roles: CODING_ROLES,
         max_tokens: None,
-        max_context: None,
+        max_context: Some(3000), // Groq free-tier TPM cap (see llama3.3-groq comment)
     },
     RotationEntry {
         // OpenAI GPT-OSS 120B on Groq LPU — headline benchmark: custom silicon vs. GPU
@@ -269,7 +271,7 @@ pub const ROTATION: &[RotationEntry] = &[
         origin: "US / OpenAI",
         roles: CODING_ROLES,
         max_tokens: None,
-        max_context: None,
+        max_context: Some(3000), // Groq free-tier TPM cap (see llama3.3-groq comment)
     },
     // ── Tier 2 — EU / competitive coding ─────────────────────────────────────
     RotationEntry {

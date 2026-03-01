@@ -179,7 +179,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
     // 4. Determine level from charter
     let level = charter.frontier_level;
 
-    let counts: HashMap<String, u32> = HashMap::new();
+    let counts = load_model_counts(&ctx.db, "A2_drafter").await;
     let last_provider = ctx.state.last_generate_provider.as_deref();
 
     let mut drafter_exclude: Vec<String> = Vec::new();
@@ -577,7 +577,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
 
     // 3. Build repo context (via solver module which fetches README + label files)
     // We pass the issue to solver which handles context building internally
-    let counts: HashMap<String, u32> = HashMap::new();
+    let counts = load_model_counts(&ctx.db, "B1_solver").await;
     let last_provider = ctx.state.last_solve_provider.as_deref();
 
     let mut solver_exclude: Vec<String> = drafter_model.iter().map(|m| m.clone()).collect();
@@ -910,6 +910,15 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
         }
     }
 
+    // Mark issue as exhausted in state so it won't be auto-picked again this phase.
+    let key = issue_number.to_string();
+    let count = ctx.state.solve_retries.entry(key).or_insert(0);
+    *count += 1;
+    // last_solve_provider already reflects the actual provider from the last successful call above.
+    if let Err(e) = save_state(&ctx.state) {
+        warn!("pipeline: failed to save state after solve exhaustion: {e}");
+    }
+
     Err(anyhow!(
         "Solution for #{issue_number} rejected after 2 attempts"
     ))
@@ -968,6 +977,37 @@ pub async fn run_batch(ctx: &mut AppContext, count: u32) -> Result<()> {
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
+
+/// Load per-model usage counts for a given pipeline role from the telemetry DB.
+///
+/// Returns a HashMap of model_id → number of times used.  If the DB is not
+/// available (or the query fails) an empty map is returned — the rotation will
+/// then fall back to index-order, which is harmless.
+async fn load_model_counts(
+    db: &Option<tokio_postgres::Client>,
+    role: &str,
+) -> HashMap<String, u32> {
+    let Some(db) = db else {
+        return HashMap::new();
+    };
+    let rows = db
+        .query(
+            "SELECT model_id, COUNT(*)::int4 \
+             FROM senate_telemetry \
+             WHERE role = $1 \
+             GROUP BY model_id",
+            &[&role],
+        )
+        .await
+        .unwrap_or_default();
+    rows.iter()
+        .filter_map(|row| {
+            let id: &str = row.try_get(0).ok()?;
+            let count: i32 = row.try_get(1).ok()?;
+            Some((id.to_string(), count as u32))
+        })
+        .collect()
+}
 
 /// Extract the generator model identifier from the issue body footer.
 ///
