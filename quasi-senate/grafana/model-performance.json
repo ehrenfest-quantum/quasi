@@ -537,7 +537,9 @@
             "fixedColor": "blue",
             "mode": "fixed"
           },
-          "mappings": []
+          "mappings": [],
+          "unit": "s",
+          "decimals": 2
         }
       },
       "gridPos": {
@@ -557,10 +559,10 @@
           ]
         },
         "text": {
-          "titleSize": 16,
-          "valueSize": 28
+          "titleSize": 14,
+          "valueSize": 32
         },
-        "textMode": "value"
+        "textMode": "value_and_name"
       },
       "targets": [
         {
@@ -569,7 +571,7 @@
             "uid": "ffeagtzfyvvnkf"
           },
           "format": "table",
-          "rawSql": "SELECT base_model || ' — ' || round(avg(latency_ms)/1000.0,1)::text || 's avg' AS \"Fastest\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY avg(latency_ms) ASC LIMIT 1"
+          "rawSql": "SELECT base_model AS \"metric\", round(avg(latency_ms)/1000.0,2) AS \"Avg latency (s)\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY avg(latency_ms) ASC LIMIT 1"
         }
       ],
       "title": "⚡ Fastest Model (7 days, ≥10 calls)",
