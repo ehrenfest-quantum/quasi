@@ -26,7 +26,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Provider-level benchmarking for the QUASI Senate Loop — latency, pass rate, retry rate, and model substitution tracking across OpenRouter, Groq, HuggingFace, Fireworks, and other providers.",
+  "description": "Provider-level benchmarking for the QUASI Senate Loop \u2014 latency, pass rate, retry rate, and model substitution tracking across OpenRouter, Groq, HuggingFace, Fireworks, and other providers.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -67,7 +67,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -129,7 +131,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "orientation": "auto",
         "showThresholdLabels": false,
@@ -190,7 +194,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -253,7 +259,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -276,7 +284,7 @@
     },
     {
       "id": 5,
-      "title": "Pass Rate by Provider × Base Model",
+      "title": "Pass Rate by Provider \u00d7 Base Model",
       "type": "table",
       "gridPos": {
         "x": 0,
@@ -392,7 +400,7 @@
       "type": "table",
       "gridPos": {
         "x": 0,
-        "y": 18,
+        "y": 30,
         "w": 24,
         "h": 8
       },
@@ -417,11 +425,132 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "id": 9,
+      "title": "Provider Architecture Comparison",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 12
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_POSTGRESQL}"
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "pass_rate_pct",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "displayMode": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pass_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Pass Rate %"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 50
+                    },
+                    {
+                      "color": "green",
+                      "value": 75
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_latency_ms"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Avg Latency ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95_latency_ms"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "P95 Latency ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "json_ok_pct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "JSON OK %"
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_POSTGRESQL}"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n    CASE\n        WHEN provider IN ('groq', 'cerebras') THEN 'custom_silicon'\n        WHEN provider IN ('fireworks', 'together') THEN 'optimized_gpu'\n        WHEN provider = 'deepinfra' THEN 'standard_gpu'\n        WHEN provider = 'openrouter' THEN 'aggregator'\n        WHEN provider = 'huggingface' THEN 'aggregator'\n        WHEN provider = 'mistral' THEN 'model_native'\n        ELSE 'other'\n    END AS architecture,\n    provider,\n    COUNT(*) AS n,\n    ROUND(100.0 * AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1 ELSE 0 END), 1) AS pass_rate_pct,\n    ROUND(AVG(latency_ms)) AS avg_latency_ms,\n    ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms)) AS p95_latency_ms,\n    ROUND(100.0 * AVG(CASE WHEN json_parse_ok THEN 1 ELSE 0 END), 1) AS json_ok_pct\nFROM senate_telemetry\nWHERE dry_run = false AND downstream_verdict IS NOT NULL\nGROUP BY architecture, provider\nHAVING COUNT(*) >= 10\nORDER BY architecture, pass_rate_pct DESC",
+          "refId": "A"
+        }
+      ]
     }
   ],
   "refresh": "5m",
   "schemaVersion": 39,
-  "tags": ["quasi", "senate", "benchmark"],
+  "tags": [
+    "quasi",
+    "senate",
+    "benchmark"
+  ],
   "templating": {
     "list": []
   },

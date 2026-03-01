@@ -3,7 +3,7 @@
 //! Static configuration: provider map, model rotation, capability ladder.
 //!
 //! Ported from quasi-agent/generate_issue.py.
-//! All 31 models and 7 providers are present — do not add models here without
+//! 67 rotation entries across 10 providers — do not add models here without
 //! a corresponding PR to docs/ELIGIBLE-MODELS.md.
 
 use crate::types::{Role, RotationEntry};
@@ -96,6 +96,37 @@ pub const PROVIDERS: &[(&str, Provider)] = &[
         Provider {
             url: "https://api.research.computer/v1/chat/completions",
             env_var: "CSCS_SERVING_API",
+            extra_headers: &[],
+            verify_header: None,
+            timeout_secs: 120,
+        },
+    ),
+    (
+        "together",
+        Provider {
+            url: "https://api.together.xyz/v1/chat/completions",
+            env_var: "TOGETHER_API_KEY",
+            extra_headers: &[],
+            verify_header: None,
+            timeout_secs: 120,
+        },
+    ),
+    (
+        "cerebras",
+        Provider {
+            // WSE is fast — short timeout is fine
+            url: "https://api.cerebras.ai/v1/chat/completions",
+            env_var: "CEREBRAS_API_KEY",
+            extra_headers: &[],
+            verify_header: None,
+            timeout_secs: 60,
+        },
+    ),
+    (
+        "deepinfra",
+        Provider {
+            url: "https://api.deepinfra.com/v1/openai/chat/completions",
+            env_var: "DEEPINFRA_API_KEY",
             extra_headers: &[],
             verify_header: None,
             timeout_secs: 120,
@@ -584,6 +615,244 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: None,
     },
+    // ── High-priority multi-provider overlaps (Together AI / Cerebras / DeepInfra / Fireworks) ──
+    // llama3.3 × 4 providers (benchmark: custom-silicon vs. optimised-GPU vs. aggregator)
+    RotationEntry {
+        id: "llama3.3-together",
+        model: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        provider: "together",
+        license: "Llama Community",
+        origin: "US / Meta",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "llama3.3-cerebras",
+        model: "llama-3.3-70b",
+        provider: "cerebras",
+        license: "Llama Community",
+        origin: "US / Meta",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "llama3.3-deepinfra",
+        model: "meta-llama/Llama-3.3-70B-Instruct",
+        provider: "deepinfra",
+        license: "Llama Community",
+        origin: "US / Meta",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "llama3.3-fireworks",
+        model: "accounts/fireworks/models/llama-v3p3-70b-instruct",
+        provider: "fireworks",
+        license: "Llama Community",
+        origin: "US / Meta",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    // deepseek-r1 × 3 new providers
+    RotationEntry {
+        id: "deepseek-r1-together",
+        model: "deepseek-ai/DeepSeek-R1",
+        provider: "together",
+        license: "MIT",
+        origin: "China / DeepSeek",
+        roles: REASONING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "deepseek-r1-fireworks",
+        model: "accounts/fireworks/models/deepseek-r1",
+        provider: "fireworks",
+        license: "MIT",
+        origin: "China / DeepSeek",
+        roles: REASONING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "deepseek-r1-deepinfra",
+        model: "deepseek-ai/DeepSeek-R1",
+        provider: "deepinfra",
+        license: "MIT",
+        origin: "China / DeepSeek",
+        roles: REASONING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    // deepseek-v3 × 3 new providers
+    RotationEntry {
+        id: "deepseek-v3-together",
+        model: "deepseek-ai/DeepSeek-V3",
+        provider: "together",
+        license: "MIT",
+        origin: "China / DeepSeek",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "deepseek-v3-fireworks",
+        model: "accounts/fireworks/models/deepseek-v3",
+        provider: "fireworks",
+        license: "MIT",
+        origin: "China / DeepSeek",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "deepseek-v3-deepinfra",
+        model: "deepseek-ai/DeepSeek-V3",
+        provider: "deepinfra",
+        license: "MIT",
+        origin: "China / DeepSeek",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    // qwen2.5-72b × 2 new providers
+    RotationEntry {
+        id: "qwen2.5-72b-together",
+        model: "Qwen/Qwen2.5-72B-Instruct-Turbo",
+        provider: "together",
+        license: "Qwen Community",
+        origin: "China / Alibaba",
+        roles: DEFAULT_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "qwen2.5-72b-deepinfra",
+        model: "Qwen/Qwen2.5-72B-Instruct",
+        provider: "deepinfra",
+        license: "Qwen Community",
+        origin: "China / Alibaba",
+        roles: DEFAULT_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    // qwen3-32b × 3 providers (headline: Groq LPU vs. Cerebras WSE head-to-head)
+    RotationEntry {
+        id: "qwen3-32b-together",
+        model: "Qwen/Qwen3-32B",
+        provider: "together",
+        license: "Apache-2.0",
+        origin: "China / Alibaba",
+        roles: REASONING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "qwen3-32b-cerebras",
+        model: "qwen-3-32b",
+        provider: "cerebras",
+        license: "Apache-2.0",
+        origin: "China / Alibaba",
+        roles: REASONING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "qwen3-32b-deepinfra",
+        model: "Qwen/Qwen3-32B",
+        provider: "deepinfra",
+        license: "Apache-2.0",
+        origin: "China / Alibaba",
+        roles: REASONING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    // gemma-3-27b × 2 new providers
+    RotationEntry {
+        id: "gemma-3-27b-together",
+        model: "google/gemma-3-27b-it",
+        provider: "together",
+        license: "Gemma",
+        origin: "US / Google DeepMind",
+        roles: REVIEW_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "gemma-3-27b-deepinfra",
+        model: "google/gemma-3-27b-it",
+        provider: "deepinfra",
+        license: "Gemma",
+        origin: "US / Google DeepMind",
+        roles: REVIEW_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    // ── Medium-priority overlaps ───────────────────────────────────────────────
+    RotationEntry {
+        id: "mistral-small-mistral",
+        model: "mistral-small-latest",
+        provider: "mistral",
+        license: "Apache-2.0",
+        origin: "France / Mistral",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "mistral-nemo-mistral",
+        model: "open-mistral-nemo",
+        provider: "mistral",
+        license: "Apache-2.0",
+        origin: "France / Mistral",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "mistral-nemo-together",
+        model: "mistralai/Mistral-Nemo-Instruct-2407",
+        provider: "together",
+        license: "Apache-2.0",
+        origin: "France / Mistral",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "phi-4-together",
+        model: "microsoft/phi-4",
+        provider: "together",
+        license: "MIT",
+        origin: "US / Microsoft Research",
+        roles: REVIEW_ROLES,
+        max_tokens: None,
+        max_context: Some(24000),
+    },
+    RotationEntry {
+        id: "llama4-scout-together",
+        model: "meta-llama/Llama-4-Scout-17B-16E-Instruct",
+        provider: "together",
+        license: "Llama Community",
+        origin: "US / Meta",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "llama4-scout-fireworks",
+        model: "accounts/fireworks/models/llama4-scout-instruct-basic",
+        provider: "fireworks",
+        license: "Llama Community",
+        origin: "US / Meta",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
 ];
 
 // ── Capability Ladder ──────────────────────────────────────────────────────────
@@ -615,9 +884,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rotation_has_44_models() {
-        // 33 original entries + 11 multi-provider duplicates = 44 total
-        assert_eq!(ROTATION.len(), 44, "Expected 44 models in ROTATION");
+    fn rotation_has_67_models() {
+        // 33 original + 11 (provider-bench) + 17 high-priority + 6 medium-priority = 67
+        assert_eq!(ROTATION.len(), 67, "Expected 67 models in ROTATION");
     }
 
     #[test]
