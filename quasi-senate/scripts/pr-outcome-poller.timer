@@ -1,0 +1,12 @@
+[Unit]
+Description=Run QUASI Senate PR Outcome Poller every 10 minutes
+Requires=pr-outcome-poller.service
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
