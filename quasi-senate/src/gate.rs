@@ -26,7 +26,7 @@ pub async fn gate_review(
     counts: &HashMap<String, u32>,
     last_provider: Option<&str>,
     dry_run: bool,
-) -> Result<(GateVerdict, &'static RotationEntry)> {
+) -> Result<(GateVerdict, &'static RotationEntry, crate::provider::CallResult)> {
     // 1. Pick model
     let entry = crate::rotation::pick_model(&Role::A3Gate, exclude, counts, last_provider)?;
 
@@ -46,11 +46,20 @@ pub async fn gate_review(
             suggestions: None,
             reviewer_model: entry.id.to_string(),
         };
-        return Ok((verdict, entry));
+        let dummy_call = crate::provider::CallResult {
+            content: "dry-run".to_string(),
+            latency_ms: 0,
+            http_status: 0,
+            retries: 0,
+            model_verified: None,
+            served_model: None,
+        };
+        return Ok((verdict, entry, dummy_call));
     }
 
     // 4. Call the LLM
-    let raw = crate::provider::call_model(entry, &system, &user, 0.2, 1024).await?;
+    let call_result = crate::provider::call_model(entry, &system, &user, 0.2, 1024).await?;
+    let raw = call_result.content.clone();
 
     // 5. Parse raw response
     let raw_verdict = crate::provider::parse_json_response::<GateVerdictRaw>(&raw)?;
@@ -76,5 +85,5 @@ pub async fn gate_review(
     );
 
     // 7. Return
-    Ok((gate_verdict, entry))
+    Ok((gate_verdict, entry, call_result))
 }

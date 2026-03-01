@@ -140,9 +140,29 @@ pub const ROTATION: &[RotationEntry] = &[
         max_context: None,
     },
     RotationEntry {
+        id: "deepseek-v3-hf",
+        model: "deepseek-ai/DeepSeek-V3-0324",
+        provider: "huggingface",
+        license: "MIT",
+        origin: "China / DeepSeek",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
         id: "deepseek-r1",
         model: "deepseek/deepseek-r1",
         provider: "openrouter",
+        license: "MIT",
+        origin: "China / DeepSeek",
+        roles: REASONING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "deepseek-r1-groq",
+        model: "deepseek-r1-distill-llama-70b",
+        provider: "groq",
         license: "MIT",
         origin: "China / DeepSeek",
         roles: REASONING_ROLES,
@@ -163,6 +183,16 @@ pub const ROTATION: &[RotationEntry] = &[
         id: "llama4",
         model: "meta-llama/llama-4-maverick",
         provider: "openrouter",
+        license: "Llama Community",
+        origin: "US / Meta",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "llama4-fw",
+        model: "accounts/fireworks/models/llama4-maverick-instruct-basic",
+        provider: "fireworks",
         license: "Llama Community",
         origin: "US / Meta",
         roles: CODING_ROLES,
@@ -190,6 +220,26 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: None,
     },
+    RotationEntry {
+        id: "llama3.3-groq",
+        model: "llama-3.3-70b-versatile",
+        provider: "groq",
+        license: "Llama Community",
+        origin: "US / Meta",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "llama3.3-hf",
+        model: "meta-llama/Llama-3.3-70B-Instruct",
+        provider: "huggingface",
+        license: "Llama Community",
+        origin: "US / Meta",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
     // ── Tier 2 — EU / competitive coding ─────────────────────────────────────
     RotationEntry {
         id: "mistral-small",
@@ -202,9 +252,29 @@ pub const ROTATION: &[RotationEntry] = &[
         max_context: None,
     },
     RotationEntry {
+        id: "mistral-small-native",
+        model: "mistral-small-2503",
+        provider: "mistral",
+        license: "Apache-2.0",
+        origin: "France / Mistral",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
         id: "mistral-nemo",
         model: "mistralai/mistral-nemo",
         provider: "openrouter",
+        license: "Apache-2.0",
+        origin: "France / Mistral",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "mistral-nemo-hf",
+        model: "mistralai/Mistral-Nemo-Instruct-2407",
+        provider: "huggingface",
         license: "Apache-2.0",
         origin: "France / Mistral",
         roles: CODING_ROLES,
@@ -349,6 +419,16 @@ pub const ROTATION: &[RotationEntry] = &[
         max_context: None,
     },
     RotationEntry {
+        id: "qwen3-32b-or",
+        model: "qwen/qwen3-32b",
+        provider: "openrouter",
+        license: "Apache-2.0",
+        origin: "China / Alibaba (Qwen3 dense 32B)",
+        roles: REASONING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
         id: "qwen3-30b",
         model: "qwen/qwen3-30b-a3b-instruct-2507",
         provider: "openrouter",
@@ -371,6 +451,16 @@ pub const ROTATION: &[RotationEntry] = &[
         max_context: None,
     },
     RotationEntry {
+        id: "gemma-3-27b-or",
+        model: "google/gemma-3-27b-it",
+        provider: "openrouter",
+        license: "Gemma",
+        origin: "US / Google DeepMind",
+        roles: REVIEW_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
         id: "command-a",
         model: "cohere/command-a",
         provider: "openrouter",
@@ -385,6 +475,16 @@ pub const ROTATION: &[RotationEntry] = &[
         id: "phi-4",
         model: "microsoft/phi-4",
         provider: "openrouter",
+        license: "MIT",
+        origin: "US / Microsoft Research",
+        roles: REVIEW_ROLES,
+        max_tokens: None,
+        max_context: Some(24000),
+    },
+    RotationEntry {
+        id: "phi-4-hf",
+        model: "microsoft/phi-4",
+        provider: "huggingface",
         license: "MIT",
         origin: "US / Microsoft Research",
         roles: REVIEW_ROLES,
@@ -415,6 +515,16 @@ pub const ROTATION: &[RotationEntry] = &[
         id: "qwen2.5-72b",
         model: "qwen/qwen-2.5-72b-instruct",
         provider: "openrouter",
+        license: "Qwen Community",
+        origin: "China / Alibaba (general, not code-specific)",
+        roles: DEFAULT_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        id: "qwen2.5-72b-hf",
+        model: "Qwen/Qwen2.5-72B-Instruct",
+        provider: "huggingface",
         license: "Qwen Community",
         origin: "China / Alibaba (general, not code-specific)",
         roles: DEFAULT_ROLES,
@@ -505,9 +615,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rotation_has_33_models() {
-        // generate_issue.py has 33 entries (spec doc said 31 — off by 2)
-        assert_eq!(ROTATION.len(), 33, "Expected 33 models in ROTATION");
+    fn rotation_has_44_models() {
+        // 33 original entries + 11 multi-provider duplicates = 44 total
+        assert_eq!(ROTATION.len(), 44, "Expected 44 models in ROTATION");
     }
 
     #[test]

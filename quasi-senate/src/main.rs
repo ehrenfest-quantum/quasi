@@ -13,6 +13,7 @@ use quasi_senate::matrix::MatrixBot;
 use quasi_senate::pipeline::{AppContext, run_batch, run_council, run_cycle, run_draft_pipeline, run_solve_pipeline};
 use quasi_senate::state::{load_state, save_state};
 use quasi_senate::telemetry::init_telemetry;
+use quasi_senate::telemetry_log;
 
 // ── CLI definition ────────────────────────────────────────────────────────────
 
@@ -96,13 +97,24 @@ async fn main() -> Result<()> {
     let state = load_state()?;
     let dry_run = cli.dry_run;
 
+    let db = telemetry_log::connect_db().await;
+
     let mut ctx = AppContext {
         github,
         matrix,
         fedi,
         state,
         dry_run,
+        db,
     };
+
+    // Run DB migration on startup
+    if let Some(db) = &ctx.db {
+        let migration = include_str!("../migrations/001_telemetry.sql");
+        if let Err(e) = db.batch_execute(migration).await {
+            tracing::warn!("Migration warning (may already exist): {e}");
+        }
+    }
 
     // 5. Dispatch
     match cli.command {

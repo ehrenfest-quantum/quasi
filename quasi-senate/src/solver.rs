@@ -33,7 +33,7 @@ pub async fn solve_issue(
     last_provider: Option<&str>,
     retry_feedback: Option<&str>,
     dry_run: bool,
-) -> Result<(SolveResult, &'static RotationEntry)> {
+) -> Result<(SolveResult, &'static RotationEntry, crate::provider::CallResult)> {
     // 1. Pick model
     let entry = crate::rotation::pick_model(&Role::B1Solver, exclude, counts, last_provider)?;
 
@@ -126,13 +126,22 @@ pub async fn solve_issue(
             new_files: HashMap::new(),
             solver_model: entry.id.to_string(),
         };
-        return Ok((placeholder, entry));
+        let dummy_call = crate::provider::CallResult {
+            content: "dry-run".to_string(),
+            latency_ms: 0,
+            http_status: 0,
+            retries: 0,
+            model_verified: None,
+            served_model: None,
+        };
+        return Ok((placeholder, entry, dummy_call));
     }
 
     // 7. Call the LLM
     let system = crate::prompts::solver_system_prompt();
     let max_tokens = entry.max_tokens.unwrap_or(8192);
-    let raw = crate::provider::call_model(entry, &system, &user, 0.2, max_tokens).await?;
+    let call_result = crate::provider::call_model(entry, &system, &user, 0.2, max_tokens).await?;
+    let raw = call_result.content.clone();
 
     // 8. Parse raw response
     let raw_result = crate::provider::parse_json_response::<SolveResultRaw>(&raw)?;
@@ -154,5 +163,5 @@ pub async fn solve_issue(
     );
 
     // 10. Return
-    Ok((result, entry))
+    Ok((result, entry, call_result))
 }
