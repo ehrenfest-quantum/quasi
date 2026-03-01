@@ -98,10 +98,10 @@ fn test_all_rotation_models_have_roles() {
 
 // ── test_rotation_count ───────────────────────────────────────────────────────
 
-/// The ROTATION slice must contain exactly 60 models (see config.rs comment for full breakdown).
+/// The ROTATION slice must contain exactly 58 models (see config.rs comment for full breakdown).
 #[test]
 fn test_rotation_count() {
-    assert_eq!(ROTATION.len(), 60, "Expected 60 models in ROTATION, got {}", ROTATION.len());
+    assert_eq!(ROTATION.len(), 58, "Expected 58 models in ROTATION, got {}", ROTATION.len());
 }
 
 // ── test_pick_model_excludes ───────────────────────────────────────────────────

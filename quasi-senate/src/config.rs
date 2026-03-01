@@ -3,7 +3,7 @@
 //! Static configuration: provider map, model rotation, capability ladder.
 //!
 //! Ported from quasi-agent/generate_issue.py.
-//! 60 rotation entries across 10 providers — do not add models here without
+//! 58 rotation entries across 10 providers — do not add models here without
 //! a corresponding PR to docs/ELIGIBLE-MODELS.md.
 
 use crate::types::{Role, RotationEntry};
@@ -171,16 +171,8 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: None,
     },
-    RotationEntry {
-        id: "deepseek-v3-hf",
-        model: "deepseek-ai/DeepSeek-V3-0324",
-        provider: "huggingface",
-        license: "MIT",
-        origin: "China / DeepSeek",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // deepseek-v3-hf removed 2026-03-01: 0% approval rate on B1/A2, avg 45min latency on HuggingFace
+    // (systematic HF routing slowness + model produces non-JSON output under coding prompts)
     RotationEntry {
         id: "deepseek-r1",
         model: "deepseek/deepseek-r1",
@@ -225,16 +217,8 @@ pub const ROTATION: &[RotationEntry] = &[
     },
     // llama4-maverick-instruct-basic was removed from Fireworks 2026-03 → entry dropped
     // ── Tier 1 — Groq (FREE TIER — preferred for review roles) ───────────────
-    RotationEntry {
-        id: "llama4-scout",
-        model: "meta-llama/llama-4-scout-17b-16e-instruct",
-        provider: "groq",
-        license: "Llama Community",
-        origin: "US / Meta",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // llama4-scout removed 2026-03-01: systematically produces Python string concat in JSON
+    // edits (e.g. "replace": "def main():" + "\n\t...") causing 100% parse failure on B1 solver
     RotationEntry {
         id: "llama3.3",
         model: "meta-llama/llama-3.3-70b-instruct",
@@ -829,13 +813,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rotation_has_60_models() {
-        // 33 original + 11 (provider-bench) + 17 high-priority + 6 medium-priority
-        // + 2 new Groq (kimi-k2-groq, llama4-maverick-groq, gpt-oss-120b)
-        // - 3 removed Fireworks (llama4-maverick, deepseek-r1, llama4-scout all 404)
-        // - 1 deepseek-r1-groq replaced by kimi-k2-groq
-        // - 6 DeepInfra entries commented out (no credits yet) = 60
-        assert_eq!(ROTATION.len(), 60, "Expected 60 models in ROTATION");
+    fn rotation_has_58_models() {
+        // 60 baseline
+        // - deepseek-v3-hf: 0% approval, 45min avg latency on HuggingFace (removed 2026-03-01)
+        // - llama4-scout: systematic JSON parse failures on B1 solver (removed 2026-03-01)
+        // = 58
+        assert_eq!(ROTATION.len(), 58, "Expected 58 models in ROTATION");
     }
 
     #[test]
