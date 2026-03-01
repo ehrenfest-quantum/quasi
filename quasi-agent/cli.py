@@ -168,10 +168,24 @@ def create_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
-    list_parser = subparsers.add_parser('list', help='List open tasks from the quasi-board')
+    list_parser = subparsers.add_parser(
+        'list',
+        help='List open tasks from the quasi-board',
+        description='List open tasks from the quasi-board ActivityPub instance',
+        epilog='Example: quasi-agent list --board https://gawain.valiant-quantum.com',
+    )
     list_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
-    claim_parser = subparsers.add_parser('claim', help='Claim a task')
+    claim_parser = subparsers.add_parser(
+        'claim',
+        help='Claim a task',
+        description='Claim a task from the quasi-board',
+        epilog=(
+            'Examples:\n'
+            '  quasi-agent claim QUASI-001 --agent claude-sonnet-4-6\n'
+            '  quasi-agent claim QUASI-001 --agent gpt-4 --as "Alice <@alice@fosstodon.org>"'
+        ),
+    )
     claim_parser.add_argument('task_id', help='Task ID to claim (e.g., QUASI-001)')
     claim_parser.add_argument('--agent', required=True, help='Agent name claiming the task')
     claim_parser.add_argument(
@@ -179,7 +193,18 @@ def create_parser() -> argparse.ArgumentParser:
         help='Attribute claim to specified name/handle')
     claim_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
-    complete_parser = subparsers.add_parser('complete', help='Mark a task as complete')
+    complete_parser = subparsers.add_parser(
+        'complete',
+        help='Mark a task as complete',
+        description='Mark a task as complete and record it in the quasi-ledger',
+        epilog=(
+            'Examples:\n'
+            '  quasi-agent complete QUASI-001 --commit abc123'
+            ' --pr https://github.com/ehrenfest-quantum/quasi/pull/123\n'
+            '  quasi-agent complete QUASI-001 --commit abc123'
+            ' --pr https://... --as "Alice <@alice@fosstodon.org>"'
+        ),
+    )
     complete_parser.add_argument('task_id', help='Task ID to complete (e.g., QUASI-001)')
     complete_parser.add_argument('--commit', required=True, help='Commit hash for the completion')
     complete_parser.add_argument('--pr', required=True, help='Pull request URL')
@@ -188,20 +213,44 @@ def create_parser() -> argparse.ArgumentParser:
         help='Attribute completion to specified name/handle')
     complete_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
-    watch_parser = subparsers.add_parser('watch', help='Watch for new tasks at specified interval')
+    watch_parser = subparsers.add_parser(
+        'watch',
+        help='Watch for new tasks at specified interval',
+        description='Monitor the quasi-board for new tasks',
+        epilog=(
+            'Examples:\n'
+            '  quasi-agent watch --interval 300  # Check every 5 minutes\n'
+            '  quasi-agent watch --once  # Check once and exit'
+        ),
+    )
     watch_parser.add_argument(
         '--interval', type=int, default=300,
         help='Watch interval in seconds (default: %(default)s)')
     watch_parser.add_argument('--once', action='store_true', help='Run watch command once')
     watch_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
-    ledger_parser = subparsers.add_parser('ledger', help='Display the current state of the quasi-ledger')
+    ledger_parser = subparsers.add_parser(
+        'ledger',
+        help='Display the current state of the quasi-ledger',
+        description='Show the current quasi-ledger state including contributors and task completions',
+        epilog='Example: quasi-agent ledger --board https://gawain.valiant-quantum.com',
+    )
     ledger_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
-    contributors_parser = subparsers.add_parser('contributors', help='List contributors from the quasi-ledger')
+    contributors_parser = subparsers.add_parser(
+        'contributors',
+        help='List contributors from the quasi-ledger',
+        description='List all contributors recorded in the quasi-ledger',
+        epilog='Example: quasi-agent contributors --board https://gawain.valiant-quantum.com',
+    )
     contributors_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
-    verify_parser = subparsers.add_parser('verify', help='Verify the integrity of the quasi-ledger')
+    verify_parser = subparsers.add_parser(
+        'verify',
+        help='Verify the integrity of the quasi-ledger',
+        description='Verify the cryptographic integrity of the quasi-ledger',
+        epilog='Example: quasi-agent verify --board https://gawain.valiant-quantum.com',
+    )
     verify_parser.add_argument('--board', default=DEFAULT_BOARD, help='quasi-board URL (default: %(default)s)')
 
     argcomplete.autocomplete(parser)
