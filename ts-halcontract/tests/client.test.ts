@@ -38,4 +38,27 @@ describe("@quasi/hal-contract", () => {
     const backends = await listBackends();
     expect(backends).toEqual(["sim", "ibm_torino", "iqm_garnet"]);
   });
+
+  it("accepts noiseChannels in SubmitCircuitInput", async () => {
+    let capturedBody: unknown;
+    const fetchMock: typeof fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      capturedBody = JSON.parse(init?.body as string);
+      return new Response(JSON.stringify({ jobId: "job-2", backend: "sim" }), { status: 200 });
+    };
+
+    configureClient({ baseUrl: "https://hal.example.com", fetchImpl: fetchMock });
+
+    await submitCircuit({
+      qasm: "OPENQASM 2.0;",
+      backend: "sim",
+      shots: 512,
+      noiseChannels: [
+        { type: 1, qubit: 0, p: 0.01 },
+        { type: 2, qubit: 1, gamma: 0.001 },
+      ],
+    });
+
+    expect((capturedBody as { noiseChannels: unknown[] }).noiseChannels).toHaveLength(2);
+    expect((capturedBody as { noiseChannels: Array<{ type: number }> }).noiseChannels[0].type).toBe(1);
+  });
 });
