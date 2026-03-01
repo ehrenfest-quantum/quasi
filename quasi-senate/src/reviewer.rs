@@ -29,7 +29,7 @@ pub async fn review_solution(
     counts: &HashMap<String, u32>,
     last_provider: Option<&str>,
     dry_run: bool,
-) -> Result<(ReviewVerdict, &'static RotationEntry)> {
+) -> Result<(ReviewVerdict, &'static RotationEntry, crate::provider::CallResult)> {
     // 1. Pick model
     let entry = crate::rotation::pick_model(&Role::B2Reviewer, exclude, counts, last_provider)?;
 
@@ -50,11 +50,20 @@ pub async fn review_solution(
             suggested_fix: None,
             reviewer_model: entry.id.to_string(),
         };
-        return Ok((verdict, entry));
+        let dummy_call = crate::provider::CallResult {
+            content: "dry-run".to_string(),
+            latency_ms: 0,
+            http_status: 0,
+            retries: 0,
+            model_verified: None,
+            served_model: None,
+        };
+        return Ok((verdict, entry, dummy_call));
     }
 
     // 4. Call the LLM
-    let raw = crate::provider::call_model(entry, &system, &user, 0.2, 2048).await?;
+    let call_result = crate::provider::call_model(entry, &system, &user, 0.2, 2048).await?;
+    let raw = call_result.content.clone();
 
     // 5. Parse raw response
     let raw_verdict = crate::provider::parse_json_response::<ReviewVerdictRaw>(&raw)?;
@@ -81,5 +90,5 @@ pub async fn review_solution(
     );
 
     // 7. Return
-    Ok((review_verdict, entry))
+    Ok((review_verdict, entry, call_result))
 }

@@ -6,14 +6,17 @@
 //! `run_solve_pipeline`, `run_cycle`, and `run_batch` are all wired here.
 
 use anyhow::{anyhow, Result};
+use chrono::Utc;
 use regex::Regex;
 use std::collections::HashMap;
 use tracing::{info, warn};
+use uuid::Uuid;
 
 use crate::fedi::FediClient;
 use crate::github::GitHubClient;
 use crate::matrix::MatrixBot;
 use crate::state::save_state;
+use crate::telemetry_log::{base_model_id, record_telemetry, TelemetryEntry};
 use crate::types::{Charter, SenateState, Verdict};
 
 /// Shared context passed through every pipeline stage.
@@ -23,6 +26,7 @@ pub struct AppContext {
     pub fedi: Option<FediClient>,
     pub state: SenateState,
     pub dry_run: bool,
+    pub db: Option<tokio_postgres::Client>,
 }
 
 // ── A.1 — Architecture Council ────────────────────────────────────────────────
@@ -79,6 +83,8 @@ pub async fn run_council(ctx: &mut AppContext) -> Result<Charter> {
 pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
     info!("pipeline: starting A-track draft pipeline");
 
+    let cycle_id = Uuid::new_v4();
+
     // 1. Load current charter
     let charter_json = ctx
         .state
@@ -114,7 +120,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
         let exclude_refs: Vec<&str> = drafter_exclude.iter().map(|s| s.as_str()).collect();
 
         // A.2 — Draft
-        let (draft, a2_entry) = crate::drafter::draft_issue(
+        let (draft, a2_entry, a2_call) = crate::drafter::draft_issue(
             &ctx.github,
             &charter_json,
             level,
@@ -148,7 +154,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
             v
         };
 
-        let (verdict, _a3_entry) = crate::gate::gate_review(
+        let (verdict, a3_entry, a3_call) = crate::gate::gate_review(
             &charter,
             &draft,
             &open_issues_str,
@@ -158,6 +164,67 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
             ctx.dry_run,
         )
         .await?;
+
+        // Write A.2 and A.3 telemetry rows
+        let a2_downstream = if verdict.verdict == Verdict::Approve {
+            "approved"
+        } else {
+            "rejected"
+        };
+
+        record_telemetry(
+            &ctx.db,
+            &TelemetryEntry {
+                timestamp: Utc::now(),
+                cycle_id,
+                role: "A2_drafter".to_string(),
+                model_id: a2_entry.id.to_string(),
+                model_string: a2_entry.model.to_string(),
+                provider: a2_entry.provider.to_string(),
+                base_model: base_model_id(a2_entry.id),
+                level: Some(level),
+                issue_number: None,
+                latency_ms: a2_call.latency_ms,
+                input_tokens_approx: None,
+                output_tokens_approx: Some(a2_call.content.len() as u64 / 4),
+                http_status: Some(a2_call.http_status),
+                retries: a2_call.retries,
+                json_parse_ok: Some(true),
+                downstream_verdict: Some(a2_downstream.to_string()),
+                model_verified: a2_call.model_verified,
+                served_model: a2_call.served_model.clone(),
+                error: None,
+                dry_run: ctx.dry_run,
+            },
+        )
+        .await;
+
+        record_telemetry(
+            &ctx.db,
+            &TelemetryEntry {
+                timestamp: Utc::now(),
+                cycle_id,
+                role: "A3_gate".to_string(),
+                model_id: a3_entry.id.to_string(),
+                model_string: a3_entry.model.to_string(),
+                provider: a3_entry.provider.to_string(),
+                base_model: base_model_id(a3_entry.id),
+                level: Some(level),
+                issue_number: None,
+                latency_ms: a3_call.latency_ms,
+                input_tokens_approx: None,
+                output_tokens_approx: Some(a3_call.content.len() as u64 / 4),
+                http_status: Some(a3_call.http_status),
+                retries: a3_call.retries,
+                json_parse_ok: Some(true),
+                downstream_verdict: Some(verdict.verdict.to_string()),
+                model_verified: a3_call.model_verified,
+                served_model: a3_call.served_model.clone(),
+                error: None,
+                dry_run: ctx.dry_run,
+            },
+        )
+        .await;
 
         // Post verdict to Matrix #senate-drafts
         if let Some(bot) = &ctx.matrix {
@@ -292,6 +359,8 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
 pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Result<String> {
     info!("pipeline: starting B-track solve pipeline for issue #{issue_number}");
 
+    let cycle_id = Uuid::new_v4();
+
     // 1. Fetch the issue
     let issue = ctx.github.get_issue(issue_number).await?;
     let issue_body = issue.body.clone().unwrap_or_default();
@@ -306,8 +375,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
     let counts: HashMap<String, u32> = HashMap::new();
     let last_provider = ctx.state.last_solve_provider.as_deref();
 
-    let mut solver_exclude: Vec<String> =
-        drafter_model.iter().map(|m| m.clone()).collect();
+    let mut solver_exclude: Vec<String> = drafter_model.iter().map(|m| m.clone()).collect();
     let mut retry_feedback: Option<String> = None;
 
     // 4. Retry loop — up to 2 attempts
@@ -317,7 +385,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
         let exclude_refs: Vec<&str> = solver_exclude.iter().map(|s| s.as_str()).collect();
 
         // B.1 — Solve
-        let (solve_result, b1_entry) = crate::solver::solve_issue(
+        let (solve_result, b1_entry, b1_call) = crate::solver::solve_issue(
             &ctx.github,
             issue_number,
             &issue_title,
@@ -355,7 +423,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
         // (solver already fetched context; pass what we have)
         let repo_context = "(context fetched by solver)";
 
-        let (review_verdict, _b2_entry) = crate::reviewer::review_solution(
+        let (review_verdict, b2_entry, b2_call) = crate::reviewer::review_solution(
             &issue_title,
             &issue_body,
             &solve_result,
@@ -366,6 +434,67 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
             ctx.dry_run,
         )
         .await?;
+
+        // Write B.1 and B.2 telemetry rows
+        let b1_downstream = if review_verdict.verdict == Verdict::Approve {
+            "approved"
+        } else {
+            "rejected"
+        };
+
+        record_telemetry(
+            &ctx.db,
+            &TelemetryEntry {
+                timestamp: Utc::now(),
+                cycle_id,
+                role: "B1_solver".to_string(),
+                model_id: b1_entry.id.to_string(),
+                model_string: b1_entry.model.to_string(),
+                provider: b1_entry.provider.to_string(),
+                base_model: base_model_id(b1_entry.id),
+                level: None,
+                issue_number: Some(issue_number),
+                latency_ms: b1_call.latency_ms,
+                input_tokens_approx: None,
+                output_tokens_approx: Some(b1_call.content.len() as u64 / 4),
+                http_status: Some(b1_call.http_status),
+                retries: b1_call.retries,
+                json_parse_ok: Some(true),
+                downstream_verdict: Some(b1_downstream.to_string()),
+                model_verified: b1_call.model_verified,
+                served_model: b1_call.served_model.clone(),
+                error: None,
+                dry_run: ctx.dry_run,
+            },
+        )
+        .await;
+
+        record_telemetry(
+            &ctx.db,
+            &TelemetryEntry {
+                timestamp: Utc::now(),
+                cycle_id,
+                role: "B2_reviewer".to_string(),
+                model_id: b2_entry.id.to_string(),
+                model_string: b2_entry.model.to_string(),
+                provider: b2_entry.provider.to_string(),
+                base_model: base_model_id(b2_entry.id),
+                level: None,
+                issue_number: Some(issue_number),
+                latency_ms: b2_call.latency_ms,
+                input_tokens_approx: None,
+                output_tokens_approx: Some(b2_call.content.len() as u64 / 4),
+                http_status: Some(b2_call.http_status),
+                retries: b2_call.retries,
+                json_parse_ok: Some(true),
+                downstream_verdict: Some(review_verdict.verdict.to_string()),
+                model_verified: b2_call.model_verified,
+                served_model: b2_call.served_model.clone(),
+                error: None,
+                dry_run: ctx.dry_run,
+            },
+        )
+        .await;
 
         // Post verdict to Matrix #senate-solutions
         if let Some(bot) = &ctx.matrix {
@@ -390,7 +519,8 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
             );
 
             // Apply edits via GitHub API
-            let pr_url = apply_and_pr(ctx, issue_number, &issue_title, &solve_result, b1_entry).await?;
+            let pr_url =
+                apply_and_pr(ctx, issue_number, &issue_title, &solve_result, b1_entry).await?;
 
             // Record event to ledger
             let _ = crate::ledger::record_event(
@@ -404,9 +534,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
 
             // Post approval to Matrix + Fedi
             if let Some(bot) = &ctx.matrix {
-                let plain = format!(
-                    "✅ PR opened for #{issue_number}: {pr_url}"
-                );
+                let plain = format!("✅ PR opened for #{issue_number}: {pr_url}");
                 let html = format!(
                     "<p>✅ <b>PR opened for #{issue_number}:</b> <a href=\"{pr_url}\">{pr_url}</a></p>"
                 );
@@ -509,7 +637,12 @@ pub async fn run_batch(ctx: &mut AppContext, count: u32) -> Result<()> {
 
     // Solve each drafted issue
     for (i, &issue_number) in issue_numbers.iter().enumerate() {
-        info!("pipeline: batch solve {}/{} (issue #{})", i + 1, issue_numbers.len(), issue_number);
+        info!(
+            "pipeline: batch solve {}/{} (issue #{})",
+            i + 1,
+            issue_numbers.len(),
+            issue_number
+        );
         match run_solve_pipeline(ctx, issue_number).await {
             Ok(pr_url) => {
                 info!("pipeline: batch solve {} complete: {pr_url}", i + 1);

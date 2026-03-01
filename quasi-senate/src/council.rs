@@ -95,10 +95,10 @@ pub async fn run_council(github: &GitHubClient, dry_run: bool) -> Result<Charter
     }
 
     // 10. Call the LLM
-    let raw = crate::provider::call_model(entry, &system, &user, 0.2, 8192).await?;
+    let call_result = crate::provider::call_model(entry, &system, &user, 0.2, 8192).await?;
 
     // 11. Parse response
-    let charter = crate::provider::parse_json_response::<Charter>(&raw)?;
+    let charter = crate::provider::parse_json_response::<Charter>(&call_result.content)?;
 
     // 12. Log
     tracing::info!("Council session complete: phase_id={}", charter.phase_id);

@@ -30,7 +30,7 @@ pub async fn draft_issue(
     counts: &HashMap<String, u32>,
     last_provider: Option<&str>,
     dry_run: bool,
-) -> Result<(IssueDraft, &'static RotationEntry)> {
+) -> Result<(IssueDraft, &'static RotationEntry, crate::provider::CallResult)> {
     // 1. Pick model
     let entry = crate::rotation::pick_model(&Role::A2Drafter, drafter_exclude, counts, last_provider)?;
 
@@ -84,12 +84,21 @@ pub async fn draft_issue(
             drafter_model: entry.id.to_string(),
             phase_id: charter.phase_id.clone(),
         };
-        return Ok((placeholder, entry));
+        let dummy_call = crate::provider::CallResult {
+            content: "dry-run".to_string(),
+            latency_ms: 0,
+            http_status: 0,
+            retries: 0,
+            model_verified: None,
+            served_model: None,
+        };
+        return Ok((placeholder, entry, dummy_call));
     }
 
     // 9. Call the LLM
     let system = crate::prompts::drafter_system_prompt();
-    let raw = crate::provider::call_model(entry, &system, &user, 0.7, 2048).await?;
+    let call_result = crate::provider::call_model(entry, &system, &user, 0.7, 2048).await?;
+    let raw = call_result.content.clone();
 
     // 10. Parse raw response
     let raw_draft = crate::provider::parse_json_response::<IssueDraftRaw>(&raw)?;
@@ -112,5 +121,5 @@ pub async fn draft_issue(
     );
 
     // 12. Return
-    Ok((draft, entry))
+    Ok((draft, entry, call_result))
 }

@@ -18,4 +18,5 @@ pub mod rotation;
 pub mod solver;
 pub mod state;
 pub mod telemetry;
+pub mod telemetry_log;
 pub mod types;

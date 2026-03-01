@@ -40,11 +40,29 @@ struct ChatRequest {
 
 // ── Public interface ──────────────────────────────────────────────────────────
 
+/// Rich result from a single LLM call, carrying telemetry metadata.
+#[derive(Debug, Clone)]
+pub struct CallResult {
+    /// The text content from choices[0].message.content
+    pub content: String,
+    /// Wall-clock duration of the HTTP call (including retries) in milliseconds
+    pub latency_ms: u64,
+    /// Final HTTP status code (0 if unknown)
+    pub http_status: u16,
+    /// Number of retry attempts before success (0 = first attempt succeeded)
+    pub retries: u32,
+    /// Whether served_model matched the requested model (OpenRouter only)
+    pub model_verified: Option<bool>,
+    /// The x-finalized-model header value if present (OpenRouter only)
+    pub served_model: Option<String>,
+}
+
 /// Call an LLM via its provider using the OpenAI-compatible chat completions API.
 ///
-/// Returns the response text. When the provider sends a model-identity
-/// verification header (anti-masking check), the result is compared against
-/// the requested model and logged via `tracing::warn!` on mismatch.
+/// Returns a `CallResult` with the response text and telemetry metadata.
+/// When the provider sends a model-identity verification header (anti-masking
+/// check), the result is compared against the requested model and logged via
+/// `tracing::warn!` on mismatch.
 ///
 /// Retries up to 3 times on HTTP 429 / 503 with exponential backoff starting
 /// at 2 seconds.
@@ -54,7 +72,7 @@ pub async fn call_model(
     user_prompt: &str,
     temperature: f32,
     max_tokens: u32,
-) -> Result<String> {
+) -> Result<CallResult> {
     // 1. Resolve provider config.
     let provider = get_provider(entry.provider)
         .ok_or_else(|| anyhow!("Unknown provider '{}' for model '{}'", entry.provider, entry.id))?;
@@ -136,12 +154,19 @@ pub async fn call_model(
     // We want 2 s, 4 s, 8 s → 3 attempts max.
     let retry_strategy = ExponentialBackoff::from_millis(2000).take(3);
 
-    let response_text = Retry::spawn(retry_strategy, || {
+    let start_time = std::time::Instant::now();
+    let attempt_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+
+    let inner_result = Retry::spawn(retry_strategy, || {
         // Clone what we need for each attempt.
         let headers = headers.clone();
         let request_json = request_json.clone();
+        let attempt_count = attempt_count.clone();
 
         async move {
+            let attempt = attempt_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let _ = attempt; // used for retry tracking
+
             let client = reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(timeout_secs))
                 .build()
@@ -215,37 +240,53 @@ pub async fn call_model(
                 })?
                 .to_string();
 
+            let status_code = status.as_u16();
+
             // 8. Verify model identity if the provider sends a verification header.
-            if let Some(hdr) = verify_header {
+            let (model_verified, served_model_val) = if let Some(hdr) = verify_header {
                 let served = response_headers
                     .get(hdr)
                     .and_then(|v| v.to_str().ok())
                     .map(|s| s.to_string());
-
-                if let Some(ref served_model) = served {
-                    if served_model != expected_model {
-                        warn!(
-                            requested_model = expected_model,
-                            served_model = served_model,
-                            header = hdr,
-                            "Provider routed to a different model — possible silent substitution"
-                        );
-                    }
+                let verified = served.as_ref().map(|s| s == expected_model);
+                if let Some(false) = verified {
+                    warn!(
+                        requested_model = expected_model,
+                        served_model = served.as_deref().unwrap_or("(none)"),
+                        header = hdr,
+                        "Provider routed to a different model — possible silent substitution"
+                    );
                 }
-            }
+                (verified, served)
+            } else {
+                (None, None)
+            };
 
-            Ok::<String, anyhow::Error>(content)
+            Ok::<(String, u16, Option<bool>, Option<String>), anyhow::Error>((content, status_code, model_verified, served_model_val))
         }
     })
-    .await?;
+    .await;
+
+    let (content, http_status, model_verified, served_model) = inner_result?;
+    let latency_ms = start_time.elapsed().as_millis() as u64;
+    let retries = attempt_count.load(std::sync::atomic::Ordering::SeqCst).saturating_sub(1);
 
     info!(
         model = model_id,
-        response_chars = response_text.len(),
+        response_chars = content.len(),
+        latency_ms = latency_ms,
+        retries = retries,
         "LLM call complete"
     );
 
-    Ok(response_text)
+    Ok(CallResult {
+        content,
+        latency_ms,
+        http_status,
+        retries,
+        model_verified,
+        served_model,
+    })
 }
 
 // ── JSON repair ───────────────────────────────────────────────────────────────

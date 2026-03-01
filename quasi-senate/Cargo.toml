@@ -49,6 +49,9 @@ base64 = "0.22"
 # File locking for state persistence
 fs2 = "0.4"
 
+# Postgres client for telemetry
+tokio-postgres = { version = "0.7", features = ["with-chrono-0_4", "with-uuid-1"] }
+
 [dev-dependencies]
 tokio-test = "0.4"
 wiremock = "0.6"
