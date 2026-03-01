@@ -6,11 +6,16 @@ use anyhow::Result;
 use std::collections::HashMap;
 
 use crate::github::GitHubClient;
-use crate::types::{Charter, Role};
+use crate::provider::CallResult;
+use crate::types::{Charter, Role, RotationEntry};
 
 /// Run one Architecture Council session (A.1).
-/// Returns the emitted Charter.
-pub async fn run_council(github: &GitHubClient, dry_run: bool) -> Result<Charter> {
+/// Returns the emitted Charter together with the rotation entry and call metadata
+/// so the pipeline can write telemetry.
+pub async fn run_council(
+    github: &GitHubClient,
+    dry_run: bool,
+) -> Result<(Charter, &'static RotationEntry, CallResult)> {
     // 1. Fetch ARCHITECTURE.md
     let arch_content = github
         .get_file("ARCHITECTURE.md", "main")
@@ -77,7 +82,7 @@ pub async fn run_council(github: &GitHubClient, dry_run: bool) -> Result<Charter
             system.len(),
             user.len(),
         );
-        let dummy = Charter {
+        let dummy_charter = Charter {
             phase_id: "dry-run-phase".to_string(),
             date: "2026-01-01".to_string(),
             frontier_level: 1,
@@ -91,20 +96,35 @@ pub async fn run_council(github: &GitHubClient, dry_run: bool) -> Result<Charter
             },
             notes_to_reviewers: "dry-run".to_string(),
         };
-        return Ok(dummy);
+        let dummy_call = CallResult {
+            content: "dry-run".to_string(),
+            latency_ms: 0,
+            http_status: 0,
+            retries: 0,
+            model_verified: None,
+            served_model: None,
+            input_len: 0,
+        };
+        return Ok((dummy_charter, entry, dummy_call));
     }
 
     // 10. Call the LLM
     let call_result = crate::provider::call_model(entry, &system, &user, 0.2, 8192).await?;
 
     // 11. Parse response
-    let charter = crate::provider::parse_json_response::<Charter>(&call_result.content)?;
+    let charter =
+        crate::provider::parse_json_response::<Charter>(&call_result.content)
+            .map_err(|e| crate::provider::ParseFailure {
+                call: call_result.clone(),
+                entry,
+                error: e.to_string(),
+            })?;
 
     // 12. Log
     tracing::info!("Council session complete: phase_id={}", charter.phase_id);
 
     // 13. Return
-    Ok(charter)
+    Ok((charter, entry, call_result))
 }
 
 /// Return an ISO 8601 date string 30 days before today.

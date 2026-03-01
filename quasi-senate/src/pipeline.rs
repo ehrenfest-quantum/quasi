@@ -16,7 +16,8 @@ use crate::fedi::FediClient;
 use crate::github::GitHubClient;
 use crate::matrix::MatrixBot;
 use crate::state::save_state;
-use crate::telemetry_log::{base_model_id, record_telemetry, TelemetryEntry};
+use crate::provider::ParseFailure;
+use crate::telemetry_log::{base_model_id, record_pr_outcome, record_telemetry, TelemetryEntry};
 use crate::types::{Charter, SenateState, Verdict};
 
 /// Shared context passed through every pipeline stage.
@@ -37,8 +38,79 @@ pub struct AppContext {
 pub async fn run_council(ctx: &mut AppContext) -> Result<Charter> {
     info!("pipeline: running A.1 Architecture Council session");
 
-    // 1. Call the council module
-    let charter = crate::council::run_council(&ctx.github, ctx.dry_run).await?;
+    let council_cycle_id = Uuid::new_v4();
+
+    // 1. Call the council module (returns charter + rotation entry + call metadata).
+    // On parse failure, write a failure telemetry row before returning the error.
+    let council_result = crate::council::run_council(&ctx.github, ctx.dry_run).await;
+    let (charter, a1_entry, a1_call) = match council_result {
+        Ok(triple) => triple,
+        Err(e) => {
+            if let Some(pf) = e.downcast_ref::<ParseFailure>() {
+                record_telemetry(
+                    &ctx.db,
+                    &TelemetryEntry {
+                        timestamp: Utc::now(),
+                        cycle_id: council_cycle_id,
+                        role: "A1_council".to_string(),
+                        model_id: pf.entry.id.to_string(),
+                        model_string: pf.entry.model.to_string(),
+                        provider: pf.entry.provider.to_string(),
+                        base_model: base_model_id(pf.entry.id),
+                        level: None,
+                        issue_number: None,
+                        latency_ms: pf.call.latency_ms,
+                        input_tokens_approx: Some(pf.call.input_len / 4),
+                        output_tokens_approx: Some(pf.call.content.len() as u64 / 4),
+                        http_status: Some(pf.call.http_status),
+                        retries: pf.call.retries,
+                        json_parse_ok: Some(false),
+                        downstream_verdict: Some("json_fail".to_string()),
+                        model_verified: pf.call.model_verified,
+                        served_model: pf.call.served_model.clone(),
+                        error: Some(pf.error.clone()),
+                        dry_run: ctx.dry_run,
+                        pipeline_attempt: 1,
+                        verdict_reasoning: None,
+                        verdict_issues: None,
+                    },
+                )
+                .await;
+            }
+            return Err(e);
+        }
+    };
+
+    // Write A1 council telemetry (success path)
+    record_telemetry(
+        &ctx.db,
+        &TelemetryEntry {
+            timestamp: Utc::now(),
+            cycle_id: council_cycle_id,
+            role: "A1_council".to_string(),
+            model_id: a1_entry.id.to_string(),
+            model_string: a1_entry.model.to_string(),
+            provider: a1_entry.provider.to_string(),
+            base_model: base_model_id(a1_entry.id),
+            level: None,
+            issue_number: None,
+            latency_ms: a1_call.latency_ms,
+            input_tokens_approx: Some(a1_call.input_len / 4),
+            output_tokens_approx: Some(a1_call.content.len() as u64 / 4),
+            http_status: Some(a1_call.http_status),
+            retries: a1_call.retries,
+            json_parse_ok: Some(true),
+            downstream_verdict: Some("approved".to_string()),
+            model_verified: a1_call.model_verified,
+            served_model: a1_call.served_model.clone(),
+            error: None,
+            dry_run: ctx.dry_run,
+            pipeline_attempt: 1,
+            verdict_reasoning: None,
+            verdict_issues: None,
+        },
+    )
+    .await;
 
     // 2. Save charter to state
     let charter_json = serde_json::to_string(&charter)?;
@@ -120,7 +192,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
         let exclude_refs: Vec<&str> = drafter_exclude.iter().map(|s| s.as_str()).collect();
 
         // A.2 — Draft
-        let (draft, a2_entry, a2_call) = crate::drafter::draft_issue(
+        let draft_result = crate::drafter::draft_issue(
             &ctx.github,
             &charter_json,
             level,
@@ -130,7 +202,44 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
             last_provider,
             ctx.dry_run,
         )
-        .await?;
+        .await;
+        let (draft, a2_entry, a2_call) = match draft_result {
+            Ok(triple) => triple,
+            Err(e) => {
+                if let Some(pf) = e.downcast_ref::<ParseFailure>() {
+                    record_telemetry(
+                        &ctx.db,
+                        &TelemetryEntry {
+                            timestamp: Utc::now(),
+                            cycle_id,
+                            role: "A2_drafter".to_string(),
+                            model_id: pf.entry.id.to_string(),
+                            model_string: pf.entry.model.to_string(),
+                            provider: pf.entry.provider.to_string(),
+                            base_model: base_model_id(pf.entry.id),
+                            level: Some(level),
+                            issue_number: None,
+                            latency_ms: pf.call.latency_ms,
+                            input_tokens_approx: Some(pf.call.input_len / 4),
+                            output_tokens_approx: Some(pf.call.content.len() as u64 / 4),
+                            http_status: Some(pf.call.http_status),
+                            retries: pf.call.retries,
+                            json_parse_ok: Some(false),
+                            downstream_verdict: Some("json_fail".to_string()),
+                            model_verified: pf.call.model_verified,
+                            served_model: pf.call.served_model.clone(),
+                            error: Some(pf.error.clone()),
+                            dry_run: ctx.dry_run,
+                            pipeline_attempt: retry + 1,
+                            verdict_reasoning: None,
+                            verdict_issues: None,
+                        },
+                    )
+                    .await;
+                }
+                return Err(e);
+            }
+        };
 
         // Post draft to Matrix #senate-drafts
         if let Some(bot) = &ctx.matrix {
@@ -154,7 +263,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
             v
         };
 
-        let (verdict, a3_entry, a3_call) = crate::gate::gate_review(
+        let gate_result = crate::gate::gate_review(
             &charter,
             &draft,
             &open_issues_str,
@@ -163,68 +272,44 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
             last_provider,
             ctx.dry_run,
         )
-        .await?;
-
-        // Write A.2 and A.3 telemetry rows
-        let a2_downstream = if verdict.verdict == Verdict::Approve {
-            "approved"
-        } else {
-            "rejected"
+        .await;
+        let (verdict, a3_entry, a3_call) = match gate_result {
+            Ok(triple) => triple,
+            Err(e) => {
+                if let Some(pf) = e.downcast_ref::<ParseFailure>() {
+                    record_telemetry(
+                        &ctx.db,
+                        &TelemetryEntry {
+                            timestamp: Utc::now(),
+                            cycle_id,
+                            role: "A3_gate".to_string(),
+                            model_id: pf.entry.id.to_string(),
+                            model_string: pf.entry.model.to_string(),
+                            provider: pf.entry.provider.to_string(),
+                            base_model: base_model_id(pf.entry.id),
+                            level: Some(level),
+                            issue_number: None,
+                            latency_ms: pf.call.latency_ms,
+                            input_tokens_approx: Some(pf.call.input_len / 4),
+                            output_tokens_approx: Some(pf.call.content.len() as u64 / 4),
+                            http_status: Some(pf.call.http_status),
+                            retries: pf.call.retries,
+                            json_parse_ok: Some(false),
+                            downstream_verdict: Some("json_fail".to_string()),
+                            model_verified: pf.call.model_verified,
+                            served_model: pf.call.served_model.clone(),
+                            error: Some(pf.error.clone()),
+                            dry_run: ctx.dry_run,
+                            pipeline_attempt: retry + 1,
+                            verdict_reasoning: None,
+                            verdict_issues: None,
+                        },
+                    )
+                    .await;
+                }
+                return Err(e);
+            }
         };
-
-        record_telemetry(
-            &ctx.db,
-            &TelemetryEntry {
-                timestamp: Utc::now(),
-                cycle_id,
-                role: "A2_drafter".to_string(),
-                model_id: a2_entry.id.to_string(),
-                model_string: a2_entry.model.to_string(),
-                provider: a2_entry.provider.to_string(),
-                base_model: base_model_id(a2_entry.id),
-                level: Some(level),
-                issue_number: None,
-                latency_ms: a2_call.latency_ms,
-                input_tokens_approx: None,
-                output_tokens_approx: Some(a2_call.content.len() as u64 / 4),
-                http_status: Some(a2_call.http_status),
-                retries: a2_call.retries,
-                json_parse_ok: Some(true),
-                downstream_verdict: Some(a2_downstream.to_string()),
-                model_verified: a2_call.model_verified,
-                served_model: a2_call.served_model.clone(),
-                error: None,
-                dry_run: ctx.dry_run,
-            },
-        )
-        .await;
-
-        record_telemetry(
-            &ctx.db,
-            &TelemetryEntry {
-                timestamp: Utc::now(),
-                cycle_id,
-                role: "A3_gate".to_string(),
-                model_id: a3_entry.id.to_string(),
-                model_string: a3_entry.model.to_string(),
-                provider: a3_entry.provider.to_string(),
-                base_model: base_model_id(a3_entry.id),
-                level: Some(level),
-                issue_number: None,
-                latency_ms: a3_call.latency_ms,
-                input_tokens_approx: None,
-                output_tokens_approx: Some(a3_call.content.len() as u64 / 4),
-                http_status: Some(a3_call.http_status),
-                retries: a3_call.retries,
-                json_parse_ok: Some(true),
-                downstream_verdict: Some(verdict.verdict.to_string()),
-                model_verified: a3_call.model_verified,
-                served_model: a3_call.served_model.clone(),
-                error: None,
-                dry_run: ctx.dry_run,
-            },
-        )
-        .await;
 
         // Post verdict to Matrix #senate-drafts
         if let Some(bot) = &ctx.matrix {
@@ -266,6 +351,66 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
                 .github
                 .create_issue(&draft.title, &issue_body, &[&label_str])
                 .await?;
+
+            // Write A.2 and A.3 telemetry — approved path, with issue_number now known.
+            record_telemetry(
+                &ctx.db,
+                &TelemetryEntry {
+                    timestamp: Utc::now(),
+                    cycle_id,
+                    role: "A2_drafter".to_string(),
+                    model_id: a2_entry.id.to_string(),
+                    model_string: a2_entry.model.to_string(),
+                    provider: a2_entry.provider.to_string(),
+                    base_model: base_model_id(a2_entry.id),
+                    level: Some(level),
+                    issue_number: Some(issue.number),
+                    latency_ms: a2_call.latency_ms,
+                    input_tokens_approx: Some(a2_call.input_len / 4),
+                    output_tokens_approx: Some(a2_call.content.len() as u64 / 4),
+                    http_status: Some(a2_call.http_status),
+                    retries: a2_call.retries,
+                    json_parse_ok: Some(true),
+                    downstream_verdict: Some("approved".to_string()),
+                    model_verified: a2_call.model_verified,
+                    served_model: a2_call.served_model.clone(),
+                    error: None,
+                    dry_run: ctx.dry_run,
+                    pipeline_attempt: retry + 1,
+                    verdict_reasoning: None,
+                    verdict_issues: None,
+                },
+            )
+            .await;
+            record_telemetry(
+                &ctx.db,
+                &TelemetryEntry {
+                    timestamp: Utc::now(),
+                    cycle_id,
+                    role: "A3_gate".to_string(),
+                    model_id: a3_entry.id.to_string(),
+                    model_string: a3_entry.model.to_string(),
+                    provider: a3_entry.provider.to_string(),
+                    base_model: base_model_id(a3_entry.id),
+                    level: Some(level),
+                    issue_number: Some(issue.number),
+                    latency_ms: a3_call.latency_ms,
+                    input_tokens_approx: Some(a3_call.input_len / 4),
+                    output_tokens_approx: Some(a3_call.content.len() as u64 / 4),
+                    http_status: Some(a3_call.http_status),
+                    retries: a3_call.retries,
+                    json_parse_ok: Some(true),
+                    downstream_verdict: Some("approved".to_string()),
+                    model_verified: a3_call.model_verified,
+                    served_model: a3_call.served_model.clone(),
+                    error: None,
+                    dry_run: ctx.dry_run,
+                    pipeline_attempt: retry + 1,
+                    verdict_reasoning: Some(verdict.reasoning.clone()),
+                    verdict_issues: None,
+                },
+            )
+            .await;
 
             // Record event to ledger
             let _ = crate::ledger::record_event(
@@ -318,7 +463,67 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
             return Ok(issue.number);
         }
 
-        // Rejected — set up for next retry
+        // Rejected — write A2/A3 telemetry (issue_number unknown for rejected drafts).
+        record_telemetry(
+            &ctx.db,
+            &TelemetryEntry {
+                timestamp: Utc::now(),
+                cycle_id,
+                role: "A2_drafter".to_string(),
+                model_id: a2_entry.id.to_string(),
+                model_string: a2_entry.model.to_string(),
+                provider: a2_entry.provider.to_string(),
+                base_model: base_model_id(a2_entry.id),
+                level: Some(level),
+                issue_number: None,
+                latency_ms: a2_call.latency_ms,
+                input_tokens_approx: Some(a2_call.input_len / 4),
+                output_tokens_approx: Some(a2_call.content.len() as u64 / 4),
+                http_status: Some(a2_call.http_status),
+                retries: a2_call.retries,
+                json_parse_ok: Some(true),
+                downstream_verdict: Some("rejected".to_string()),
+                model_verified: a2_call.model_verified,
+                served_model: a2_call.served_model.clone(),
+                error: None,
+                dry_run: ctx.dry_run,
+                pipeline_attempt: retry + 1,
+                verdict_reasoning: None,
+                verdict_issues: None,
+            },
+        )
+        .await;
+        record_telemetry(
+            &ctx.db,
+            &TelemetryEntry {
+                timestamp: Utc::now(),
+                cycle_id,
+                role: "A3_gate".to_string(),
+                model_id: a3_entry.id.to_string(),
+                model_string: a3_entry.model.to_string(),
+                provider: a3_entry.provider.to_string(),
+                base_model: base_model_id(a3_entry.id),
+                level: Some(level),
+                issue_number: None,
+                latency_ms: a3_call.latency_ms,
+                input_tokens_approx: Some(a3_call.input_len / 4),
+                output_tokens_approx: Some(a3_call.content.len() as u64 / 4),
+                http_status: Some(a3_call.http_status),
+                retries: a3_call.retries,
+                json_parse_ok: Some(true),
+                downstream_verdict: Some("rejected".to_string()),
+                model_verified: a3_call.model_verified,
+                served_model: a3_call.served_model.clone(),
+                error: None,
+                dry_run: ctx.dry_run,
+                pipeline_attempt: retry + 1,
+                verdict_reasoning: Some(verdict.reasoning.clone()),
+                verdict_issues: None,
+            },
+        )
+        .await;
+
+        // Set up for next retry
         info!(
             "pipeline: gate rejected draft on attempt {} — reason: {}",
             retry + 1,
@@ -385,7 +590,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
         let exclude_refs: Vec<&str> = solver_exclude.iter().map(|s| s.as_str()).collect();
 
         // B.1 — Solve
-        let (solve_result, b1_entry, b1_call) = crate::solver::solve_issue(
+        let solve_result_r = crate::solver::solve_issue(
             &ctx.github,
             issue_number,
             &issue_title,
@@ -397,7 +602,44 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
             retry_feedback.as_deref(),
             ctx.dry_run,
         )
-        .await?;
+        .await;
+        let (solve_result, b1_entry, b1_call) = match solve_result_r {
+            Ok(triple) => triple,
+            Err(e) => {
+                if let Some(pf) = e.downcast_ref::<ParseFailure>() {
+                    record_telemetry(
+                        &ctx.db,
+                        &TelemetryEntry {
+                            timestamp: Utc::now(),
+                            cycle_id,
+                            role: "B1_solver".to_string(),
+                            model_id: pf.entry.id.to_string(),
+                            model_string: pf.entry.model.to_string(),
+                            provider: pf.entry.provider.to_string(),
+                            base_model: base_model_id(pf.entry.id),
+                            level: None,
+                            issue_number: Some(issue_number),
+                            latency_ms: pf.call.latency_ms,
+                            input_tokens_approx: Some(pf.call.input_len / 4),
+                            output_tokens_approx: Some(pf.call.content.len() as u64 / 4),
+                            http_status: Some(pf.call.http_status),
+                            retries: pf.call.retries,
+                            json_parse_ok: Some(false),
+                            downstream_verdict: Some("json_fail".to_string()),
+                            model_verified: pf.call.model_verified,
+                            served_model: pf.call.served_model.clone(),
+                            error: Some(pf.error.clone()),
+                            dry_run: ctx.dry_run,
+                            pipeline_attempt: retry + 1,
+                            verdict_reasoning: None,
+                            verdict_issues: None,
+                        },
+                    )
+                    .await;
+                }
+                return Err(e);
+            }
+        };
 
         // Post solution to Matrix #senate-solutions
         if let Some(bot) = &ctx.matrix {
@@ -423,7 +665,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
         // (solver already fetched context; pass what we have)
         let repo_context = "(context fetched by solver)";
 
-        let (review_verdict, b2_entry, b2_call) = crate::reviewer::review_solution(
+        let review_result = crate::reviewer::review_solution(
             &issue_title,
             &issue_body,
             &solve_result,
@@ -433,10 +675,48 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
             last_provider,
             ctx.dry_run,
         )
-        .await?;
+        .await;
+        let (review_verdict, b2_entry, b2_call) = match review_result {
+            Ok(triple) => triple,
+            Err(e) => {
+                if let Some(pf) = e.downcast_ref::<ParseFailure>() {
+                    record_telemetry(
+                        &ctx.db,
+                        &TelemetryEntry {
+                            timestamp: Utc::now(),
+                            cycle_id,
+                            role: "B2_reviewer".to_string(),
+                            model_id: pf.entry.id.to_string(),
+                            model_string: pf.entry.model.to_string(),
+                            provider: pf.entry.provider.to_string(),
+                            base_model: base_model_id(pf.entry.id),
+                            level: None,
+                            issue_number: Some(issue_number),
+                            latency_ms: pf.call.latency_ms,
+                            input_tokens_approx: Some(pf.call.input_len / 4),
+                            output_tokens_approx: Some(pf.call.content.len() as u64 / 4),
+                            http_status: Some(pf.call.http_status),
+                            retries: pf.call.retries,
+                            json_parse_ok: Some(false),
+                            downstream_verdict: Some("json_fail".to_string()),
+                            model_verified: pf.call.model_verified,
+                            served_model: pf.call.served_model.clone(),
+                            error: Some(pf.error.clone()),
+                            dry_run: ctx.dry_run,
+                            pipeline_attempt: retry + 1,
+                            verdict_reasoning: None,
+                            verdict_issues: None,
+                        },
+                    )
+                    .await;
+                }
+                return Err(e);
+            }
+        };
 
-        // Write B.1 and B.2 telemetry rows
-        let b1_downstream = if review_verdict.verdict == Verdict::Approve {
+        // Write B.1 and B.2 telemetry rows.
+        // Normalized downstream_verdict: "approved" | "rejected" for all roles.
+        let reviewer_downstream = if review_verdict.verdict == Verdict::Approve {
             "approved"
         } else {
             "rejected"
@@ -455,16 +735,19 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
                 level: None,
                 issue_number: Some(issue_number),
                 latency_ms: b1_call.latency_ms,
-                input_tokens_approx: None,
+                input_tokens_approx: Some(b1_call.input_len / 4),
                 output_tokens_approx: Some(b1_call.content.len() as u64 / 4),
                 http_status: Some(b1_call.http_status),
                 retries: b1_call.retries,
                 json_parse_ok: Some(true),
-                downstream_verdict: Some(b1_downstream.to_string()),
+                downstream_verdict: Some(reviewer_downstream.to_string()),
                 model_verified: b1_call.model_verified,
                 served_model: b1_call.served_model.clone(),
                 error: None,
                 dry_run: ctx.dry_run,
+                pipeline_attempt: retry + 1,
+                verdict_reasoning: None,
+                verdict_issues: None,
             },
         )
         .await;
@@ -482,16 +765,23 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
                 level: None,
                 issue_number: Some(issue_number),
                 latency_ms: b2_call.latency_ms,
-                input_tokens_approx: None,
+                input_tokens_approx: Some(b2_call.input_len / 4),
                 output_tokens_approx: Some(b2_call.content.len() as u64 / 4),
                 http_status: Some(b2_call.http_status),
                 retries: b2_call.retries,
                 json_parse_ok: Some(true),
-                downstream_verdict: Some(review_verdict.verdict.to_string()),
+                downstream_verdict: Some(reviewer_downstream.to_string()),
                 model_verified: b2_call.model_verified,
                 served_model: b2_call.served_model.clone(),
                 error: None,
                 dry_run: ctx.dry_run,
+                pipeline_attempt: retry + 1,
+                verdict_reasoning: Some(review_verdict.reasoning.clone()),
+                verdict_issues: if review_verdict.issues.is_empty() {
+                    None
+                } else {
+                    serde_json::to_string(&review_verdict.issues).ok()
+                },
             },
         )
         .await;
@@ -519,12 +809,26 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
             );
 
             // Apply edits via GitHub API (skip in dry-run)
-            let pr_url = if ctx.dry_run {
+            let (pr_url, pr_number) = if ctx.dry_run {
                 info!("[dry-run] solve: would open PR for #{issue_number} via {}", b1_entry.id);
-                format!("https://github.com/ehrenfest-quantum/quasi/pull/dry-run-{issue_number}")
+                (
+                    format!("https://github.com/ehrenfest-quantum/quasi/pull/dry-run-{issue_number}"),
+                    0u32,
+                )
             } else {
                 apply_and_pr(ctx, issue_number, &issue_title, &solve_result, b1_entry).await?
             };
+
+            // Record PR into pr_outcomes for CI tracking.
+            record_pr_outcome(
+                &ctx.db,
+                &pr_url,
+                pr_number,
+                issue_number,
+                b1_entry.id,
+                cycle_id,
+            )
+            .await;
 
             // Record event to ledger
             let _ = crate::ledger::record_event(
@@ -676,14 +980,14 @@ fn extract_drafter_model(body: &str) -> Option<String> {
     Some(caps.get(1)?.as_str().to_string())
 }
 
-/// Apply solve edits via the GitHub API and open a PR. Returns the PR URL.
+/// Apply solve edits via the GitHub API and open a PR. Returns `(pr_url, pr_number)`.
 async fn apply_and_pr(
     ctx: &mut AppContext,
     issue_number: u32,
     issue_title: &str,
     solve_result: &crate::types::SolveResult,
     b1_entry: &'static crate::types::RotationEntry,
-) -> Result<String> {
+) -> Result<(String, u32)> {
     // a. Get default branch SHA
     let base_sha = ctx.github.get_default_branch_sha().await?;
 
@@ -764,5 +1068,5 @@ async fn apply_and_pr(
         )
         .await?;
 
-    Ok(pr.html_url)
+    Ok((pr.html_url, pr.number))
 }

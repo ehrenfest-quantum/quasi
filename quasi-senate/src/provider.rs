@@ -55,7 +55,29 @@ pub struct CallResult {
     pub model_verified: Option<bool>,
     /// The x-finalized-model header value if present (OpenRouter only)
     pub served_model: Option<String>,
+    /// Total prompt length in characters (system + user), for input_tokens_approx.
+    pub input_len: u64,
 }
+
+/// Error type wrapping a successful HTTP call that failed JSON parsing.
+///
+/// Returned (as an `anyhow::Error`) when `call_model` succeeds but
+/// `parse_json_response` fails. The embedded `CallResult` lets the pipeline
+/// write a telemetry row with `json_parse_ok = false` before propagating.
+#[derive(Debug)]
+pub struct ParseFailure {
+    pub call: CallResult,
+    pub entry: &'static crate::types::RotationEntry,
+    pub error: String,
+}
+
+impl std::fmt::Display for ParseFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "JSON parse failure (model={}): {}", self.entry.id, self.error)
+    }
+}
+
+impl std::error::Error for ParseFailure {}
 
 /// Call an LLM via its provider using the OpenAI-compatible chat completions API.
 ///
@@ -105,6 +127,8 @@ pub async fn call_model(
         }
         _ => user_prompt.to_string(),
     };
+
+    let input_len = (system_prompt.len() + user_prompt_truncated.len()) as u64;
 
     // 4. Build the request body.
     let request_body = ChatRequest {
@@ -286,6 +310,7 @@ pub async fn call_model(
         retries,
         model_verified,
         served_model,
+        input_len,
     })
 }
 

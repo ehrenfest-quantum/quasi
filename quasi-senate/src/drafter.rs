@@ -91,6 +91,7 @@ pub async fn draft_issue(
             retries: 0,
             model_verified: None,
             served_model: None,
+            input_len: 0,
         };
         return Ok((placeholder, entry, dummy_call));
     }
@@ -100,8 +101,13 @@ pub async fn draft_issue(
     let call_result = crate::provider::call_model(entry, &system, &user, 0.7, 2048).await?;
     let raw = call_result.content.clone();
 
-    // 10. Parse raw response
-    let raw_draft = crate::provider::parse_json_response::<IssueDraftRaw>(&raw)?;
+    // 10. Parse raw response — map failure to ParseFailure so pipeline can write telemetry.
+    let raw_draft = crate::provider::parse_json_response::<IssueDraftRaw>(&raw)
+        .map_err(|e| crate::provider::ParseFailure {
+            call: call_result.clone(),
+            entry,
+            error: e.to_string(),
+        })?;
 
     // 11. Convert to IssueDraft
     let draft = IssueDraft {

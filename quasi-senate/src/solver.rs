@@ -133,6 +133,7 @@ pub async fn solve_issue(
             retries: 0,
             model_verified: None,
             served_model: None,
+            input_len: 0,
         };
         return Ok((placeholder, entry, dummy_call));
     }
@@ -143,8 +144,13 @@ pub async fn solve_issue(
     let call_result = crate::provider::call_model(entry, &system, &user, 0.2, max_tokens).await?;
     let raw = call_result.content.clone();
 
-    // 8. Parse raw response
-    let raw_result = crate::provider::parse_json_response::<SolveResultRaw>(&raw)?;
+    // 8. Parse raw response — map failure to ParseFailure so pipeline can write telemetry.
+    let raw_result = crate::provider::parse_json_response::<SolveResultRaw>(&raw)
+        .map_err(|e| crate::provider::ParseFailure {
+            call: call_result.clone(),
+            entry,
+            error: e.to_string(),
+        })?;
 
     // 9. Convert to SolveResult
     let result = SolveResult {
