@@ -1,0 +1,11 @@
+[Unit]
+Description=QUASI Senate Draft Pipeline (A.2 → A.3)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/quasi-senate draft
+User=vops
+EnvironmentFile=/home/vops/.env.quasi
+StandardOutput=append:/home/vops/logs/quasi-senate-draft.log
+StandardError=append:/home/vops/logs/quasi-senate-draft.log
