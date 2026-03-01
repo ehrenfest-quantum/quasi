@@ -603,8 +603,8 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
             ctx.dry_run,
         )
         .await;
-        let (solve_result, b1_entry, b1_call) = match solve_result_r {
-            Ok(triple) => triple,
+        let (solve_result, b1_entry, b1_call, repo_context) = match solve_result_r {
+            Ok(quad) => quad,
             Err(e) => {
                 if let Some(pf) = e.downcast_ref::<ParseFailure>() {
                     record_telemetry(
@@ -661,15 +661,13 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
         let mut reviewer_exclude = exclude_refs.clone();
         reviewer_exclude.push(b1_entry.id);
 
-        // Build a minimal repo context for the reviewer
-        // (solver already fetched context; pass what we have)
-        let repo_context = "(context fetched by solver)";
+        // Pass the same repo context the solver built — reviewer sees the same files.
 
         let review_result = crate::reviewer::review_solution(
             &issue_title,
             &issue_body,
             &solve_result,
-            repo_context,
+            &repo_context,
             &reviewer_exclude,
             &counts,
             last_provider,

@@ -33,7 +33,7 @@ pub async fn solve_issue(
     last_provider: Option<&str>,
     retry_feedback: Option<&str>,
     dry_run: bool,
-) -> Result<(SolveResult, &'static RotationEntry, crate::provider::CallResult)> {
+) -> Result<(SolveResult, &'static RotationEntry, crate::provider::CallResult, String)> {
     // 1. Pick model
     let entry = crate::rotation::pick_model(&Role::B1Solver, exclude, counts, last_provider)?;
 
@@ -59,6 +59,18 @@ pub async fn solve_issue(
                 "#### spec/ehrenfest-v0.1.cddl\n```\n{}\n```",
                 fc.content
             ));
+        }
+        // Afana compiler source — essential so the solver can see existing modules,
+        // data structures, and test patterns rather than hallucinating them.
+        for path in &[
+            "afana/__init__.py",
+            "afana/optimize.py",
+            "afana/compile.py",
+            "afana/tests/test_optimize.py",
+        ] {
+            if let Ok(fc) = github.get_file(path, "main").await {
+                context_parts.push(format!("#### {path}\n```python\n{}\n```", fc.content));
+            }
         }
     }
 
@@ -135,7 +147,7 @@ pub async fn solve_issue(
             served_model: None,
             input_len: 0,
         };
-        return Ok((placeholder, entry, dummy_call));
+        return Ok((placeholder, entry, dummy_call, repo_context));
     }
 
     // 7. Call the LLM
@@ -168,6 +180,6 @@ pub async fn solve_issue(
         result.new_files.len(),
     );
 
-    // 10. Return
-    Ok((result, entry, call_result))
+    // 10. Return — include repo_context so the reviewer can reuse it
+    Ok((result, entry, call_result, repo_context))
 }
