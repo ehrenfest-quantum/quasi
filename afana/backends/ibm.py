@@ -1,3 +1,15 @@
+"""IBM backend stub for Afana.
+
+Afana's job is to emit standard OpenQASM.  Hardware-specific transpilation
+(gate decomposition for the IBM Heron topology, noise-aware qubit mapping,
+etc.) belongs in an IBM HAL driver that implements the HAL Contract API —
+not in the compiler.
+
+This module provides only the shared :class:`EhrenfestProgram` dataclass and
+a thin passthrough that packages QASM for submission via the HAL Contract.
+No vendor SDKs (Qiskit, qiskit-ibm-runtime, …) are imported here.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,34 +18,36 @@ from typing import Any, Dict
 
 @dataclass
 class EhrenfestProgram:
-    """Minimal normalized program payload for Afana backends."""
+    """Minimal normalised program payload for Afana backends."""
 
     n_qubits: int
     qasm: str
     metadata: Dict[str, Any]
 
 
-def _load_qiskit():
-    try:
-        from qiskit import QuantumCircuit, transpile  # type: ignore
-        from qiskit_ibm_runtime import QiskitRuntimeService  # type: ignore
-    except Exception as exc:  # pragma: no cover - exercised via tests
-        raise RuntimeError(
-            "IBM backend requires qiskit and qiskit-ibm-runtime. "
-            "Install extras before using afana.backends.ibm."
-        ) from exc
-    return QuantumCircuit, transpile, QiskitRuntimeService
+def ehrenfest_to_ibm(
+    program: EhrenfestProgram,
+    backend_name: str = "ibm_torino",
+    backend: Any = None,
+) -> Dict[str, Any]:
+    """Package an Ehrenfest program for submission via the HAL Contract.
 
+    Returns a plain dict ready to POST to ``/hal/jobs`` (see
+    ``ts-halcontract`` / ``hal-contract.org``).  Hardware-native
+    transpilation is performed by the IBM HAL driver on the server side.
 
-def transpile_for_ibm(qasm: str, backend_name: str = "ibm_torino"):
-    """Transpile OpenQASM source using IBM backend-aware optimization."""
-    QuantumCircuit, transpile, QiskitRuntimeService = _load_qiskit()
-    circuit = QuantumCircuit.from_qasm_str(qasm)
-    service = QiskitRuntimeService()
-    backend = service.backend(backend_name)
-    return transpile(circuit, backend=backend, optimization_level=3)
+    Args:
+        program: Compiled Ehrenfest program carrying an OpenQASM string.
+        backend_name: Target backend identifier (passed through to HAL).
+        backend: Ignored — present only for call-site compatibility during
+            the migration away from direct Qiskit usage.
 
-
-def ehrenfest_to_ibm(program: EhrenfestProgram, backend_name: str = "ibm_torino"):
-    """Transpile an Ehrenfest program to an IBM-native Qiskit circuit."""
-    return transpile_for_ibm(program.qasm, backend_name=backend_name)
+    Returns:
+        Dict with ``qasm``, ``backend``, and ``shots`` keys matching
+        the HAL Contract ``SubmitCircuitInput`` schema.
+    """
+    return {
+        "qasm": program.qasm,
+        "backend": backend_name,
+        "shots": program.metadata.get("shots", 1024),
+    }
