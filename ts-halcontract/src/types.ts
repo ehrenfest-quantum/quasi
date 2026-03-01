@@ -23,10 +23,17 @@ export interface SubmitCircuitInput {
    * Optional per-qubit noise model forwarded to the HAL driver.
    * Simulators use this to inject realistic decoherence; real-hardware
    * drivers may use it for error-mitigation strategy selection.
-   * Channels correspond to those declared in the Ehrenfest program's
-   * `noise_channels` field.
    */
   noiseChannels?: NoiseChannel[];
+  /**
+   * Optional parameter bindings for parametric circuits (OpenQASM 3.0
+   * `input float[64]` declarations).  Keys are parameter names; values
+   * are concrete float values.  HAL drivers that do not support parametric
+   * execution MUST return an error when this field is non-empty.
+   *
+   * Example: { "theta_0": 1.5707963, "theta_1": 0.7853981 }
+   */
+  parameters?: Record<string, number>;
 }
 
 export interface JobHandle {
@@ -40,4 +47,45 @@ export interface JobResult {
   jobId: string;
   backend: string;
   shots: number;
+}
+
+/** Gate sets exposed by a backend (HAL Contract §4.2). */
+export interface BackendGateSet {
+  singleQubit: string[];
+  twoQubit: string[];
+  threeQubit: string[];
+  native: string[];
+}
+
+/** Qubit connectivity graph (HAL Contract §4.3). */
+export interface BackendTopology {
+  kind: string;
+  edges: [number, number][];
+}
+
+/** Device-wide noise averages (HAL Contract §4.4). All times in microseconds. */
+export interface BackendNoiseProfile {
+  t1?: number;
+  t2?: number;
+  singleQubitFidelity?: number;
+  twoQubitFidelity?: number;
+  readoutFidelity?: number;
+  gateTime?: number;
+}
+
+/**
+ * Full backend capabilities returned by GET /hal/backends/{name}.
+ * Maps to HAL Contract §4.1 Capabilities.
+ */
+export interface BackendCapabilities {
+  name: string;
+  numQubits: number;
+  gateSet: BackendGateSet;
+  topology: BackendTopology;
+  maxShots: number;
+  maxCircuitOps?: number;
+  isSimulator: boolean;
+  features: string[];
+  noiseProfile?: BackendNoiseProfile;
+  isAvailable: boolean;
 }

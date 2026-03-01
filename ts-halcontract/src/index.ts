@@ -1,4 +1,4 @@
-import { JobHandle, JobResult, SubmitCircuitInput } from "./types.js";
+import { BackendCapabilities, JobHandle, JobResult, SubmitCircuitInput } from "./types.js";
 
 export * from "./types.js";
 
@@ -52,6 +52,17 @@ class HalClient {
     const data = (await response.json()) as { backends: string[] };
     return data.backends;
   }
+
+  async getBackendCapabilities(name: string): Promise<BackendCapabilities> {
+    const response = await this.fetchImpl(`${this.baseUrl}/hal/backends/${encodeURIComponent(name)}`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error(`getBackendCapabilities failed: ${response.status}`);
+    }
+    return (await response.json()) as BackendCapabilities;
+  }
 }
 
 let defaultClient = new HalClient({ baseUrl: "https://gawain.valiant-quantum.com" });
@@ -70,4 +81,13 @@ export async function getResult(job: JobHandle): Promise<JobResult> {
 
 export async function listBackends(): Promise<string[]> {
   return defaultClient.listBackends();
+}
+
+/**
+ * Fetch full capabilities for a named backend (DEBT-24 / HAL Contract §4.1).
+ * Use this to discover gate set, topology, noise profile, and max shots
+ * before constructing an Ehrenfest program or selecting noise mitigation.
+ */
+export async function getBackendCapabilities(name: string): Promise<BackendCapabilities> {
+  return defaultClient.getBackendCapabilities(name);
 }
