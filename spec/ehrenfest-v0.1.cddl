@@ -14,12 +14,13 @@
 ; ─── Root ────────────────────────────────────────────────────────────────────
 
 EhrenfestProgram = {
-  "version":      uint,            ; must be 1 for v0.1
-  "system":       PhysicalContext,
-  "hamiltonian":  Hamiltonian,
-  "evolution":    EvolutionTime,
-  "observables":  [+ Observable],  ; at least one observable required
-  "noise":        NoiseConstraint,
+  "version":         uint,              ; must be 1 for v0.1
+  "system":          PhysicalContext,
+  "hamiltonian":     Hamiltonian,
+  "evolution":       EvolutionTime,
+  "observables":     [+ Observable],    ; at least one observable required
+  "noise":           NoiseConstraint,
+  ? "noise_channels": [* NoiseChannel], ; optional per-qubit decoherence annotations
 }
 
 ; ─── Physical System ─────────────────────────────────────────────────────────
@@ -160,4 +161,51 @@ NoiseConstraint = {
   "t2_us":                    float,  ; minimum required T2 dephasing time (μs)  — REQUIRED
   ? "gate_fidelity_min":      float,  ; minimum single-qubit gate fidelity [0.0, 1.0]
   ? "readout_fidelity_min":   float,  ; minimum readout fidelity [0.0, 1.0]
+}
+
+; ─── Noise Channels ──────────────────────────────────────────────────────────
+;
+; Optional per-qubit decoherence channel annotations.  These describe the
+; *expected* noise model during execution — not requirements on the hardware.
+; Backends and simulators MAY use them to apply realistic noise models.
+; Afana's error-mitigation passes (dynamical decoupling, MEM, randomized
+; compiling) inspect these annotations when choosing a mitigation strategy.
+;
+; Three channels are supported (numeric type tag for compact CBOR encoding):
+;   1 — Depolarizing:       equally probable X, Y, Z error after each gate
+;   2 — Amplitude damping:  energy relaxation (|1⟩ → |0⟩), models T1 decay
+;   3 — Phase damping:      pure dephasing (Z-type), models T2* decay
+;
+; All probability parameters (p, gamma) MUST satisfy 0.0 ≤ x ≤ 1.0.
+; Qubit indices MUST be non-negative integers within [0, n_qubits − 1].
+; A program MAY specify multiple channels per qubit.
+;
+; CBOR encoding example for depolarizing noise on qubit 0 with p=0.01:
+;   {1: 1, 2: 0, 3: 0.01}   (using integer keys for compact form)
+;   {"type": 1, "qubit": 0, "p": 0.01}  (text keys for schema clarity)
+
+NoiseChannel = DepolarizingChannel / AmplitudeDampingChannel / PhaseDampingChannel
+
+; Depolarizing noise: with probability p a uniformly random Pauli (X, Y, or Z)
+; is applied after each single-qubit gate on *qubit*.
+DepolarizingChannel = {
+  "type":   1,    ; literal integer tag — MUST be 1
+  "qubit":  uint, ; target qubit index
+  "p":      float, ; error probability per gate, p ∈ [0, 1]
+}
+
+; Amplitude damping: energy relaxation from |1⟩ to |0⟩ with Kraus strength
+; gamma.  Models T1 (longitudinal relaxation) decay.
+AmplitudeDampingChannel = {
+  "type":   2,    ; literal integer tag — MUST be 2
+  "qubit":  uint,
+  "gamma":  float, ; damping strength, gamma ∈ [0, 1]
+}
+
+; Phase damping: pure dephasing that destroys off-diagonal coherence without
+; energy exchange.  Models T2* (transverse dephasing) decay.
+PhaseDampingChannel = {
+  "type":   3,    ; literal integer tag — MUST be 3
+  "qubit":  uint,
+  "gamma":  float, ; dephasing strength, gamma ∈ [0, 1]
 }
