@@ -20,6 +20,7 @@ EhrenfestProgram = {
   "evolution":       EvolutionTime,
   "observables":     [+ Observable],    ; at least one observable required
   "noise":           NoiseConstraint,   ; hardware requirements (T1, T2, fidelity)
+  ? "variational":    VariationalProgram, ; optional variational loop support
 }
 
 ; ─── Physical System ─────────────────────────────────────────────────────────
@@ -186,6 +187,65 @@ NoiseConstraint = {
 ; Qubit indices MUST be non-negative integers within [0, n_qubits − 1].
 
 NoiseChannel = DepolarizingChannel / AmplitudeDampingChannel / PhaseDampingChannel
+
+; ─── Variational Loop Support ────────────────────────────────────────────────
+;
+; Parametric quantum programs with classical optimization loops.
+; Enables VQE, QAOA, and other variational algorithms.
+; Compiled by Afana to ZX-IR with parameter binding.
+
+VariationalProgram = {
+  "parameters":      [+ Parameter],     ; variational parameters to optimize
+  "loop":           VariationalLoop,   ; optimization loop structure
+  "objective":       ObjectiveFunction, ; what to minimize/maximize
+  "optimizer":       OptimizerConfig,   ; classical optimization settings
+}
+
+Parameter = {
+  "name":            tstr,              ; parameter identifier
+  "initial":         float,             ; starting value
+  "bounds":          [2* float],        ; [min, max] constraints
+  ? "step_size":     float,             ; optional initial step
+}
+
+VariationalLoop = {
+  "max_iterations":  uint,              ; maximum optimization steps
+  "convergence":     ConvergenceCriteria,
+  "body":            [+ QuantumOperation], ; quantum circuit per iteration
+}
+
+ConvergenceCriteria = {
+  "tolerance":       float,             ; parameter change threshold
+  ? "patience":      uint,              ; iterations without improvement
+  ? "min_iterations": uint,             ; minimum steps before convergence
+}
+
+QuantumOperation = ParametricGate / Measurement / ClassicalUpdate
+
+ParametricGate = {
+  "type":            "parametric",
+  "gate":            tstr,              ; gate type (RZ, RY, RX)
+  "qubit":           uint,              ; target qubit
+  "parameter":       tstr,              ; parameter name from Parameter list
+}
+
+Measurement = {
+  "type":            "measure",
+  "observable":      Observable,        ; what to measure
+  "shots":           uint,              ; number of measurement shots
+}
+
+ClassicalUpdate = {
+  "type":            "classical",
+  "update_rule":     tstr,              ; parameter update expression
+  "dependencies":    [* tstr],          ; parameter names this depends on
+}
+
+ObjectiveFunction = {
+  "type":            "minimize" / "maximize",
+  "expression":      tstr,              ; mathematical expression using observables
+  "weights":         {* tstr => float}, ; optional weights for multi-term objectives
+}
 
 ; Depolarizing noise: with probability p a uniformly random Pauli (X, Y, or Z)
 ; is applied after each single-qubit gate on *qubit*.
