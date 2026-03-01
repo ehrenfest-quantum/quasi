@@ -1,7 +1,9 @@
 """Ehrenfest (.ef) text parser — converts .ef source to an AST.
 
-Grammar summary (v0.1):
-  program  ::= header stmt*
+Grammar summary (v0.2):
+  program  ::= type_decl* header stmt*
+  type_decl ::= 'type' NAME '=' type_expr
+  type_expr ::= NAME | '(' NAME (',' NAME)* ')'
   header   ::= 'program' STRING 'qubits' INT ('prepare' 'basis' STATE)?
   stmt     ::= gate_stmt | measure_stmt | expect_stmt | comment
   gate_stmt    ::= GATE qubit_list
@@ -11,6 +13,8 @@ Grammar summary (v0.1):
 
 Supported gates (case-insensitive): h, x, y, z, s, t, sdg, tdg,
   cx / cnot, cz, swap, ccx / toffoli, rx, ry, rz.
+
+Type declarations use schema tag ``quasi.org/ast/type-alias`` (CBOR schema v0.3+).
 
 No external dependencies — stdlib only.
 """
@@ -57,6 +61,25 @@ class Expect:
 
 
 @dataclass
+class TypeDecl:
+    """A user-defined type alias: ``type QubitPair = (Qubit, Qubit)``.
+
+    Serialises to CBOR schema v0.3+ using the ``quasi.org/ast/type-alias`` tag.
+    The ``definition`` field holds the raw type expression exactly as written.
+    """
+
+    #: CBOR schema tag for type alias nodes (schema v0.3+).
+    CBOR_TAG = "quasi.org/ast/type-alias"
+
+    name: str            # alias name, e.g. "QubitPair"
+    definition: str      # raw type expression, e.g. "(Qubit, Qubit)"
+
+    def to_dict(self) -> dict:
+        """Return a CBOR-compatible dict representation (schema v0.3+)."""
+        return {"_tag": self.CBOR_TAG, "name": self.name, "definition": self.definition}
+
+
+@dataclass
 class EhrenfestAST:
     """Root AST node for a parsed .ef program."""
     name: str
@@ -66,6 +89,7 @@ class EhrenfestAST:
     measures: List[Measure]
     conditionals: List[ConditionalGate]
     expects: List[Expect]
+    type_decls: List["TypeDecl"] = field(default_factory=list)
 
 
 # ── Tokenisation helpers ───────────────────────────────────────────────────────
@@ -147,9 +171,49 @@ def parse(source: str) -> EhrenfestAST:
         except StopIteration:
             raise ParseError(f"unexpected end of file while expecting {expect_what}")
 
+    def _parse_type_decl(lineno: int, toks: List[str]) -> TypeDecl:
+        """Parse ``type NAME = TYPE_EXPR`` and return a :class:`TypeDecl`."""
+        # toks[0] == "type"; toks[1] == NAME; toks[2] == "="; toks[3:] == type expr
+        if len(toks) < 2:
+            raise ParseError(
+                f"line {lineno}: 'type' syntax: type NAME = TYPE_EXPR"
+            )
+        type_name = toks[1]
+        if not type_name.isidentifier():
+            raise ParseError(
+                f"line {lineno}: 'type' name must be a valid identifier, got {type_name!r}"
+            )
+        if len(toks) < 3 or toks[2] != "=":
+            got = toks[2] if len(toks) >= 3 else "<end of line>"
+            raise ParseError(
+                f"line {lineno}: 'type' declaration expects '=', got {got!r}"
+            )
+        # Reconstruct the definition from remaining tokens
+        definition = " ".join(toks[3:])
+        if not definition:
+            raise ParseError(f"line {lineno}: 'type' declaration requires a type expression")
+        return TypeDecl(name=type_name, definition=definition)
+
+    # ── Pre-header: collect type declarations ─────────────────────────────────
+
+    type_decls: List[TypeDecl] = []
+    peeked: Optional[Tuple[int, List[str]]] = None
+
+    for lineno, toks in it:
+        kw = toks[0].lower()
+        if kw == "type":
+            type_decls.append(_parse_type_decl(lineno, toks))
+        else:
+            peeked = (lineno, toks)
+            break
+
     # ── Header ────────────────────────────────────────────────────────────────
 
-    lineno, toks = _next_line("'program' declaration")
+    if peeked is not None:
+        lineno, toks = peeked
+    else:
+        lineno, toks = _next_line("'program' declaration")
+
     if toks[0].lower() != "program":
         raise ParseError(f"line {lineno}: expected 'program', got {toks[0]!r}")
     if len(toks) < 2:
@@ -281,6 +345,10 @@ def parse(source: str) -> EhrenfestAST:
 
             gates.append(Gate(name=gate_name, qubits=qubit_indices, params=params))
 
+        elif kw == "type":
+            # type declarations may also appear inside the program body
+            type_decls.append(_parse_type_decl(lineno, toks))
+
         else:
             raise ParseError(f"line {lineno}: unknown directive {toks[0]!r}")
 
@@ -292,6 +360,7 @@ def parse(source: str) -> EhrenfestAST:
         measures=measures,
         conditionals=conditionals,
         expects=expects,
+        type_decls=type_decls,
     )
 
 

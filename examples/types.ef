@@ -1,0 +1,23 @@
+// Ehrenfest type declarations example
+// Demonstrates user-defined type aliases (schema v0.3+)
+
+// Type aliases declared before the program header
+type QubitPair = ( Qubit Qubit )
+type QubitTriple = ( Qubit Qubit Qubit )
+type AngleRad = Float
+
+program "types-demo"
+qubits 3
+prepare basis |000>
+
+// Entangle all three qubits
+h q0
+cnot q0 q1
+cnot q0 q2
+
+measure q0 -> c0
+measure q1 -> c1
+measure q2 -> c2
+
+expect state "(|000> + |111>) / sqrt(2)"
+expect counts "000,111"
