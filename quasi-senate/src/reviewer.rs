@@ -57,6 +57,7 @@ pub async fn review_solution(
             retries: 0,
             model_verified: None,
             served_model: None,
+            input_len: 0,
         };
         return Ok((verdict, entry, dummy_call));
     }
@@ -65,8 +66,13 @@ pub async fn review_solution(
     let call_result = crate::provider::call_model(entry, &system, &user, 0.2, 2048).await?;
     let raw = call_result.content.clone();
 
-    // 5. Parse raw response
-    let raw_verdict = crate::provider::parse_json_response::<ReviewVerdictRaw>(&raw)?;
+    // 5. Parse raw response — map failure to ParseFailure so pipeline can write telemetry.
+    let raw_verdict = crate::provider::parse_json_response::<ReviewVerdictRaw>(&raw)
+        .map_err(|e| crate::provider::ParseFailure {
+            call: call_result.clone(),
+            entry,
+            error: e.to_string(),
+        })?;
 
     // 6. Map verdict string
     let verdict_enum = match raw_verdict.verdict.to_lowercase().as_str() {

@@ -49,6 +49,8 @@ pub struct TelemetryEntry {
     pub error: Option<String>,
     /// Whether this was a dry run
     pub dry_run: bool,
+    /// Which retry attempt produced this row: 1 = first attempt, 2 = second attempt.
+    pub pipeline_attempt: u32,
 }
 
 /// Strip the provider suffix from a model ID to get the canonical base model name.
@@ -97,8 +99,8 @@ pub async fn record_telemetry(db: &Option<tokio_postgres::Client>, entry: &Telem
                 timestamp, cycle_id, role, model_id, model_string, provider, base_model,
                 level, issue_number, latency_ms, input_tokens_approx, output_tokens_approx,
                 http_status, retries, json_parse_ok, downstream_verdict,
-                model_verified, served_model, error, dry_run
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)",
+                model_verified, served_model, error, dry_run, pipeline_attempt
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)",
             &[
                 &entry.timestamp,
                 &entry.cycle_id,
@@ -120,6 +122,7 @@ pub async fn record_telemetry(db: &Option<tokio_postgres::Client>, entry: &Telem
                 &entry.served_model,
                 &entry.error,
                 &entry.dry_run,
+                &(entry.pipeline_attempt as i32),
             ],
         )
         .await;
@@ -180,6 +183,7 @@ mod tests {
             served_model: None,
             error: None,
             dry_run: false,
+            pipeline_attempt: 1,
         };
         assert_eq!(entry.base_model, "llama3.3");
         assert_eq!(entry.role, "A2_drafter");
