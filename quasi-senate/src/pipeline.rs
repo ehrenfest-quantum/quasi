@@ -121,7 +121,7 @@ pub async fn run_council(ctx: &mut AppContext) -> Result<Charter> {
     if let Some(bot) = &ctx.matrix {
         // Identify which model was used — not tracked directly, use "council"
         let (plain, html) = crate::matrix::format_charter_message(&charter, "council");
-        match bot.join_room("#senate-council:matrix.arvak.io").await {
+        match bot.join_room("#senate-council:paulsboutique.hal-contract.org").await {
             Ok(room_id) => {
                 if let Err(err) = bot.send_message(&room_id, &plain, &html).await {
                     warn!("pipeline: failed to post charter to Matrix: {err}");
@@ -244,7 +244,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
         // Post draft to Matrix #senate-drafts
         if let Some(bot) = &ctx.matrix {
             let (plain, html) = crate::matrix::format_draft_message(&draft);
-            match bot.join_room("#senate-drafts:matrix.arvak.io").await {
+            match bot.join_room("#senate-drafts:paulsboutique.hal-contract.org").await {
                 Ok(room_id) => {
                     if let Err(err) = bot.send_message(&room_id, &plain, &html).await {
                         warn!("pipeline: failed to post draft to Matrix: {err}");
@@ -314,7 +314,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
         // Post verdict to Matrix #senate-drafts
         if let Some(bot) = &ctx.matrix {
             let (plain, html) = crate::matrix::format_verdict_message(&verdict, &draft.title);
-            match bot.join_room("#senate-drafts:matrix.arvak.io").await {
+            match bot.join_room("#senate-drafts:paulsboutique.hal-contract.org").await {
                 Ok(room_id) => {
                     if let Err(err) = bot.send_message(&room_id, &plain, &html).await {
                         warn!("pipeline: failed to post gate verdict to Matrix: {err}");
@@ -434,7 +434,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
                     url = issue.html_url,
                     title = draft.title,
                 );
-                match bot.join_room("#senate-council:matrix.arvak.io").await {
+                match bot.join_room("#senate-council:paulsboutique.hal-contract.org").await {
                     Ok(room_id) => {
                         if let Err(err) = bot.send_message(&room_id, &plain, &html).await {
                             warn!("pipeline: failed to post issue approval to Matrix: {err}");
@@ -543,7 +543,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
         let plain = "⚠️ Draft shelved after 2 rejected attempts — moving on.".to_string();
         let html = "<p>⚠️ <b>Draft shelved</b> after 2 rejected attempts — moving on.</p>"
             .to_string();
-        match bot.join_room("#senate-drafts:matrix.arvak.io").await {
+        match bot.join_room("#senate-drafts:paulsboutique.hal-contract.org").await {
             Ok(room_id) => {
                 let _ = bot.send_message(&room_id, &plain, &html).await;
             }
@@ -645,7 +645,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
         if let Some(bot) = &ctx.matrix {
             let (plain, html) =
                 crate::matrix::format_solution_message(issue_number, &solve_result);
-            match bot.join_room("#senate-solutions:matrix.arvak.io").await {
+            match bot.join_room("#senate-solutions:paulsboutique.hal-contract.org").await {
                 Ok(room_id) => {
                     if let Err(err) = bot.send_message(&room_id, &plain, &html).await {
                         warn!("pipeline: failed to post solution to Matrix: {err}");
@@ -788,7 +788,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
         if let Some(bot) = &ctx.matrix {
             let (plain, html) =
                 crate::matrix::format_review_message(&review_verdict, issue_number);
-            match bot.join_room("#senate-solutions:matrix.arvak.io").await {
+            match bot.join_room("#senate-solutions:paulsboutique.hal-contract.org").await {
                 Ok(room_id) => {
                     if let Err(err) = bot.send_message(&room_id, &plain, &html).await {
                         warn!("pipeline: failed to post review verdict to Matrix: {err}");
@@ -844,7 +844,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
                 let html = format!(
                     "<p>✅ <b>PR opened for #{issue_number}:</b> <a href=\"{pr_url}\">{pr_url}</a></p>"
                 );
-                match bot.join_room("#senate-solutions:matrix.arvak.io").await {
+                match bot.join_room("#senate-solutions:paulsboutique.hal-contract.org").await {
                     Ok(room_id) => {
                         if let Err(err) = bot.send_message(&room_id, &plain, &html).await {
                             warn!("pipeline: failed to post PR approval to Matrix: {err}");
@@ -900,7 +900,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
         let html = format!(
             "<p>❌ <b>Solution for #{issue_number}</b> failed after 2 attempts — shelved.</p>"
         );
-        match bot.join_room("#senate-solutions:matrix.arvak.io").await {
+        match bot.join_room("#senate-solutions:paulsboutique.hal-contract.org").await {
             Ok(room_id) => {
                 let _ = bot.send_message(&room_id, &plain, &html).await;
             }

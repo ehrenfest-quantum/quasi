@@ -13,10 +13,10 @@ use crate::types::{Charter, GateVerdict, IssueDraft, ReviewVerdict, SolveResult}
 
 /// Room aliases the Senate daemon joins on startup.
 pub const SENATE_ROOMS: &[&str] = &[
-    "#senate-council:matrix.arvak.io",
-    "#senate-drafts:matrix.arvak.io",
-    "#senate-solutions:matrix.arvak.io",
-    "#senate-ledger:matrix.arvak.io",
+    "#senate-council:paulsboutique.hal-contract.org",
+    "#senate-drafts:paulsboutique.hal-contract.org",
+    "#senate-solutions:paulsboutique.hal-contract.org",
+    "#senate-ledger:paulsboutique.hal-contract.org",
 ];
 
 pub struct MatrixBot {
