@@ -34,17 +34,37 @@ def check(cond: bool, msg: str) -> None:
         raise ValidationError(msg)
 
 
+def _is_coefficient(value) -> bool:
+    """Accept float (v0.1) or ParameterRef dict {"param": <str>} (v0.2)."""
+    if isinstance(value, (int, float)):
+        return True
+    if isinstance(value, dict) and "param" in value and isinstance(value["param"], str):
+        return True
+    return False
+
+
 def validate_program(p: dict) -> None:
-    """Validate a decoded EhrenfestProgram dict against the v0.1 schema."""
+    """Validate a decoded EhrenfestProgram dict against v0.1 or v0.2 schema."""
 
     # Top-level fields
     check(isinstance(p, dict), "root must be a map")
     missing = REQUIRED_TOP_LEVEL - set(p.keys())
     check(not missing, f"missing required top-level fields: {missing}")
 
-    # version
+    # version — v0.1 uses 1, v0.2 uses 2
     check(isinstance(p["version"], int), "version must be uint")
-    check(p["version"] == 1, f"version must be 1 for v0.1, got {p['version']}")
+    check(p["version"] in (1, 2),
+          f"version must be 1 (v0.1) or 2 (v0.2), got {p['version']}")
+    schema_version = p["version"]
+
+    # v0.2: optional parameters map {name: float}
+    if schema_version >= 2 and "parameters" in p:
+        params = p["parameters"]
+        check(isinstance(params, dict), "parameters must be a map")
+        for name, val in params.items():
+            check(isinstance(name, str), f"parameter name {name!r} must be tstr")
+            check(isinstance(val, (int, float)),
+                  f"parameter {name!r} initial value must be float")
 
     # system
     sys_ = p["system"]
@@ -74,6 +94,8 @@ def validate_program(p: dict) -> None:
     for i, term in enumerate(h["terms"]):
         check(isinstance(term, dict), f"hamiltonian.terms[{i}] must be a map")
         check("coefficient" in term, f"hamiltonian.terms[{i}].coefficient is required")
+        check(_is_coefficient(term["coefficient"]),
+              f"hamiltonian.terms[{i}].coefficient must be float or ParameterRef")
         check("paulis" in term, f"hamiltonian.terms[{i}].paulis is required")
         check(isinstance(term["paulis"], list),
               f"hamiltonian.terms[{i}].paulis must be an array")
@@ -152,7 +174,9 @@ def validate_file(path: Path) -> bool:
         n = program["system"]["n_qubits"]
         t = len(program["hamiltonian"]["terms"])
         obs = program["observables"][0]["type"]
-        print(f"  ✓  {path.name}  ({len(raw)}B, {n}q, {t} terms, obs={obs})")
+        v = program["version"]
+        schema = f"v0.{v}"
+        print(f"  ✓  {path.name}  ({len(raw)}B, {n}q, {t} terms, obs={obs}, schema={schema})")
         return True
     except ValidationError as e:
         print(f"  ✗  {path.name}: {e}")
