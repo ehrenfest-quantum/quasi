@@ -202,20 +202,28 @@ async fn find_oldest_senate_issue(ctx: &mut AppContext) -> Result<u32> {
     let re = Regex::new(r"Generator model:\s*`([^`]+)`")?;
 
     // Issues are returned newest-first; reverse to get oldest-first.
+    // Skip issues that have exhausted their solve retries (>= 2 attempts).
     let senate_issues: Vec<_> = issues
         .into_iter()
         .filter(|issue| {
-            issue
+            let is_senate = issue
                 .body
                 .as_deref()
                 .map(|body| re.is_match(body))
-                .unwrap_or(false)
+                .unwrap_or(false);
+            let retries = ctx
+                .state
+                .solve_retries
+                .get(&issue.number.to_string())
+                .copied()
+                .unwrap_or(0);
+            is_senate && retries < 2
         })
         .collect();
 
     if senate_issues.is_empty() {
         return Err(anyhow!(
-            "No open Senate-generated issues found. Draft one first with `quasi-senate draft`."
+            "No eligible Senate-generated issues found (all may be exhausted or none drafted yet)."
         ));
     }
 
