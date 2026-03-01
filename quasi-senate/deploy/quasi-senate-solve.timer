@@ -1,0 +1,9 @@
+[Unit]
+Description=QUASI Senate Solve — every 4 hours (offset from draft)
+
+[Timer]
+OnCalendar=*-*-* 02/4:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

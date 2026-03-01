@@ -1,0 +1,9 @@
+[Unit]
+Description=QUASI Senate Council — weekly on Monday 06:00 UTC
+
+[Timer]
+OnCalendar=Mon *-*-* 06:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

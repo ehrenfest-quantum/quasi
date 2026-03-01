@@ -1,0 +1,11 @@
+[Unit]
+Description=QUASI Senate Council Session (A.1)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/quasi-senate council
+User=vops
+EnvironmentFile=/home/vops/.env.quasi
+StandardOutput=append:/home/vops/logs/quasi-senate-council.log
+StandardError=append:/home/vops/logs/quasi-senate-council.log
