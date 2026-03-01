@@ -47,13 +47,23 @@ def cmd_compile(path: str, optimize: bool, output: Optional[str], param_args: Op
 
 
 def cmd_compile_parametric(path: str, param_args: List[str], output: Optional[str]) -> int:
-    """Compile an Ehrenfest program dict (JSON) with optional parameter bindings."""
-    bindings = _parse_bindings(param_args)
-    text = _read_text(path)
+    """Compile an Ehrenfest .cbor.hex program with optional parameter bindings."""
     try:
-        program = json.loads(text)
-    except json.JSONDecodeError as exc:
-        print(f"Error: could not parse {path!r} as JSON: {exc}")
+        import cbor2
+    except ImportError:
+        print("Error: cbor2 required — pip install cbor2")
+        return 1
+    bindings = _parse_bindings(param_args)
+    text = _read_text(path).strip()
+    try:
+        raw = bytes.fromhex(text)
+    except ValueError as exc:
+        print(f"Error: {path!r} is not valid hex: {exc}")
+        return 1
+    try:
+        program = cbor2.loads(raw)
+    except Exception as exc:
+        print(f"Error: could not decode {path!r} as CBOR: {exc}")
         return 1
     try:
         qasm3 = compile_parametric(program, bindings=bindings)
@@ -103,8 +113,8 @@ def main() -> int:
     p_compile.add_argument("--optimize", action="store_true", help="Enable ZX optimization")
     p_compile.add_argument("--output", help="Optional output path for compiled QASM")
 
-    p_parametric = sub.add_parser("compile-parametric", help="Compile Ehrenfest JSON program to QASM3")
-    p_parametric.add_argument("input", help="Path to Ehrenfest program JSON file")
+    p_parametric = sub.add_parser("compile-parametric", help="Compile Ehrenfest .cbor.hex program to QASM3")
+    p_parametric.add_argument("input", help="Path to Ehrenfest program .cbor.hex file")
     p_parametric.add_argument(
         "--param", dest="params", action="append", default=[],
         metavar="NAME=VALUE",

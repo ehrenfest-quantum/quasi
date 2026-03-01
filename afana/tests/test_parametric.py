@@ -227,3 +227,43 @@ def test_bind_parameters_does_not_mutate_original():
     bind_parameters(prog, {"theta": 1.0})
     # Original still has ParameterRef
     assert prog["hamiltonian"]["terms"][0]["coefficient"] == {"param": "theta"}
+
+
+# ── CLI round-trip: CBOR → QASM3 ─────────────────────────────────────────────
+
+def test_cli_compile_parametric_reads_cbor_hex(tmp_path):
+    """compile-parametric CLI reads .cbor.hex, not JSON."""
+    cbor2 = pytest.importorskip("cbor2")
+    from afana.cli import cmd_compile_parametric
+
+    prog = {
+        "version": 2,
+        "system": {"n_qubits": 1},
+        "hamiltonian": {
+            "terms": [{"coefficient": {"param": "theta"}, "paulis": [{"qubit": 0, "axis": 3}]}],
+            "constant_offset": 0.0,
+        },
+        "evolution": {"total_us": 1.0, "steps": 1, "dt_us": 1.0},
+        "observables": [{"type": "SZ", "qubit": 0}],
+        "noise": {"t1_us": 100.0, "t2_us": 80.0},
+        "parameters": {"theta": 0.5},
+    }
+    cbor_hex = cbor2.dumps(prog).hex()
+    cbor_file = tmp_path / "test_prog.cbor.hex"
+    cbor_file.write_text(cbor_hex)
+
+    out_file = tmp_path / "out.qasm"
+    rc = cmd_compile_parametric(str(cbor_file), [], str(out_file))
+    assert rc == 0
+    qasm = out_file.read_text()
+    assert "OPENQASM 3.0;" in qasm
+    assert "input float[64] theta;" in qasm
+
+
+def test_cli_compile_parametric_rejects_json(tmp_path):
+    """compile-parametric CLI rejects a plain JSON file (not valid hex)."""
+    from afana.cli import cmd_compile_parametric
+    json_file = tmp_path / "prog.json"
+    json_file.write_text('{"version": 2}')
+    rc = cmd_compile_parametric(str(json_file), [], None)
+    assert rc == 1
