@@ -46,19 +46,17 @@ def compile_qasm(qasm: str, optimize: bool = False) -> Dict[str, Any]:
 
 
 def compile_for_backend(qasm: str, backend: str = "ibm_torino") -> Dict[str, Any]:
-    """Compile OpenQASM with backend-aware transpilation path."""
+    """Package OpenQASM for submission to a backend via the HAL Contract.
+
+    Returns the HAL payload dict alongside gate-count stats measured on the
+    *input* QASM (hardware-native optimisation is deferred to the HAL driver).
+    """
     program = EhrenfestProgram(n_qubits=0, qasm=qasm, metadata={})
-    transpiled = ehrenfest_to_ibm(program, backend_name=backend)
+    hal_payload = ehrenfest_to_ibm(program, backend_name=backend)
 
     before = _count_qasm_ops(qasm)
-    try:
-        after = int(transpiled.count_ops().total())  # qiskit OrderedDict with total()
-    except Exception:
-        # fallback when mocked/transpiled object does not expose count_ops
-        after = before
-
     return {
         "backend": backend,
-        "transpiled": transpiled,
-        "stats": asdict(CompileStats(backend=backend, gate_count_before=before, gate_count_after=after)),
+        "transpiled": hal_payload,
+        "stats": asdict(CompileStats(backend=backend, gate_count_before=before, gate_count_after=before)),
     }
