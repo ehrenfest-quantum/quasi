@@ -5,11 +5,15 @@ Grammar summary (v0.2):
   type_decl ::= 'type' NAME '=' type_expr
   type_expr ::= NAME | '(' NAME (',' NAME)* ')'
   header   ::= 'program' STRING 'qubits' INT ('prepare' 'basis' STATE)?
-  stmt     ::= gate_stmt | measure_stmt | expect_stmt | comment
-  gate_stmt    ::= GATE qubit_list
-  measure_stmt ::= 'measure' QUBIT '->' CBIT
-  expect_stmt  ::= 'expect' ('state' | 'counts') STRING
-  comment  ::= '//' REST_OF_LINE
+  stmt     ::= gate_stmt | measure_stmt | expect_stmt | variational_block | comment
+  gate_stmt       ::= GATE qubit_list
+  measure_stmt    ::= 'measure' QUBIT '->' CBIT
+  expect_stmt     ::= 'expect' ('state' | 'counts') STRING
+  variational_block ::= 'variational' 'params' NAME+ ['max_iter' INT]
+                        vgate_stmt*
+                        'end'
+  vgate_stmt      ::= GATE (NAME | FLOAT)* QUBIT+
+  comment         ::= '//' REST_OF_LINE
 
 Supported gates (case-insensitive): h, x, y, z, s, t, sdg, tdg,
   cx / cnot, cz, swap, ccx / toffoli, rx, ry, rz.
@@ -80,6 +84,75 @@ class TypeDecl:
 
 
 @dataclass
+class VariationalGate:
+    """A gate inside a variational loop with symbolic (named) parameters.
+
+    E.g. ``rx theta q0`` where ``theta`` is a variational parameter name.
+    ``param_refs`` contains either parameter names (str) or resolved float values.
+    """
+    name: str               # lower-cased gate name, e.g. "rx"
+    qubits: List[int]       # qubit indices
+    param_refs: List[str]   # parameter names, e.g. ["theta"]
+
+
+@dataclass
+class VariationalLoop:
+    """A variational optimisation block (VQE/QAOA ansatz).
+
+    Syntax::
+
+        variational params theta phi max_iter 100
+          rx theta q0
+          ry phi q1
+          cnot q0 q1
+        end
+
+    The block compiles to a QASM3 circuit that accepts ``input float[64]``
+    parameters so that a classical optimizer can drive repeated execution.
+    """
+    params: List[str]         # ordered parameter names, e.g. ["theta", "phi"]
+    max_iter: int             # maximum optimisation iterations (hint only)
+    body: List[VariationalGate]  # gate sequence within the ansatz
+
+    def to_qasm3(self, n_qubits: int) -> str:
+        """Emit an OpenQASM 3.0 snippet for this variational ansatz.
+
+        The emitted QASM uses ``input float[64]`` declarations for each
+        parameter so that a classical optimizer loop can re-submit the circuit
+        with updated parameter values.
+        """
+        _GATE_QASM3 = {
+            "cx": "cx", "cnot": "cx", "cz": "cz", "swap": "swap",
+            "ccx": "ccx", "toffoli": "ccx",
+            "h": "h", "x": "x", "y": "y", "z": "z",
+            "s": "s", "t": "t", "sdg": "sdg", "tdg": "tdg",
+            "rx": "rx", "ry": "ry", "rz": "rz",
+        }
+
+        lines = [
+            "OPENQASM 3.0;",
+            'include "stdgates.inc";',
+            "",
+            f"// Variational ansatz — max_iter={self.max_iter} (classical loop managed by caller)",
+        ]
+        for p in self.params:
+            lines.append(f"input float[64] {p};")
+        lines.append("")
+        lines.append(f"qubit[{n_qubits}] q;")
+        lines.append(f"bit[{n_qubits}] c;")
+        lines.append("")
+        for vg in self.body:
+            gname = _GATE_QASM3.get(vg.name, vg.name)
+            qubit_args = ", ".join(f"q[{idx}]" for idx in vg.qubits)
+            if vg.param_refs:
+                param_args = ", ".join(vg.param_refs)
+                lines.append(f"{gname}({param_args}) {qubit_args};")
+            else:
+                lines.append(f"{gname} {qubit_args};")
+        return "\n".join(lines)
+
+
+@dataclass
 class EhrenfestAST:
     """Root AST node for a parsed .ef program."""
     name: str
@@ -90,6 +163,7 @@ class EhrenfestAST:
     conditionals: List[ConditionalGate]
     expects: List[Expect]
     type_decls: List["TypeDecl"] = field(default_factory=list)
+    variational_loops: List["VariationalLoop"] = field(default_factory=list)
 
 
 # ── Tokenisation helpers ───────────────────────────────────────────────────────
@@ -101,6 +175,7 @@ _GATE_RE = re.compile(
 _QUBIT_RE = re.compile(r"^q(\d+)$", re.IGNORECASE)
 _CBIT_RE = re.compile(r"^c(\d+)$", re.IGNORECASE)
 _FLOAT_RE = re.compile(r"^-?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?(pi)?$", re.IGNORECASE)
+_PARAM_NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
 def _parse_qubit(token: str, lineno: int) -> int:
@@ -236,6 +311,83 @@ def parse(source: str) -> EhrenfestAST:
     measures: List[Measure] = []
     conditionals: List[ConditionalGate] = []
     expects: List[Expect] = []
+    variational_loops: List[VariationalLoop] = []
+
+    def _parse_variational_block(header_lineno: int, header_toks: List[str]) -> VariationalLoop:
+        """Parse a ``variational params … [max_iter N]`` block, consuming until ``end``."""
+        # header_toks: ["variational", "params", name1, name2, ..., ["max_iter", N]]
+        if len(header_toks) < 2 or header_toks[1].lower() != "params":
+            raise ParseError(
+                f"line {header_lineno}: 'variational' syntax: "
+                "variational params NAME+ [max_iter INT]"
+            )
+        rest = header_toks[2:]
+        max_iter = 100  # default
+        params: List[str] = []
+        i = 0
+        while i < len(rest):
+            tok = rest[i]
+            if tok.lower() == "max_iter":
+                if i + 1 >= len(rest) or not rest[i + 1].isdigit():
+                    raise ParseError(
+                        f"line {header_lineno}: 'max_iter' must be followed by a positive integer"
+                    )
+                max_iter = int(rest[i + 1])
+                i += 2
+            elif _PARAM_NAME_RE.match(tok) and not _QUBIT_RE.match(tok) and not _CBIT_RE.match(tok):
+                params.append(tok)
+                i += 1
+            else:
+                raise ParseError(
+                    f"line {header_lineno}: unexpected token in 'variational' header: {tok!r}"
+                )
+        if not params:
+            raise ParseError(
+                f"line {header_lineno}: 'variational' block requires at least one parameter name"
+            )
+
+        # Collect body lines until 'end'
+        body: List[VariationalGate] = []
+        for body_lineno, body_toks in it:
+            bkw = body_toks[0].lower()
+            if bkw == "end":
+                return VariationalLoop(params=params, max_iter=max_iter, body=body)
+            if not _GATE_RE.match(bkw):
+                raise ParseError(
+                    f"line {body_lineno}: variational body expects a gate or 'end', got {body_toks[0]!r}"
+                )
+            vgate_name = bkw
+            if vgate_name == "cnot":
+                vgate_name = "cx"
+            if vgate_name == "toffoli":
+                vgate_name = "ccx"
+            # Tokens after gate name: mix of param names and qubit refs
+            param_refs: List[str] = []
+            qubit_indices_vg: List[int] = []
+            for tok in body_toks[1:]:
+                if _QUBIT_RE.match(tok):
+                    idx = _parse_qubit(tok, body_lineno)
+                    if idx >= n_qubits:
+                        raise ParseError(
+                            f"line {body_lineno}: qubit q{idx} out of range (n_qubits={n_qubits})"
+                        )
+                    qubit_indices_vg.append(idx)
+                elif _PARAM_NAME_RE.match(tok):
+                    param_refs.append(tok)
+                elif _FLOAT_RE.match(tok):
+                    param_refs.append(tok)  # literal float — kept as-is
+                else:
+                    raise ParseError(
+                        f"line {body_lineno}: unexpected token in variational gate: {tok!r}"
+                    )
+            if not qubit_indices_vg:
+                raise ParseError(
+                    f"line {body_lineno}: variational gate {body_toks[0]!r} requires at least one qubit"
+                )
+            body.append(VariationalGate(name=vgate_name, qubits=qubit_indices_vg, param_refs=param_refs))
+        raise ParseError(
+            f"line {header_lineno}: 'variational' block opened here is never closed with 'end'"
+        )
 
     for lineno, toks in it:
         kw = toks[0].lower()
@@ -349,6 +501,9 @@ def parse(source: str) -> EhrenfestAST:
             # type declarations may also appear inside the program body
             type_decls.append(_parse_type_decl(lineno, toks))
 
+        elif kw == "variational":
+            variational_loops.append(_parse_variational_block(lineno, toks))
+
         else:
             raise ParseError(f"line {lineno}: unknown directive {toks[0]!r}")
 
@@ -361,6 +516,7 @@ def parse(source: str) -> EhrenfestAST:
         conditionals=conditionals,
         expects=expects,
         type_decls=type_decls,
+        variational_loops=variational_loops,
     )
 
 
