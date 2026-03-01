@@ -3,7 +3,7 @@
 //! Static configuration: provider map, model rotation, capability ladder.
 //!
 //! Ported from quasi-agent/generate_issue.py.
-//! 66 rotation entries across 10 providers — do not add models here without
+//! 60 rotation entries across 10 providers — do not add models here without
 //! a corresponding PR to docs/ELIGIBLE-MODELS.md.
 
 use crate::types::{Role, RotationEntry};
@@ -157,6 +157,7 @@ const REASONING_ROLES: &[Role] = &[Role::A1Council, Role::A2Drafter, Role::A3Gat
 const CODING_ROLES: &[Role] = &[Role::A2Drafter, Role::B1Solver];
 const REVIEW_ROLES: &[Role] = &[Role::A1Council, Role::A3Gate, Role::B2Reviewer];
 const DEFAULT_ROLES: &[Role] = &[Role::A2Drafter, Role::B1Solver];
+const ALL_ROLES: &[Role] = &[Role::A1Council, Role::A2Drafter, Role::A3Gate, Role::B1Solver, Role::B2Reviewer];
 
 pub const ROTATION: &[RotationEntry] = &[
     // ── Tier 1 — Strong coding (OpenRouter) ──────────────────────────────────
@@ -166,7 +167,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "openrouter",
         license: "MIT",
         origin: "China / DeepSeek",
-        roles: CODING_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -208,7 +209,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "openrouter",
         license: "Apache-2.0",
         origin: "China / Alibaba",
-        roles: CODING_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -240,7 +241,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "openrouter",
         license: "Llama Community",
         origin: "US / Meta",
-        roles: CODING_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -293,7 +294,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "openrouter",
         license: "Apache-2.0",
         origin: "France / Mistral",
-        roles: CODING_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -313,7 +314,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "openrouter",
         license: "Apache-2.0",
         origin: "France / Mistral",
-        roles: CODING_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -345,7 +346,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "huggingface",
         license: "MIT",
         origin: "China / Zhipu AI",
-        roles: DEFAULT_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -356,7 +357,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "huggingface",
         license: "Apache-2.0",
         origin: "EU consortium / Unbabel (Portugal)",
-        roles: DEFAULT_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -366,7 +367,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "openrouter",
         license: "Apache-2.0",
         origin: "US / Allen AI (fully open)",
-        roles: DEFAULT_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -387,7 +388,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "openrouter",
         license: "Jamba Open",
         origin: "Israel / AI21",
-        roles: DEFAULT_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -397,7 +398,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "huggingface",
         license: "Apache-2.0",
         origin: "Israel / Dicta (Bar-Ilan University)",
-        roles: DEFAULT_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -407,7 +408,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "huggingface",
         license: "Llama 3.3 Community",
         origin: "Japan / Tokyo Institute of Technology",
-        roles: DEFAULT_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -417,7 +418,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "huggingface",
         license: "Apache-2.0",
         origin: "Singapore / AI Singapore",
-        roles: DEFAULT_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -427,7 +428,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "openrouter",
         license: "ERNIE Open",
         origin: "China / Baidu",
-        roles: DEFAULT_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -437,7 +438,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "huggingface",
         license: "Fully open",
         origin: "Switzerland / ETH Zurich + EPFL + CSCS",
-        roles: DEFAULT_ROLES,
+        roles: CODING_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -460,7 +461,7 @@ pub const ROTATION: &[RotationEntry] = &[
         license: "Apache-2.0",
         origin: "China / Alibaba (Qwen3 dense 32B)",
         // qwen3-32b on groq is free and has reasoning capability
-        roles: REASONING_ROLES,
+        roles: ALL_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -480,7 +481,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "openrouter",
         license: "Apache-2.0",
         origin: "China / Alibaba (Qwen3 MoE, 30B total / 3B active)",
-        roles: DEFAULT_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -553,7 +554,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "openrouter",
         license: "Llama Community",
         origin: "US / Nous Research",
-        roles: DEFAULT_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -563,7 +564,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "openrouter",
         license: "Qwen Community",
         origin: "China / Alibaba (general, not code-specific)",
-        roles: DEFAULT_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -583,7 +584,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "openrouter",
         license: "Gemma",
         origin: "US / Google DeepMind",
-        roles: DEFAULT_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -594,7 +595,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "openrouter",
         license: "Qwen Community",
         origin: "China / Alibaba (smaller model, L0 tasks)",
-        roles: DEFAULT_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -605,7 +606,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "groq",
         license: "Apache-2.0",
         origin: "Saudi Arabia / SDAIA",
-        roles: DEFAULT_ROLES,
+        roles: CODING_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -638,7 +639,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "together",
         license: "Llama Community",
         origin: "US / Meta",
-        roles: CODING_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -652,16 +653,7 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: None,
     },
-    RotationEntry {
-        id: "llama3.3-deepinfra",
-        model: "meta-llama/Llama-3.3-70B-Instruct",
-        provider: "deepinfra",
-        license: "Llama Community",
-        origin: "US / Meta",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
     RotationEntry {
         id: "llama3.3-fireworks",
         model: "accounts/fireworks/models/llama-v3p3-70b-instruct",
@@ -679,21 +671,12 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "together",
         license: "MIT",
         origin: "China / DeepSeek",
-        roles: REASONING_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
     // deepseek-r1 was removed from Fireworks 2026-03 → entry dropped
-    RotationEntry {
-        id: "deepseek-r1-deepinfra",
-        model: "deepseek-ai/DeepSeek-R1",
-        provider: "deepinfra",
-        license: "MIT",
-        origin: "China / DeepSeek",
-        roles: REASONING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
     // deepseek-v3 × 3 new providers
     RotationEntry {
         id: "deepseek-v3-together",
@@ -701,7 +684,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "together",
         license: "MIT",
         origin: "China / DeepSeek",
-        roles: CODING_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -716,16 +699,7 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: None,
     },
-    RotationEntry {
-        id: "deepseek-v3-deepinfra",
-        model: "deepseek-ai/DeepSeek-V3",
-        provider: "deepinfra",
-        license: "MIT",
-        origin: "China / DeepSeek",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
     // qwen2.5-72b × 2 new providers
     RotationEntry {
         id: "qwen2.5-72b-together",
@@ -733,20 +707,11 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "together",
         license: "Qwen Community",
         origin: "China / Alibaba",
-        roles: DEFAULT_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
-    RotationEntry {
-        id: "qwen2.5-72b-deepinfra",
-        model: "Qwen/Qwen2.5-72B-Instruct",
-        provider: "deepinfra",
-        license: "Qwen Community",
-        origin: "China / Alibaba",
-        roles: DEFAULT_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
     // qwen3-32b × 3 providers (headline: Groq LPU vs. Cerebras WSE head-to-head)
     RotationEntry {
         id: "qwen3-32b-together",
@@ -754,7 +719,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "together",
         license: "Apache-2.0",
         origin: "China / Alibaba",
-        roles: REASONING_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -764,20 +729,11 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "cerebras",
         license: "Apache-2.0",
         origin: "China / Alibaba",
-        roles: REASONING_ROLES,
+        roles: CODING_ROLES,
         max_tokens: None,
         max_context: None,
     },
-    RotationEntry {
-        id: "qwen3-32b-deepinfra",
-        model: "Qwen/Qwen3-32B",
-        provider: "deepinfra",
-        license: "Apache-2.0",
-        origin: "China / Alibaba",
-        roles: REASONING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
     // gemma-3-27b × 2 new providers
     RotationEntry {
         id: "gemma-3-27b-together",
@@ -789,16 +745,7 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: None,
     },
-    RotationEntry {
-        id: "gemma-3-27b-deepinfra",
-        model: "google/gemma-3-27b-it",
-        provider: "deepinfra",
-        license: "Gemma",
-        origin: "US / Google DeepMind",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
     // ── Medium-priority overlaps ───────────────────────────────────────────────
     RotationEntry {
         id: "mistral-small-mistral",
@@ -846,7 +793,7 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "together",
         license: "Llama Community",
         origin: "US / Meta",
-        roles: CODING_ROLES,
+        roles: REVIEW_ROLES,
         max_tokens: None,
         max_context: None,
     },
@@ -882,12 +829,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rotation_has_66_models() {
+    fn rotation_has_60_models() {
         // 33 original + 11 (provider-bench) + 17 high-priority + 6 medium-priority
         // + 2 new Groq (kimi-k2-groq, llama4-maverick-groq, gpt-oss-120b)
         // - 3 removed Fireworks (llama4-maverick, deepseek-r1, llama4-scout all 404)
-        // - 1 deepseek-r1-groq replaced by kimi-k2-groq = 66
-        assert_eq!(ROTATION.len(), 66, "Expected 66 models in ROTATION");
+        // - 1 deepseek-r1-groq replaced by kimi-k2-groq
+        // - 6 DeepInfra entries commented out (no credits yet) = 60
+        assert_eq!(ROTATION.len(), 60, "Expected 60 models in ROTATION");
     }
 
     #[test]
