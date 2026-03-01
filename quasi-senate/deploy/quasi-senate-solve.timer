@@ -1,0 +1,11 @@
+[Unit]
+Description=QUASI Senate Solve — every 2 hours, offset 1 h from draft (rush phase)
+
+[Timer]
+# Rush phase: every 2 hours, 1 h after draft fires. For steady-state restore to 02/4:00:00.
+# For maximum burst (€500 tier) use *:30:00 (hourly, 30-min offset).
+OnCalendar=*-*-* 01/2:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

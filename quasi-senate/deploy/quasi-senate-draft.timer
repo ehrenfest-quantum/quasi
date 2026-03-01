@@ -1,0 +1,11 @@
+[Unit]
+Description=QUASI Senate Draft — every 2 hours (rush phase; was 4 h steady-state)
+
+[Timer]
+# Rush phase: every 2 hours. For steady-state (€0 budget) restore to 00/4:00:00.
+# For maximum burst (€500 tier) use *:00:00 (hourly).
+OnCalendar=*-*-* 00/2:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

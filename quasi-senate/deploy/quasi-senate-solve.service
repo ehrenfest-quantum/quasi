@@ -1,0 +1,11 @@
+[Unit]
+Description=QUASI Senate Solve Pipeline (B.1 → B.2)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/quasi-senate solve
+User=vops
+EnvironmentFile=/home/vops/.env.quasi
+StandardOutput=append:/home/vops/logs/quasi-senate-solve.log
+StandardError=append:/home/vops/logs/quasi-senate-solve.log

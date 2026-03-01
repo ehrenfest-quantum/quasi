@@ -1,0 +1,17 @@
+[Unit]
+Description=QUASI Senate PR Outcome Poller
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=vops
+EnvironmentFile=/home/vops/.env.quasi
+WorkingDirectory=/home/vops
+ExecStart=/usr/bin/python3 /home/vops/pr_outcome_poller.py
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pr-outcome-poller
+
+[Install]
+WantedBy=multi-user.target
