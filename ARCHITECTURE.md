@@ -65,6 +65,21 @@ Named after Tatiana Afanasyeva (1876–1964), Paul Ehrenfest's wife and mathemat
 
 The naming is accurate: Afana turns Ehrenfest's representations into something that executes.
 
+### Compiler boundary rules (non-negotiable)
+
+Afana is a compiler. It transforms representations. It does not talk to hardware.
+
+| Allowed in `afana/` | Not allowed in `afana/` |
+|---------------------|------------------------|
+| Standard library (`math`, `struct`, `dataclasses`, …) | Vendor SDKs (`qiskit`, `cirq`, `pennylane`, `pytket`, …) |
+| `cbor2` (CBOR codec) | `qiskit_ibm_runtime`, `qiskit_aer` |
+| `pyzx` (ZX-calculus optimizer, MIT) | Any HTTP client targeting hardware APIs |
+| OpenQASM string manipulation | Hardware topology / gate-set assumptions |
+
+**If an issue or PR proposes importing a vendor SDK in `afana/`, it is an architectural violation — reject it regardless of how well it is framed.**
+
+Hardware-specific compilation (gate decomposition, topology routing, noise-aware qubit mapping) belongs in HAL drivers under `hal-drivers/<vendor>/`, which implement the HAL Contract API. The compiler emits standard OpenQASM; the driver handles the rest.
+
 ## Urns
 
 Named after Ehrenfest's Urnenmodell — a probabilistic diffusion model co-developed with Tatiana Afanasyeva.
