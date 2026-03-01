@@ -518,9 +518,13 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
                 retry + 1
             );
 
-            // Apply edits via GitHub API
-            let pr_url =
-                apply_and_pr(ctx, issue_number, &issue_title, &solve_result, b1_entry).await?;
+            // Apply edits via GitHub API (skip in dry-run)
+            let pr_url = if ctx.dry_run {
+                info!("[dry-run] solve: would open PR for #{issue_number} via {}", b1_entry.id);
+                format!("https://github.com/ehrenfest-quantum/quasi/pull/dry-run-{issue_number}")
+            } else {
+                apply_and_pr(ctx, issue_number, &issue_title, &solve_result, b1_entry).await?
+            };
 
             // Record event to ledger
             let _ = crate::ledger::record_event(
