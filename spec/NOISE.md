@@ -1,46 +1,30 @@
-# Ehrenfest Noise Channel Spec — QUASI-025
+# Noise Channel Spec — QUASI-025
 
-This document describes the optional `noise_channels` field added to the
-Ehrenfest CBOR schema (`ehrenfest-v0.1.cddl`) and the corresponding Python
-API in `afana.noise_model`.
-
----
-
-## Motivation
-
-The existing `noise` field in an Ehrenfest program expresses *hardware
-requirements* (minimum T1, T2, gate fidelity).  Those are compile-time
-constraints — if the target backend cannot satisfy them, Afana rejects the
-program.
-
-Noise *channels* are different: they describe the expected decoherence
-physics during execution.  Backends and simulators use this information to
-
-- apply realistic noise models in simulation,
-- choose appropriate error-mitigation strategies (dynamical decoupling,
-  measurement error mitigation, randomised compiling).
-
-Noise channels are **optional metadata** — a program without them is still
-valid, and backends that do not understand them MUST ignore the field.
+This document defines the `NoiseChannel` types used by the HAL Contract
+submission layer (`SubmitCircuitInput.noiseChannels`) and the corresponding
+Python API in `afana.noise_model`.
 
 ---
 
-## CBOR Encoding
+## Architectural Boundary
 
-Noise channels live in the top-level `noise_channels` array:
+QUASI separates two distinct noise concepts:
 
-```cbor
-{
-  ...
-  "noise_channels": [
-    {"type": 1, "qubit": 0, "p": 0.01},
-    {"type": 2, "qubit": 0, "gamma": 0.05},
-    {"type": 3, "qubit": 1, "gamma": 0.03}
-  ]
-}
-```
+| Concept | Where it lives | What it means |
+|---------|---------------|---------------|
+| `NoiseConstraint` | `EhrenfestProgram.noise` | Hardware *requirements* (minimum T1, T2, fidelity). Compile-time type constraint — Afana rejects programs whose target backend cannot satisfy them. |
+| `NoiseChannel` | `SubmitCircuitInput.noiseChannels` (HAL Contract) | Hardware *behaviour* during execution. Passed at job-submission time after querying `GET /hal/backends/{name}`. Simulators use this to inject realistic decoherence; real-hardware drivers use it for error-mitigation strategy selection. |
 
-### Type Tags
+**Noise channels do not belong in the Ehrenfest program.** The Ehrenfest
+program expresses physics requirements; it does not describe hardware
+behaviour.  Noise channels are selected at HAL submission time, informed
+by the backend capabilities endpoint.
+
+---
+
+## Channel Types
+
+Three channel types are defined (numeric tag for compact CBOR encoding):
 
 | Tag | Channel type       | Parameter | Physical meaning                    |
 |----:|--------------------|-----------|-------------------------------------|
@@ -48,12 +32,16 @@ Noise channels live in the top-level `noise_channels` array:
 |   2 | Amplitude damping  | `gamma`   | T1 relaxation strength, γ ∈ [0,1]  |
 |   3 | Phase damping      | `gamma`   | T2\* dephasing strength, γ ∈ [0,1] |
 
-Integer type tags are used (rather than strings) so that programs using
-compact CBOR integer-key encoding remain concise.
+Integer type tags are used so that programs using compact CBOR integer-key
+encoding remain concise.
 
 ---
 
 ## CDDL Schema
+
+These types are defined in `spec/ehrenfest-v0.1.cddl` as reference types.
+They are **not** part of `EhrenfestProgram` — they appear in the HAL
+Contract `SubmitCircuitInput.noiseChannels` field.
 
 ```cddl
 NoiseChannel = DepolarizingChannel / AmplitudeDampingChannel / PhaseDampingChannel
@@ -77,11 +65,15 @@ PhaseDampingChannel = {
 }
 ```
 
+The TypeScript equivalent lives in `ts-halcontract/src/types.ts` as the
+`NoiseChannel` interface, exported from `@quasi/hal-contract`.
+
 ---
 
 ## Python API
 
-`afana.noise_model` provides dataclasses and validation functions:
+`afana.noise_model` provides dataclasses and encode/decode helpers for
+constructing `noiseChannels` arrays to pass in `SubmitCircuitInput`:
 
 ```python
 from afana.noise_model import (
@@ -93,7 +85,7 @@ from afana.noise_model import (
     validate_noise_channels,
 )
 
-# Create channels
+# Build channels based on GET /hal/backends/{name} noise_profile
 channels = [
     DepolarizingChannel(qubit=0, p=0.01),
     AmplitudeDampingChannel(qubit=0, gamma=0.05),
@@ -103,12 +95,9 @@ channels = [
 # Validate (raises NoiseChannelError if invalid)
 validate_noise_channels(channels)
 
-# Encode to CBOR-compatible dicts
-cbor_data = [encode_noise_channel(ch) for ch in channels]
+# Encode to dicts for SubmitCircuitInput.noiseChannels
+noise_channels = [encode_noise_channel(ch) for ch in channels]
 # → [{"type": 1, "qubit": 0, "p": 0.01}, {"type": 2, ...}, ...]
-
-# Decode from CBOR dicts
-decoded = [decode_noise_channel(d) for d in cbor_data]
 ```
 
 ### Validation rules
@@ -117,7 +106,7 @@ decoded = [decode_noise_channel(d) for d in cbor_data]
 - `p` (depolarizing) must satisfy `0.0 ≤ p ≤ 1.0`.
 - `gamma` (amplitude or phase damping) must satisfy `0.0 ≤ gamma ≤ 1.0`.
 - The array MAY contain multiple channels for the same qubit.
-- An empty `noise_channels` array is valid.
+- An empty `noiseChannels` array is equivalent to omitting the field.
 
 ---
 
@@ -163,18 +152,9 @@ $\gamma$ relates to the T2\* time by $\gamma = 1 - e^{-\Delta t / T_2^*}$.
 
 ---
 
-## Relationship to `NoiseConstraint`
-
-| Field              | Meaning                                          | Enforcement       |
-|--------------------|--------------------------------------------------|-------------------|
-| `noise.t1_us`      | Minimum hardware T1 time required                | Compile-time type error if violated |
-| `noise.t2_us`      | Minimum hardware T2 time required                | Compile-time type error if violated |
-| `noise_channels[]` | Expected per-qubit decoherence during execution  | Optional hint; backends may ignore  |
-
----
-
 ## Changelog
 
 | Version | Change |
 |---------|--------|
-| v0.1 (QUASI-025) | Added `noise_channels` optional field; defined DepolarizingChannel, AmplitudeDampingChannel, PhaseDampingChannel |
+| v0.1 (QUASI-025) | Defined DepolarizingChannel, AmplitudeDampingChannel, PhaseDampingChannel as HAL Contract reference types |
+| v0.1.1 (2026-03-01) | Clarified architectural boundary: NoiseChannel belongs at HAL submission layer, not in EhrenfestProgram; removed `noise_channels` from EhrenfestProgram CDDL |

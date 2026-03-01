@@ -19,8 +19,7 @@ EhrenfestProgram = {
   "hamiltonian":     Hamiltonian,
   "evolution":       EvolutionTime,
   "observables":     [+ Observable],    ; at least one observable required
-  "noise":           NoiseConstraint,
-  ? "noise_channels": [* NoiseChannel], ; optional per-qubit decoherence annotations
+  "noise":           NoiseConstraint,   ; hardware requirements (T1, T2, fidelity)
 }
 
 ; ─── Physical System ─────────────────────────────────────────────────────────
@@ -163,26 +162,28 @@ NoiseConstraint = {
   ? "readout_fidelity_min":   float,  ; minimum readout fidelity [0.0, 1.0]
 }
 
-; ─── Noise Channels ──────────────────────────────────────────────────────────
+; ─── Noise Channels (HAL Contract layer — not part of EhrenfestProgram) ──────
 ;
-; Optional per-qubit decoherence channel annotations.  These describe the
-; *expected* noise model during execution — not requirements on the hardware.
-; Backends and simulators MAY use them to apply realistic noise models.
-; Afana's error-mitigation passes (dynamical decoupling, MEM, randomized
-; compiling) inspect these annotations when choosing a mitigation strategy.
+; These types describe hardware decoherence behaviour and belong at the
+; HAL Contract submission layer (SubmitCircuitInput.noiseChannels), NOT in
+; the EhrenfestProgram above.
 ;
-; Three channels are supported (numeric type tag for compact CBOR encoding):
+; An EhrenfestProgram expresses physics *requirements* via NoiseConstraint
+; (minimum T1, T2, gate fidelity) — compile-time type constraints that Afana
+; enforces.  Noise *channels* describe the hardware's actual decoherence model
+; and are selected at job-submission time after querying GET /hal/backends/{name}.
+;
+; These types are kept here as a reference definition shared by both the
+; Ehrenfest spec and the HAL Contract HTTP layer.  See spec/NOISE.md for the
+; architectural rationale.
+;
+; Three channel types (numeric tag for compact CBOR encoding):
 ;   1 — Depolarizing:       equally probable X, Y, Z error after each gate
 ;   2 — Amplitude damping:  energy relaxation (|1⟩ → |0⟩), models T1 decay
 ;   3 — Phase damping:      pure dephasing (Z-type), models T2* decay
 ;
 ; All probability parameters (p, gamma) MUST satisfy 0.0 ≤ x ≤ 1.0.
 ; Qubit indices MUST be non-negative integers within [0, n_qubits − 1].
-; A program MAY specify multiple channels per qubit.
-;
-; CBOR encoding example for depolarizing noise on qubit 0 with p=0.01:
-;   {1: 1, 2: 0, 3: 0.01}   (using integer keys for compact form)
-;   {"type": 1, "qubit": 0, "p": 0.01}  (text keys for schema clarity)
 
 NoiseChannel = DepolarizingChannel / AmplitudeDampingChannel / PhaseDampingChannel
 
