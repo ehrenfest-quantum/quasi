@@ -1,0 +1,1626 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Quality-adjusted value per euro across AI inference providers. Q is computed from 7 empirical dimensions (senate_telemetry + pr_outcomes). \u03f6 = Q / cost_factor.",
+  "links": [
+    {
+      "title": "Model Performance",
+      "type": "link",
+      "url": "/stats/d/quasi-model-performance/"
+    },
+    {
+      "title": "Provider Benchmark",
+      "type": "link",
+      "url": "/stats/d/quasi-senate-provider-bench/"
+    }
+  ],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 200,
+      "title": "\u03f6 Overview",
+      "type": "row"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "\u2014",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "id": 201,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH\ndims AS (\n  SELECT\n    base_model,\n    provider,\n    COUNT(*) AS n,\n    AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.0 END) AS q1,\n    AVG(CASE WHEN json_parse_ok = true AND http_status = 200 THEN 1.0 ELSE 0.0 END) AS q2,\n    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms) AS p50_ms,\n    AVG(CASE WHEN model_verified IS NOT NULL THEN\n          CASE WHEN model_verified = true THEN 1.0 ELSE 0.0 END\n        ELSE NULL END) AS q4_raw,\n    AVG(CASE WHEN retries = 0 AND pipeline_attempt = 1 THEN 1.0 ELSE 0.0 END) AS q5,\n    AVG(CASE WHEN role IN ('A3_gate','B2_reviewer') AND verdict_reasoning IS NOT NULL THEN\n          CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.5 END\n        ELSE NULL END) AS q6_raw,\n    AVG(CASE WHEN issue_number IS NOT NULL AND cycle_id IS NOT NULL THEN 1.0 ELSE 0.5 END) AS q7\n  FROM senate_telemetry\n  WHERE $__timeFilter(timestamp) AND dry_run = false\n    AND downstream_verdict IS NOT NULL\n  GROUP BY base_model, provider\n  HAVING COUNT(*) >= 3\n),\nlat_max AS (SELECT MAX(p50_ms) AS mx FROM dims),\nscored AS (\n  SELECT\n    d.base_model, d.provider, d.n,\n    d.q1                                                        AS q1,\n    d.q2                                                        AS q2,\n    GREATEST(0, 1.0 - d.p50_ms / NULLIF(lm.mx, 0))            AS q3,\n    COALESCE(d.q4_raw, 0.5)                                     AS q4,\n    d.q5                                                        AS q5,\n    COALESCE(d.q6_raw, d.q1)                                    AS q6,\n    d.q7                                                        AS q7,\n    CASE d.provider\n      WHEN 'groq'         THEN 0.8\n      WHEN 'cerebras'     THEN 0.7\n      WHEN 'fireworks'    THEN 0.9\n      WHEN 'huggingface'  THEN 0.6\n      WHEN 'hf'           THEN 0.6\n      WHEN 'swissai'      THEN 0.7\n      WHEN 'mistral'      THEN 1.1\n      WHEN 'native'       THEN 1.2\n      ELSE 1.0\n    END AS cost_f\n  FROM dims d CROSS JOIN lat_max lm\n)\nSELECT\n  base_model, provider, n,\n  ROUND(q1::numeric, 3)  AS q1_correctness,\n  ROUND(q2::numeric, 3)  AS q2_compliance,\n  ROUND(q3::numeric, 3)  AS q3_latency,\n  ROUND(q4::numeric, 3)  AS q4_fidelity,\n  ROUND(q5::numeric, 3)  AS q5_reliability,\n  ROUND(q6::numeric, 3)  AS q6_reasoning,\n  ROUND(q7::numeric, 3)  AS q7_traceability,\n  ROUND((0.35*q1 + 0.20*q2 + 0.10*q3 +\n         0.10*q4 + 0.10*q5 + 0.10*q6 + 0.05*q7)::numeric, 3) AS Q_composite,\n  ROUND(((0.35*q1 + 0.20*q2 + 0.10*q3 +\n          0.10*q4 + 0.10*q5 + 0.10*q6 + 0.05*q7) / cost_f)::numeric, 3) AS enc_score\nFROM scored\nSELECT base_model || ' (' || provider || ')' AS value FROM scored ORDER BY enc_score DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "\ud83c\udfc6 Best \u03f6 Model",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "\u2014",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.4
+              },
+              {
+                "color": "green",
+                "value": 0.7
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 6,
+        "y": 1
+      },
+      "id": 202,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH\ndims AS (\n  SELECT\n    base_model,\n    provider,\n    COUNT(*) AS n,\n    AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.0 END) AS q1,\n    AVG(CASE WHEN json_parse_ok = true AND http_status = 200 THEN 1.0 ELSE 0.0 END) AS q2,\n    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms) AS p50_ms,\n    AVG(CASE WHEN model_verified IS NOT NULL THEN\n          CASE WHEN model_verified = true THEN 1.0 ELSE 0.0 END\n        ELSE NULL END) AS q4_raw,\n    AVG(CASE WHEN retries = 0 AND pipeline_attempt = 1 THEN 1.0 ELSE 0.0 END) AS q5,\n    AVG(CASE WHEN role IN ('A3_gate','B2_reviewer') AND verdict_reasoning IS NOT NULL THEN\n          CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.5 END\n        ELSE NULL END) AS q6_raw,\n    AVG(CASE WHEN issue_number IS NOT NULL AND cycle_id IS NOT NULL THEN 1.0 ELSE 0.5 END) AS q7\n  FROM senate_telemetry\n  WHERE $__timeFilter(timestamp) AND dry_run = false\n    AND downstream_verdict IS NOT NULL\n  GROUP BY base_model, provider\n  HAVING COUNT(*) >= 3\n),\nlat_max AS (SELECT MAX(p50_ms) AS mx FROM dims),\nscored AS (\n  SELECT\n    d.base_model, d.provider, d.n,\n    d.q1                                                        AS q1,\n    d.q2                                                        AS q2,\n    GREATEST(0, 1.0 - d.p50_ms / NULLIF(lm.mx, 0))            AS q3,\n    COALESCE(d.q4_raw, 0.5)                                     AS q4,\n    d.q5                                                        AS q5,\n    COALESCE(d.q6_raw, d.q1)                                    AS q6,\n    d.q7                                                        AS q7,\n    CASE d.provider\n      WHEN 'groq'         THEN 0.8\n      WHEN 'cerebras'     THEN 0.7\n      WHEN 'fireworks'    THEN 0.9\n      WHEN 'huggingface'  THEN 0.6\n      WHEN 'hf'           THEN 0.6\n      WHEN 'swissai'      THEN 0.7\n      WHEN 'mistral'      THEN 1.1\n      WHEN 'native'       THEN 1.2\n      ELSE 1.0\n    END AS cost_f\n  FROM dims d CROSS JOIN lat_max lm\n)\nSELECT\n  base_model, provider, n,\n  ROUND(q1::numeric, 3)  AS q1_correctness,\n  ROUND(q2::numeric, 3)  AS q2_compliance,\n  ROUND(q3::numeric, 3)  AS q3_latency,\n  ROUND(q4::numeric, 3)  AS q4_fidelity,\n  ROUND(q5::numeric, 3)  AS q5_reliability,\n  ROUND(q6::numeric, 3)  AS q6_reasoning,\n  ROUND(q7::numeric, 3)  AS q7_traceability,\n  ROUND((0.35*q1 + 0.20*q2 + 0.10*q3 +\n         0.10*q4 + 0.10*q5 + 0.10*q6 + 0.05*q7)::numeric, 3) AS Q_composite,\n  ROUND(((0.35*q1 + 0.20*q2 + 0.10*q3 +\n          0.10*q4 + 0.10*q5 + 0.10*q6 + 0.05*q7) / cost_f)::numeric, 3) AS enc_score\nFROM scored\nSELECT enc_score AS value FROM scored ORDER BY enc_score DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Best \u03f6/\u20ac Score",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "\u2014",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.3
+              },
+              {
+                "color": "green",
+                "value": 0.6
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 10,
+        "y": 1
+      },
+      "id": 203,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(AVG(\n  0.35*AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.0 END) +\n  0.20*AVG(CASE WHEN json_parse_ok = true AND http_status = 200 THEN 1.0 ELSE 0.0 END) +\n  0.10*AVG(CASE WHEN retries = 0 AND pipeline_attempt = 1 THEN 1.0 ELSE 0.0 END)\n)::numeric OVER(), 3) AS value\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false AND downstream_verdict IS NOT NULL\nGROUP BY base_model\nLIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg Q Composite",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "\u2014",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 14,
+        "y": 1
+      },
+      "id": 204,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(100.0 * AVG(CASE WHEN model_verified = true THEN 1.0 ELSE 0.0 END)::numeric, 1) AS value\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false AND model_verified IS NOT NULL",
+          "refId": "A"
+        }
+      ],
+      "title": "Provider Fidelity q\u2084",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "\u2014",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "green",
+                "value": 85
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 18,
+        "y": 1
+      },
+      "id": 205,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(100.0 * AVG(CASE WHEN retries = 0 AND pipeline_attempt = 1 THEN 1.0 ELSE 0.0 END)::numeric, 1) AS value\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false",
+          "refId": "A"
+        }
+      ],
+      "title": "First-Attempt Success q\u2085",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "\u2014",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 2,
+        "x": 22,
+        "y": 1
+      },
+      "id": 206,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(AVG(\n  output_tokens_approx::float / NULLIF(latency_ms::float / 1000.0, 0)\n)::numeric, 1) AS value\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\n  AND output_tokens_approx > 0 AND latency_ms > 0",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg Throughput",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 207,
+      "title": "\u03f6 Ranking \u2014 All Models",
+      "type": "row"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "enc_score"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "displayName",
+                "value": "\u03f6 Score"
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.4
+                    },
+                    {
+                      "color": "green",
+                      "value": 0.7
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Q_composite"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "displayName",
+                "value": "Q"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.3
+                    },
+                    {
+                      "color": "green",
+                      "value": 0.6
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "q1_correctness"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "q\u2081 correct"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.4
+                    },
+                    {
+                      "color": "green",
+                      "value": 0.7
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "q2_compliance"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "q\u2082 struct"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.7
+                    },
+                    {
+                      "color": "green",
+                      "value": 0.95
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "q3_latency"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "q\u2083 speed"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "q4_fidelity"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "q\u2084 fidelity"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.7
+                    },
+                    {
+                      "color": "green",
+                      "value": 0.99
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "q5_reliability"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "q\u2085 rely"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.6
+                    },
+                    {
+                      "color": "green",
+                      "value": 0.85
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "q6_reasoning"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "q\u2086 reason"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "q7_traceability"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "q\u2087 trace"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 208,
+      "options": {
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "enc_score"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH\ndims AS (\n  SELECT\n    base_model,\n    provider,\n    COUNT(*) AS n,\n    AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.0 END) AS q1,\n    AVG(CASE WHEN json_parse_ok = true AND http_status = 200 THEN 1.0 ELSE 0.0 END) AS q2,\n    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms) AS p50_ms,\n    AVG(CASE WHEN model_verified IS NOT NULL THEN\n          CASE WHEN model_verified = true THEN 1.0 ELSE 0.0 END\n        ELSE NULL END) AS q4_raw,\n    AVG(CASE WHEN retries = 0 AND pipeline_attempt = 1 THEN 1.0 ELSE 0.0 END) AS q5,\n    AVG(CASE WHEN role IN ('A3_gate','B2_reviewer') AND verdict_reasoning IS NOT NULL THEN\n          CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.5 END\n        ELSE NULL END) AS q6_raw,\n    AVG(CASE WHEN issue_number IS NOT NULL AND cycle_id IS NOT NULL THEN 1.0 ELSE 0.5 END) AS q7\n  FROM senate_telemetry\n  WHERE $__timeFilter(timestamp) AND dry_run = false\n    AND downstream_verdict IS NOT NULL\n  GROUP BY base_model, provider\n  HAVING COUNT(*) >= 3\n),\nlat_max AS (SELECT MAX(p50_ms) AS mx FROM dims),\nscored AS (\n  SELECT\n    d.base_model, d.provider, d.n,\n    d.q1                                                        AS q1,\n    d.q2                                                        AS q2,\n    GREATEST(0, 1.0 - d.p50_ms / NULLIF(lm.mx, 0))            AS q3,\n    COALESCE(d.q4_raw, 0.5)                                     AS q4,\n    d.q5                                                        AS q5,\n    COALESCE(d.q6_raw, d.q1)                                    AS q6,\n    d.q7                                                        AS q7,\n    CASE d.provider\n      WHEN 'groq'         THEN 0.8\n      WHEN 'cerebras'     THEN 0.7\n      WHEN 'fireworks'    THEN 0.9\n      WHEN 'huggingface'  THEN 0.6\n      WHEN 'hf'           THEN 0.6\n      WHEN 'swissai'      THEN 0.7\n      WHEN 'mistral'      THEN 1.1\n      WHEN 'native'       THEN 1.2\n      ELSE 1.0\n    END AS cost_f\n  FROM dims d CROSS JOIN lat_max lm\n)\nSELECT\n  base_model, provider, n,\n  ROUND(q1::numeric, 3)  AS q1_correctness,\n  ROUND(q2::numeric, 3)  AS q2_compliance,\n  ROUND(q3::numeric, 3)  AS q3_latency,\n  ROUND(q4::numeric, 3)  AS q4_fidelity,\n  ROUND(q5::numeric, 3)  AS q5_reliability,\n  ROUND(q6::numeric, 3)  AS q6_reasoning,\n  ROUND(q7::numeric, 3)  AS q7_traceability,\n  ROUND((0.35*q1 + 0.20*q2 + 0.10*q3 +\n         0.10*q4 + 0.10*q5 + 0.10*q6 + 0.05*q7)::numeric, 3) AS Q_composite,\n  ROUND(((0.35*q1 + 0.20*q2 + 0.10*q3 +\n          0.10*q4 + 0.10*q5 + 0.10*q6 + 0.05*q7) / cost_f)::numeric, 3) AS enc_score\nFROM scored\nORDER BY enc_score DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Encefalos Score \u2014 Full Ranking (code-gen weights: q\u2081\u00d70.35, q\u2082\u00d70.20, q\u2083\u2013q\u2086\u00d70.10, q\u2087\u00d70.05)",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 209,
+      "title": "q\u2081 Correctness \u00b7 q\u2082 Compliance \u00b7 q\u2083 Latency",
+      "type": "row"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 1,
+          "min": 0,
+          "noValue": "\u2014",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.4
+              },
+              {
+                "color": "green",
+                "value": 0.7
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 17
+      },
+      "id": 210,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT base_model,\n  AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.0 END) AS q1\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false AND downstream_verdict IS NOT NULL\nGROUP BY base_model HAVING COUNT(*) >= 3\nORDER BY q1 DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "q\u2081 Correctness by Model (approval rate)",
+      "type": "bargauge"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 1,
+          "min": 0,
+          "noValue": "\u2014",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "green",
+                "value": 0.95
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 17
+      },
+      "id": 211,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT base_model,\n  AVG(CASE WHEN json_parse_ok = true AND http_status = 200 THEN 1.0 ELSE 0.0 END) AS q2\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\nGROUP BY base_model HAVING COUNT(*) >= 3\nORDER BY q2 DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "q\u2082 Compliance by Model (json_ok + http 200)",
+      "type": "bargauge"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 1,
+          "min": 0,
+          "noValue": "\u2014",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.2
+              },
+              {
+                "color": "green",
+                "value": 0.6
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 17
+      },
+      "id": 212,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH lats AS (\n  SELECT base_model,\n    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms) AS p50\n  FROM senate_telemetry\n  WHERE $__timeFilter(timestamp) AND dry_run = false\n  GROUP BY base_model HAVING COUNT(*) >= 3\n)\nSELECT base_model,\n  GREATEST(0, 1.0 - p50 / NULLIF(MAX(p50) OVER(), 0)) AS q3\nFROM lats\nORDER BY q3 DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "q\u2083 Latency Score by Model (1 \u2212 P50/max, higher=faster)",
+      "type": "bargauge"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "id": 213,
+      "title": "q\u2084 Provider Fidelity \u00b7 q\u2085 Reliability \u00b7 Throughput",
+      "type": "row"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 1,
+          "min": 0,
+          "noValue": "\u2014",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "green",
+                "value": 0.99
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 26
+      },
+      "id": 214,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT base_model,\n  AVG(CASE WHEN model_verified = true THEN 1.0 ELSE 0.0 END) AS q4\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false AND model_verified IS NOT NULL\nGROUP BY base_model HAVING COUNT(*) >= 2\nORDER BY q4 DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "q\u2084 Provider Fidelity (model_verified rate)",
+      "type": "bargauge"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 1,
+          "min": 0,
+          "noValue": "\u2014",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.6
+              },
+              {
+                "color": "green",
+                "value": 0.85
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 26
+      },
+      "id": 215,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT base_model,\n  AVG(CASE WHEN retries = 0 AND pipeline_attempt = 1 THEN 1.0 ELSE 0.0 END) AS q5\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\nGROUP BY base_model HAVING COUNT(*) >= 3\nORDER BY q5 DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "q\u2085 Reliability (retries=0 AND attempt=1)",
+      "type": "bargauge"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 50
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 26
+      },
+      "id": 216,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT base_model,\n  ROUND(AVG(output_tokens_approx::float / NULLIF(latency_ms::float / 1000.0, 0))::numeric, 1) AS tok_per_sec\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\n  AND output_tokens_approx > 0 AND latency_ms > 0\nGROUP BY base_model HAVING COUNT(*) >= 3\nORDER BY tok_per_sec DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Throughput by Model (output tokens/s)",
+      "type": "bargauge"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "id": 217,
+      "title": "q\u2086 Domain Reasoning \u00b7 q\u2087 Traceability \u00b7 Model Substitution",
+      "type": "row"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 1,
+          "min": 0,
+          "noValue": "\u2014",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.3
+              },
+              {
+                "color": "green",
+                "value": 0.8
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 35
+      },
+      "id": 218,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT base_model,\n  AVG(CASE WHEN verdict_reasoning IS NOT NULL THEN 1.0 ELSE 0.0 END) AS q6_coverage\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\n  AND role IN ('A3_gate','B2_reviewer')\nGROUP BY base_model HAVING COUNT(*) >= 2\nORDER BY q6_coverage DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "q\u2086 Domain Reasoning \u2014 Reasoning Coverage by Model",
+      "type": "bargauge"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 1,
+          "min": 0,
+          "noValue": "\u2014",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "green",
+                "value": 0.9
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 35
+      },
+      "id": 219,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT base_model,\n  AVG(CASE WHEN issue_number IS NOT NULL AND cycle_id IS NOT NULL THEN 1.0 ELSE 0.5 END) AS q7\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\nGROUP BY base_model HAVING COUNT(*) >= 3\nORDER BY q7 DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "q\u2087 Traceability \u2014 Issue+Cycle Link Rate",
+      "type": "bargauge"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-text"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "timestamp"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 35
+      },
+      "id": 220,
+      "options": {},
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT timestamp, provider, model_id, served_model,\n  CASE WHEN model_verified = false THEN '\u274c substituted' ELSE '\u2705 verified' END AS status\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\n  AND model_verified IS NOT NULL\nORDER BY timestamp DESC\nLIMIT 40",
+          "refId": "A"
+        }
+      ],
+      "title": "Model Substitution Events (q\u2084 violations)",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "id": 221,
+      "title": "\u03f6 Trends over Time",
+      "type": "row"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          },
+          "max": 1,
+          "min": 0,
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      },
+      "id": 222,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(timestamp,$__interval),\n  base_model,\n  AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.0 END) AS q1\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false AND downstream_verdict IS NOT NULL\nGROUP BY 1, 2\nORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "title": "q\u2081 Correctness Trend by Model (4-hour bins)",
+      "type": "timeseries"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          },
+          "max": 1,
+          "min": 0,
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 44
+      },
+      "id": 223,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(timestamp,$__interval),\n  base_model,\n  AVG(CASE WHEN retries = 0 AND pipeline_attempt = 1 THEN 1.0 ELSE 0.0 END) AS q5\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\nGROUP BY 1, 2\nORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "title": "q\u2085 Reliability Trend \u2014 First-Attempt Success (4-hour bins)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "id": 224,
+      "title": "PR Outcomes \u2014 CI Signal into q\u2081",
+      "type": "row"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 100,
+          "min": 0,
+          "noValue": "No data yet",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 53
+      },
+      "id": 225,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT b1_solver_model AS base_model,\n  ROUND(100.0 * AVG(CASE WHEN ci_status = 'passing' THEN 1.0 ELSE 0.0 END)::numeric, 1) AS ci_pass_pct\nFROM pr_outcomes\nWHERE ci_status != 'pending'\nGROUP BY b1_solver_model\nORDER BY ci_pass_pct DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "CI Pass Rate by Solver Model",
+      "type": "bargauge"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 100,
+          "min": 0,
+          "noValue": "No data yet",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 30
+              },
+              {
+                "color": "green",
+                "value": 60
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 53
+      },
+      "id": 226,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT b1_solver_model AS base_model,\n  ROUND(100.0 * AVG(CASE WHEN merged = true THEN 1.0 ELSE 0.0 END)::numeric, 1) AS merge_pct\nFROM pr_outcomes\nWHERE merged IS NOT NULL\nGROUP BY b1_solver_model\nORDER BY merge_pct DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Merge Rate by Solver Model",
+      "type": "bargauge"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ci_status"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "error": {
+                        "color": "orange",
+                        "text": "\u26a0\ufe0f error"
+                      },
+                      "failing": {
+                        "color": "red",
+                        "text": "\u274c failing"
+                      },
+                      "passing": {
+                        "color": "green",
+                        "text": "\u2705 passing"
+                      },
+                      "pending": {
+                        "color": "blue",
+                        "text": "\u23f3 pending"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pr_url"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open PR",
+                    "url": "${__value.text}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "created_at"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 53
+      },
+      "id": 227,
+      "options": {},
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT created_at, pr_number, issue_number, b1_solver_model,\n  ci_status, merged, merged_at, pr_url\nFROM pr_outcomes\nORDER BY created_at DESC\nLIMIT 50",
+          "refId": "A"
+        }
+      ],
+      "title": "Senate PR Log \u2014 CI + Merge Status",
+      "type": "table"
+    }
+  ],
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "tags": [
+    "quasi",
+    "senate",
+    "encefalos",
+    "quality"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "title": "QUASI Encefalos \u2014 AI Compute Value (\u03f6/\u20ac)",
+  "uid": "quasi-encefalos"
+}
