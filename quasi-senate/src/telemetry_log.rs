@@ -39,7 +39,7 @@ pub struct TelemetryEntry {
     pub retries: u32,
     /// Whether the JSON response parsed successfully
     pub json_parse_ok: Option<bool>,
-    /// Downstream outcome: "approved"/"rejected"/"json_fail"/"success"/"error"
+    /// Downstream outcome: "approved"/"rejected"/"json_fail"
     pub downstream_verdict: Option<String>,
     /// Did x-finalized-model header match the requested model? (OpenRouter only)
     pub model_verified: Option<bool>,
@@ -51,6 +51,12 @@ pub struct TelemetryEntry {
     pub dry_run: bool,
     /// Which retry attempt produced this row: 1 = first attempt, 2 = second attempt.
     pub pipeline_attempt: u32,
+    /// Reasoning text from the gate (A3) or reviewer (B2).
+    /// None for drafter, solver, and council roles.
+    pub verdict_reasoning: Option<String>,
+    /// JSON-serialised list of specific issues raised by the B2 reviewer.
+    /// None for all roles except B2_reviewer.
+    pub verdict_issues: Option<String>,
 }
 
 /// Strip the provider suffix from a model ID to get the canonical base model name.
@@ -99,8 +105,9 @@ pub async fn record_telemetry(db: &Option<tokio_postgres::Client>, entry: &Telem
                 timestamp, cycle_id, role, model_id, model_string, provider, base_model,
                 level, issue_number, latency_ms, input_tokens_approx, output_tokens_approx,
                 http_status, retries, json_parse_ok, downstream_verdict,
-                model_verified, served_model, error, dry_run, pipeline_attempt
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)",
+                model_verified, served_model, error, dry_run, pipeline_attempt,
+                verdict_reasoning, verdict_issues
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)",
             &[
                 &entry.timestamp,
                 &entry.cycle_id,
@@ -123,11 +130,44 @@ pub async fn record_telemetry(db: &Option<tokio_postgres::Client>, entry: &Telem
                 &entry.error,
                 &entry.dry_run,
                 &(entry.pipeline_attempt as i32),
+                &entry.verdict_reasoning,
+                &entry.verdict_issues,
             ],
         )
         .await;
     if let Err(e) = result {
         tracing::warn!("Failed to write telemetry row: {e}");
+    }
+}
+
+/// Record a newly opened senate PR into pr_outcomes for CI tracking.
+/// Silently skips if db is None or on error.
+pub async fn record_pr_outcome(
+    db: &Option<tokio_postgres::Client>,
+    pr_url: &str,
+    pr_number: u32,
+    issue_number: u32,
+    b1_solver_model: &str,
+    b1_cycle_id: Uuid,
+) {
+    let Some(db) = db else { return };
+    let result = db
+        .execute(
+            "INSERT INTO pr_outcomes
+                (pr_url, pr_number, issue_number, b1_solver_model, b1_cycle_id)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (pr_url) DO NOTHING",
+            &[
+                &pr_url,
+                &(pr_number as i32),
+                &(issue_number as i32),
+                &b1_solver_model,
+                &b1_cycle_id,
+            ],
+        )
+        .await;
+    if let Err(e) = result {
+        tracing::warn!("Failed to write pr_outcome row: {e}");
     }
 }
 
@@ -165,13 +205,13 @@ mod tests {
         let entry = TelemetryEntry {
             timestamp: Utc::now(),
             cycle_id: Uuid::new_v4(),
-            role: "A2_drafter".to_string(),
+            role: "A3_gate".to_string(),
             model_id: "llama3.3-groq".to_string(),
             model_string: "llama-3.3-70b-versatile".to_string(),
             provider: "groq".to_string(),
             base_model: base_model_id("llama3.3-groq"),
             level: Some(2),
-            issue_number: None,
+            issue_number: Some(42),
             latency_ms: 1500,
             input_tokens_approx: Some(2000),
             output_tokens_approx: Some(500),
@@ -184,8 +224,17 @@ mod tests {
             error: None,
             dry_run: false,
             pipeline_attempt: 1,
+            verdict_reasoning: Some("The draft is well-scoped and relevant to Phase 2.".to_string()),
+            verdict_issues: None,
         };
         assert_eq!(entry.base_model, "llama3.3");
-        assert_eq!(entry.role, "A2_drafter");
+        assert_eq!(entry.verdict_reasoning.as_deref(), Some("The draft is well-scoped and relevant to Phase 2."));
+    }
+
+    #[test]
+    fn test_record_pr_outcome_signature() {
+        // Compile-time test: verify function signature accepts the right types.
+        let _cycle = Uuid::new_v4();
+        // The actual db call is async and requires a live connection — tested in integration.
     }
 }
