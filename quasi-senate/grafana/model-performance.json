@@ -468,11 +468,11 @@
             "type": "postgres",
             "uid": "ffeagtzfyvvnkf"
           },
-          "format": "table",
-          "rawSql": "SELECT base_model AS \"metric\", coalesce(round(100.0 * sum(CASE WHEN downstream_verdict='approved' THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','rejected','json_fail') THEN 1 END),0),0),0) AS \"Approval %\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY 2 DESC NULLS LAST LIMIT 1"
+          "format": "time_series",
+          "rawSql": "SELECT now() AS time, base_model AS metric, coalesce(round(100.0 * sum(CASE WHEN downstream_verdict='approved' THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','rejected','json_fail') THEN 1 END),0),0),0) AS value FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY value DESC NULLS LAST LIMIT 1"
         }
       ],
-      "title": "������ Top Performer (7 days, ≥10 calls)",
+      "title": "🏆 Top Performer (7 days, ≥10 calls)",
       "type": "stat"
     },
     {
@@ -519,11 +519,11 @@
             "type": "postgres",
             "uid": "ffeagtzfyvvnkf"
           },
-          "format": "table",
-          "rawSql": "SELECT base_model AS \"metric\", coalesce(round(100.0 * sum(CASE WHEN downstream_verdict='approved' THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','rejected','json_fail') THEN 1 END),0),0),0) AS \"Approval %\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY 2 ASC NULLS LAST LIMIT 1"
+          "format": "time_series",
+          "rawSql": "SELECT now() AS time, base_model AS metric, coalesce(round(100.0 * sum(CASE WHEN downstream_verdict='approved' THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','rejected','json_fail') THEN 1 END),0),0),0) AS value FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY value ASC NULLS LAST LIMIT 1"
         }
       ],
-      "title": "������ Sir Slopalot (7 days, ≥10 calls)",
+      "title": "🏅 Sir Slopalot (7 days, ≥10 calls)",
       "type": "stat"
     },
     {
@@ -539,7 +539,7 @@
           },
           "mappings": [],
           "unit": "s",
-          "decimals": 2
+          "decimals": 1
         }
       },
       "gridPos": {
@@ -570,8 +570,8 @@
             "type": "postgres",
             "uid": "ffeagtzfyvvnkf"
           },
-          "format": "table",
-          "rawSql": "SELECT base_model AS \"metric\", round(avg(latency_ms)/1000.0,2) AS \"Avg latency (s)\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY avg(latency_ms) ASC LIMIT 1"
+          "format": "time_series",
+          "rawSql": "SELECT now() AS time, base_model AS metric, round(avg(latency_ms)/1000.0)::int AS value FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY avg(latency_ms) ASC LIMIT 1"
         }
       ],
       "title": "⚡ Fastest Model (7 days, ≥10 calls)",
