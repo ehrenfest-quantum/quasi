@@ -98,10 +98,10 @@ fn test_all_rotation_models_have_roles() {
 
 // ── test_rotation_count ───────────────────────────────────────────────────────
 
-/// The ROTATION slice must contain exactly 67 models (33 originals + 11 provider-bench + 17 high-priority + 6 medium-priority).
+/// The ROTATION slice must contain exactly 66 models (see config.rs comment for full breakdown).
 #[test]
 fn test_rotation_count() {
-    assert_eq!(ROTATION.len(), 67, "Expected 67 models in ROTATION, got {}", ROTATION.len());
+    assert_eq!(ROTATION.len(), 66, "Expected 66 models in ROTATION, got {}", ROTATION.len());
 }
 
 // ── test_pick_model_excludes ───────────────────────────────────────────────────

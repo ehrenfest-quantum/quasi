@@ -3,7 +3,7 @@
 //! Static configuration: provider map, model rotation, capability ladder.
 //!
 //! Ported from quasi-agent/generate_issue.py.
-//! 67 rotation entries across 10 providers — do not add models here without
+//! 66 rotation entries across 10 providers — do not add models here without
 //! a corresponding PR to docs/ELIGIBLE-MODELS.md.
 
 use crate::types::{Role, RotationEntry};
@@ -191,11 +191,13 @@ pub const ROTATION: &[RotationEntry] = &[
         max_context: None,
     },
     RotationEntry {
-        id: "deepseek-r1-groq",
-        model: "deepseek-r1-distill-llama-70b",
+        // deepseek-r1-distill-llama-70b was decommissioned from Groq 2026-03
+        // replaced with kimi-k2 (strong reasoning, free tier, Groq LPU)
+        id: "kimi-k2-groq",
+        model: "moonshotai/kimi-k2-instruct",
         provider: "groq",
-        license: "MIT",
-        origin: "China / DeepSeek",
+        license: "Modified MIT",
+        origin: "China / Moonshot AI",
         roles: REASONING_ROLES,
         max_tokens: None,
         max_context: None,
@@ -220,16 +222,7 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: None,
     },
-    RotationEntry {
-        id: "llama4-fw",
-        model: "accounts/fireworks/models/llama4-maverick-instruct-basic",
-        provider: "fireworks",
-        license: "Llama Community",
-        origin: "US / Meta",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // llama4-maverick-instruct-basic was removed from Fireworks 2026-03 → entry dropped
     // ── Tier 1 — Groq (FREE TIER — preferred for review roles) ───────────────
     RotationEntry {
         id: "llama4-scout",
@@ -267,6 +260,28 @@ pub const ROTATION: &[RotationEntry] = &[
         provider: "huggingface",
         license: "Llama Community",
         origin: "US / Meta",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        // llama-4-maverick on Groq LPU — benchmark vs. OpenRouter/Fireworks variants
+        id: "llama4-maverick-groq",
+        model: "meta-llama/llama-4-maverick-17b-128e-instruct",
+        provider: "groq",
+        license: "Llama Community",
+        origin: "US / Meta",
+        roles: CODING_ROLES,
+        max_tokens: None,
+        max_context: None,
+    },
+    RotationEntry {
+        // OpenAI GPT-OSS 120B on Groq LPU — headline benchmark: custom silicon vs. GPU
+        id: "gpt-oss-120b-groq",
+        model: "openai/gpt-oss-120b",
+        provider: "groq",
+        license: "Open",
+        origin: "US / OpenAI",
         roles: CODING_ROLES,
         max_tokens: None,
         max_context: None,
@@ -668,16 +683,7 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: None,
     },
-    RotationEntry {
-        id: "deepseek-r1-fireworks",
-        model: "accounts/fireworks/models/deepseek-r1",
-        provider: "fireworks",
-        license: "MIT",
-        origin: "China / DeepSeek",
-        roles: REASONING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // deepseek-r1 was removed from Fireworks 2026-03 → entry dropped
     RotationEntry {
         id: "deepseek-r1-deepinfra",
         model: "deepseek-ai/DeepSeek-R1",
@@ -700,8 +706,9 @@ pub const ROTATION: &[RotationEntry] = &[
         max_context: None,
     },
     RotationEntry {
+        // deepseek-v3 → deepseek-v3p2 (model string updated 2026-03)
         id: "deepseek-v3-fireworks",
-        model: "accounts/fireworks/models/deepseek-v3",
+        model: "accounts/fireworks/models/deepseek-v3p2",
         provider: "fireworks",
         license: "MIT",
         origin: "China / DeepSeek",
@@ -843,16 +850,7 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: None,
     },
-    RotationEntry {
-        id: "llama4-scout-fireworks",
-        model: "accounts/fireworks/models/llama4-scout-instruct-basic",
-        provider: "fireworks",
-        license: "Llama Community",
-        origin: "US / Meta",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // llama4-scout-instruct-basic was removed from Fireworks 2026-03 → entry dropped
 ];
 
 // ── Capability Ladder ──────────────────────────────────────────────────────────
@@ -884,9 +882,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rotation_has_67_models() {
-        // 33 original + 11 (provider-bench) + 17 high-priority + 6 medium-priority = 67
-        assert_eq!(ROTATION.len(), 67, "Expected 67 models in ROTATION");
+    fn rotation_has_66_models() {
+        // 33 original + 11 (provider-bench) + 17 high-priority + 6 medium-priority
+        // + 2 new Groq (kimi-k2-groq, llama4-maverick-groq, gpt-oss-120b)
+        // - 3 removed Fireworks (llama4-maverick, deepseek-r1, llama4-scout all 404)
+        // - 1 deepseek-r1-groq replaced by kimi-k2-groq = 66
+        assert_eq!(ROTATION.len(), 66, "Expected 66 models in ROTATION");
     }
 
     #[test]
