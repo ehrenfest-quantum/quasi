@@ -60,6 +60,32 @@
 - Add or update tests whenever behavior changes.
 - Mention any test command you ran in the PR description.
 
+## Issue Triage
+
+Before starting work on an issue:
+
+- Confirm the issue is still open and not already covered by a newer PR.
+- Check whether another active branch already covers the same change.
+- Inspect the affected file or reproduce the reported behavior first.
+- Note blockers, assumptions, or missing context in the PR description.
+
+## Pull Request Checklist
+
+Before requesting review:
+
+- Confirm the branch is scoped to one issue or task.
+- Include a short verification note with the exact command you ran.
+- Call out assumptions, skipped checks, or external blockers.
+- Reference the issue number in the PR description.
+
+## Contribution Workflow
+
+1. Start from the latest `main` before creating a feature branch.
+2. Keep the branch focused on a single issue or acceptance target.
+3. Run the narrowest relevant verification command before opening the PR.
+4. Include the issue reference and verification notes in the PR description.
+5. Push follow-up fixes to the same branch if review requests changes.
+
 ## Attribution
 
 If you are working through quasi-board, keep the required commit footer or submission metadata so the contribution can be recorded in the quasi-ledger.
