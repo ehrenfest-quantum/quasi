@@ -51,7 +51,10 @@ impl MatrixBot {
 
     /// Login to the Matrix homeserver and return a bot instance.
     pub async fn login(homeserver: &str, username: &str, password: &str) -> Result<Self> {
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .context("matrix: build reqwest client")?;
         let url = format!("{}/_matrix/client/v3/login", homeserver);
 
         let payload = serde_json::json!({
