@@ -236,8 +236,15 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
                         },
                     )
                     .await;
+                    // Exclude the failing model and continue to next retry.
+                    drafter_exclude.push(pf.entry.id.to_string());
+                    retry_feedback = Some(format!("JSON parse failure (model={}): {}", pf.entry.id, pf.error));
+                    continue;
                 }
-                return Err(e);
+                // Non-ParseFailure error (network timeout, HTTP error, etc.).
+                warn!("pipeline: A.2 draft attempt {} failed: {:#}", retry + 1, e);
+                retry_feedback = Some(format!("Drafter error on attempt {}: {}", retry + 1, e));
+                continue;
             }
         };
 
@@ -643,7 +650,12 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
                     retry_feedback = Some(format!("JSON parse failure (model={}): {}", pf.entry.id, pf.error));
                     continue;
                 }
-                return Err(e);
+                // Non-ParseFailure error (network timeout, HTTP error, etc.).
+                // Continue to next retry so solve_retries is incremented and
+                // saved at exhaustion rather than exiting the pipeline early.
+                warn!("pipeline: B.1 solve attempt {} failed with non-parse error: {:#}", retry + 1, e);
+                retry_feedback = Some(format!("Solver error on attempt {}: {}", retry + 1, e));
+                continue;
             }
         };
 
