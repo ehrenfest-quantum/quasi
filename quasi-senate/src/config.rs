@@ -583,17 +583,6 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: None,
     },
-    // ── Groq additions — Tier 3 regional (FREE TIER) ──────────────────────────
-    RotationEntry {
-        id: "allam-2",
-        model: "allam-2-7b",
-        provider: "groq",
-        license: "Apache-2.0",
-        origin: "Saudi Arabia / SDAIA",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
     // ── Fireworks additions — Tier 1 (pay-per-token) ──────────────────────────
     RotationEntry {
         id: "cogito-671b",
