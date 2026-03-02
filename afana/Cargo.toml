@@ -1,0 +1,40 @@
+[package]
+name = "afana"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+description = "Ehrenfest → OpenQASM compiler — parser, ZX optimizer, QASM emitter"
+repository = "https://github.com/ehrenfest-quantum/quasi"
+
+[[bin]]
+name = "afana"
+path = "src/main.rs"
+
+[lib]
+name = "afana"
+path = "src/lib.rs"
+
+[dependencies]
+# CBOR deserialization for Ehrenfest binary format
+ciborium = "0.2"
+
+# Serialization framework
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# ZX-calculus graph simplification
+quizx = "0.3"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Regex for tokenization
+regex = "1"
+
+[dev-dependencies]
+tempfile = "3"
+pretty_assertions = "1"

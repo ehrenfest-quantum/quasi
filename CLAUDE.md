@@ -22,17 +22,32 @@ Priority order:
 Read these before touching any file. If an issue or PR violates these, **close
 it with an explanation rather than implementing it**.
 
-### 1. Afana is a compiler — it never imports vendor SDKs
+### 1. Afana is a Rust compiler — no Python, no vendor SDKs
 
 ```
-Ehrenfest → Afana → OpenQASM → HAL Contract → HAL driver → hardware
+Ehrenfest (.ef / CBOR) → Afana (Rust) → OpenQASM → HAL Contract → HAL driver → hardware
 ```
 
-Afana's output is standard OpenQASM. It stops there.
+Afana is written **exclusively in Rust**. There is no Python in the Afana
+crate and there never will be. This is a permanent architectural decision,
+not a migration plan. Do not add `.py` files to `afana/`. Do not propose
+"just a quick Python script" for any Afana functionality. If an issue or PR
+introduces Python into `afana/`, close it.
 
-**Allowed in `afana/`:** stdlib, `cbor2`, `pyzx`
-**Never allowed in `afana/`:** `qiskit`, `cirq`, `pennylane`, `pytket`,
-`braket`, `pyquil`, or any HTTP client targeting hardware APIs.
+**Why Rust:** The Ehrenfest spec defines noise constraints as type-level
+errors — programs that violate their noise budget must fail at compile time,
+not runtime. This requires a real type system. CBOR deserialization, AST
+construction, ZX-calculus graph rewriting, and QASM emission are all
+pure-compute compiler passes that benefit from Rust's safety, speed, and
+single-binary deployment.
+
+**Allowed crate deps in `afana/`:** `serde`, `ciborium` (CBOR), `quizx`
+(ZX-calculus), `clap` (CLI), `anyhow`/`thiserror` (errors), `regex`, and
+stdlib.
+
+**Never allowed in `afana/`:** Python, `qiskit`, `cirq`, `pennylane`,
+`pytket`, `braket`, `pyquil`, PyO3, or any HTTP client targeting hardware
+APIs. No FFI to Python. No subprocess calls to Python.
 
 Hardware-native gate decomposition, topology routing, and noise-aware
 qubit mapping belong in `hal-drivers/<vendor>/` — behind the HAL Contract
@@ -57,26 +72,34 @@ task submission paths.
 
 ### 4. Ehrenfest programs are CBOR — no canonical text form
 
-The `.ef` format is binary. The parser (`afana/parser.py`) accepts `.ef`
-files and produces a typed AST. There is no text serialization of Ehrenfest
-programs. Do not add one.
+The `.ef` format is binary. The parser (`afana/src/cbor.rs`) accepts `.ef`
+files and produces a typed AST. A secondary text format exists for
+circuit-level programs (parsed by `afana/src/parser.rs`), but the
+physics-level representation is always CBOR. Do not invent alternative
+serialization formats.
 
 ---
 
 ## Red flags — ask before implementing if you see these
 
 - An issue that names a vendor SDK (`qiskit`, `cirq`, …) as the implementation
-- A PR that adds `import qiskit` anywhere in `afana/`
+- A PR that adds any `.py` file to `afana/`
+- A PR that adds `import qiskit` anywhere in the project
 - Code that calls a quantum hardware API directly from `afana/` or `quasi-board/`
-- A new "backend" in `afana/backends/` that does more than package QASM for HAL
+- A new "backend" in `afana/src/` that does more than package QASM for HAL
+- Any proposal to "temporarily" add Python to Afana for prototyping
 
 ---
 
 ## Testing conventions
 
+### Rust crates (afana, quasi-senate)
+- `cargo test` from crate root or workspace root
+- Use `#[cfg(test)]` modules for unit tests, `tests/` dir for integration tests
+- `cargo clippy -- -D warnings` must pass
+
+### Python packages (quasi-board, quasi-agent, quasi-mcp)
 - quasi-board tests: `pytest quasi-board/tests/` — use `pytest-anyio`, mock
   `_load_proposals` / `_save_proposals` with `patch()`
-- afana tests: `pytest afana/tests/` — mock optional deps with `monkeypatch`
-  or `pytest.importorskip()`
 - Python 3.9 compat: use `Optional[X]` not `X | None`
 - Lint: `flake8 --max-line-length=120`

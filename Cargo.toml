@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# QUASI Cargo workspace — all Rust crates live here.
+
+[workspace]
+members = [
+    "afana",
+    "quasi-senate",
+]
+resolver = "2"

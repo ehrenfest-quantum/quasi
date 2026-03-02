@@ -149,7 +149,36 @@ jobs:
           echo "✅ CLI loads cleanly"
 
 
-  # ── Quality Radar ①: Compiler boundary — no vendor SDKs in afana/ ────────
+  # ── Afana compiler (Rust) ──────────────────────────────────────────────────
+  afana:
+    name: "Afana · Rust compiler"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-afana-${{ hashFiles('afana/Cargo.toml') }}
+
+      - name: Clippy
+        run: cargo clippy -p afana -- -D warnings
+
+      - name: Test
+        run: cargo test -p afana --verbose
+
+  # ── Quality Radar ①: Compiler boundary — Rust only, no vendor SDKs ───────
   compiler-boundary:
     name: "Quality Radar ① · Compiler boundary"
     runs-on: ubuntu-latest
@@ -158,23 +187,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check no vendor SDK imports in afana/
+      - name: Check no Python files in afana/
+        run: |
+          # Afana is a Rust crate. No Python files allowed. See CLAUDE.md.
+          PY_FILES=$(find afana/ -name "*.py" 2>/dev/null || true)
+          if [ -n "$PY_FILES" ]; then
+            echo "❌ LANGUAGE VIOLATION: Python files found in afana/"
+            echo ""
+            echo "$PY_FILES"
+            echo ""
+            echo "Afana is written exclusively in Rust. See CLAUDE.md."
+            exit 1
+          fi
+          echo "✅ No Python files in afana/"
+
+      - name: Check no vendor SDK deps in afana/Cargo.toml
         run: |
           # Afana is a compiler. It emits OpenQASM. It never talks to hardware.
-          # Vendor SDKs (qiskit, cirq, pennylane, pytket, …) belong in HAL
-          # drivers, not in the compiler layer.  See ARCHITECTURE.md.
-          BANNED="qiskit|cirq|pennylane|pytket|braket|pyquil|stim|qibo|qulacs"
-          HITS=$(grep -rn --include="*.py" -E "^\s*(import|from)\s+($BANNED)" afana/ || true)
+          BANNED="qiskit|cirq|pennylane|pytket|braket|pyquil|pyo3"
+          HITS=$(grep -n -E "$BANNED" afana/Cargo.toml || true)
           if [ -n "$HITS" ]; then
-            echo "❌ COMPILER BOUNDARY VIOLATION: vendor SDK imported inside afana/"
+            echo "❌ COMPILER BOUNDARY VIOLATION: vendor SDK dep in afana/Cargo.toml"
             echo ""
             echo "$HITS"
             echo ""
             echo "Vendor SDKs belong in hal-drivers/<vendor>/, not in the compiler."
-            echo "See ARCHITECTURE.md § 'Compiler boundary rules'."
             exit 1
           fi
-          echo "✅ Compiler boundary clean — no vendor SDK imports in afana/"
+          echo "✅ Compiler boundary clean — no vendor SDK deps in afana/"
 
   # ── Quality Radar ②: Scope Hygiene ────────────────────────────────────────
   scope:
@@ -206,7 +246,7 @@ jobs:
   # It passes when all four layer jobs pass.
   all-layers:
     name: "All layers passed"
-    needs: [python, board, mcp, agent, compiler-boundary, scope]
+    needs: [python, board, mcp, agent, afana, compiler-boundary, scope]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -216,12 +256,14 @@ jobs:
                 "${{ needs.board.result }}"              != "success" ||
                 "${{ needs.mcp.result }}"                != "success" ||
                 "${{ needs.agent.result }}"              != "success" ||
+                "${{ needs.afana.result }}"              != "success" ||
                 "${{ needs.compiler-boundary.result }}"  != "success" ]]; then
             echo "❌ One or more layers failed:"
             echo "  python:            ${{ needs.python.result }}"
             echo "  board:             ${{ needs.board.result }}"
             echo "  mcp:               ${{ needs.mcp.result }}"
             echo "  agent:             ${{ needs.agent.result }}"
+            echo "  afana:             ${{ needs.afana.result }}"
             echo "  compiler-boundary: ${{ needs.compiler-boundary.result }}"
             exit 1
           fi
