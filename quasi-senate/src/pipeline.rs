@@ -636,6 +636,12 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
                         },
                     )
                     .await;
+                    // Exclude the failing model and continue to next retry.
+                    // This ensures solve_retries is incremented after exhaustion
+                    // rather than returning early without saving state.
+                    solver_exclude.push(pf.entry.id.to_string());
+                    retry_feedback = Some(format!("JSON parse failure (model={}): {}", pf.entry.id, pf.error));
+                    continue;
                 }
                 return Err(e);
             }
