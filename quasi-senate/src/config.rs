@@ -594,16 +594,6 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: None,
     },
-    RotationEntry {
-        id: "minimax-m2",
-        model: "accounts/fireworks/models/minimax-m2p1",
-        provider: "fireworks",
-        license: "Modified MIT",
-        origin: "China / MiniMax (Shanghai)",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
     // ── High-priority multi-provider overlaps (Together AI / Cerebras / DeepInfra / Fireworks) ──
     // llama3.3 × 4 providers (benchmark: custom-silicon vs. optimised-GPU vs. aggregator)
     RotationEntry {
