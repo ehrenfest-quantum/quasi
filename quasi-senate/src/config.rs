@@ -608,7 +608,7 @@ pub const ROTATION: &[RotationEntry] = &[
     },
     RotationEntry {
         id: "llama3.3-cerebras",
-        model: "llama-3.3-70b",
+        model: "llama3.1-8b",
         provider: "cerebras",
         license: "Llama Community",
         origin: "US / Meta",
@@ -688,7 +688,7 @@ pub const ROTATION: &[RotationEntry] = &[
     },
     RotationEntry {
         id: "qwen3-32b-cerebras",
-        model: "qwen-3-32b",
+        model: "qwen-3-235b-a22b-instruct-2507",
         provider: "cerebras",
         license: "Apache-2.0",
         origin: "China / Alibaba",
