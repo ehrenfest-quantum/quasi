@@ -4,6 +4,7 @@
 
 pub mod config;
 pub mod council;
+pub mod health_check;
 pub mod drafter;
 pub mod fedi;
 pub mod gate;

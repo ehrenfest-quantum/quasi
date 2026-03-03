@@ -9,6 +9,7 @@ use regex::Regex;
 use quasi_senate::config::ROTATION;
 use quasi_senate::fedi::FediClient;
 use quasi_senate::github::GitHubClient;
+use quasi_senate::health_check::run_check_models;
 use quasi_senate::matrix::MatrixBot;
 use quasi_senate::pipeline::{AppContext, run_batch, run_council, run_cycle, run_draft_pipeline, run_solve_pipeline};
 use quasi_senate::state::{load_state, save_state};
@@ -72,6 +73,17 @@ enum Command {
 
     /// Show current state (retries, quotas, last providers)
     Status,
+
+    /// Health-check all models in the rotation roster
+    CheckModels {
+        /// Filter to a single provider (e.g., "groq", "openrouter")
+        #[arg(long)]
+        provider: Option<String>,
+
+        /// Timeout per model probe in seconds
+        #[arg(long, default_value = "15")]
+        timeout: u64,
+    },
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
@@ -87,7 +99,27 @@ async fn main() -> Result<()> {
     // 3. Parse CLI
     let cli = Cli::parse();
 
-    // 4. Build AppContext
+    // 4. Handle commands that don't need full AppContext first.
+    if let Command::CheckModels { provider, timeout } = &cli.command {
+        let db = telemetry_log::connect_db().await;
+
+        // Run model_health migration
+        if let Some(db) = &db {
+            let migration = include_str!("../migrations/004_model_health.sql");
+            if let Err(e) = db.batch_execute(migration).await {
+                tracing::warn!("Migration warning (may already exist): {e}");
+            }
+        }
+
+        let results = run_check_models(&db, provider.as_deref(), *timeout).await;
+        let any_failed = results.iter().any(|r| r.status == quasi_senate::health_check::ProbeStatus::Fail);
+        if any_failed {
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+
+    // 5. Build full AppContext (requires GITHUB_TOKEN, Matrix, Fedi)
     let github_token = std::env::var("GITHUB_TOKEN")
         .map_err(|_| anyhow!("GITHUB_TOKEN environment variable is not set"))?;
 
@@ -108,15 +140,19 @@ async fn main() -> Result<()> {
         db,
     };
 
-    // Run DB migration on startup
+    // Run DB migrations on startup
     if let Some(db) = &ctx.db {
         let migration = include_str!("../migrations/001_telemetry.sql");
         if let Err(e) = db.batch_execute(migration).await {
             tracing::warn!("Migration warning (may already exist): {e}");
         }
+        let migration = include_str!("../migrations/004_model_health.sql");
+        if let Err(e) = db.batch_execute(migration).await {
+            tracing::warn!("Migration warning (may already exist): {e}");
+        }
     }
 
-    // 5. Dispatch
+    // 6. Dispatch
     match cli.command {
         Command::Council => {
             let charter = run_council(&mut ctx).await?;
@@ -187,6 +223,8 @@ async fn main() -> Result<()> {
             let status_json = serde_json::to_string_pretty(&ctx.state)?;
             println!("{status_json}");
         }
+
+        Command::CheckModels { .. } => unreachable!("handled above"),
     }
 
     Ok(())
