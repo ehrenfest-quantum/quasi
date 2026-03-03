@@ -313,16 +313,7 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: None,
     },
-    RotationEntry {
-        id: "qwen3-8b-hf",
-        model: "Qwen/Qwen3-8B",
-        provider: "huggingface",
-        license: "Apache-2.0",
-        origin: "China / Alibaba (lightweight)",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // qwen3-8b-hf: timeout on HuggingFace health check 2026-03-03 → dropped
     RotationEntry {
         id: "qwen3-32b-hf",
         model: "Qwen/Qwen3-32B",
@@ -398,16 +389,7 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: None,
     },
-    RotationEntry {
-        id: "dicta",
-        model: "dicta-il/DictaLM-3.0-24B-Thinking",
-        provider: "huggingface",
-        license: "Apache-2.0",
-        origin: "Israel / Dicta (Bar-Ilan University)",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // dicta: timeout on HuggingFace health check 2026-03-03 → dropped
     RotationEntry {
         id: "swallow-70b",
         model: "tokyotech-llm/Llama-3.3-Swallow-70B-Instruct-v0.4",
@@ -471,16 +453,7 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: None,
     },
-    RotationEntry {
-        id: "qwen3-32b-or",
-        model: "qwen/qwen3-32b",
-        provider: "openrouter",
-        license: "Apache-2.0",
-        origin: "China / Alibaba (Qwen3 dense 32B)",
-        roles: REASONING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // qwen3-32b-or: timeout on OpenRouter health check 2026-03-03 → dropped
     RotationEntry {
         id: "qwen3-30b",
         model: "qwen/qwen3-30b-a3b-instruct-2507",
@@ -669,28 +642,10 @@ pub const ROTATION: &[RotationEntry] = &[
     },
     // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
     // qwen2.5-72b × 2 new providers
-    RotationEntry {
-        id: "qwen2.5-72b-together",
-        model: "Qwen/Qwen2.5-72B-Instruct-Turbo",
-        provider: "together",
-        license: "Qwen Community",
-        origin: "China / Alibaba",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // qwen2.5-72b-together: non-serverless model, removed from Together 2026-03-03 → dropped
     // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
     // qwen3-32b × 3 providers (headline: Groq LPU vs. Cerebras WSE head-to-head)
-    RotationEntry {
-        id: "qwen3-32b-together",
-        model: "Qwen/Qwen3-32B",
-        provider: "together",
-        license: "Apache-2.0",
-        origin: "China / Alibaba",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // qwen3-32b-together: non-serverless model, removed from Together 2026-03-03 → dropped
     RotationEntry {
         id: "qwen3-32b-cerebras",
         model: "qwen-3-235b-a22b-instruct-2507",
@@ -703,31 +658,13 @@ pub const ROTATION: &[RotationEntry] = &[
     },
     // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
     // gemma-3-27b × 2 new providers
-    RotationEntry {
-        id: "gemma-3-27b-together",
-        model: "google/gemma-3-27b-it",
-        provider: "together",
-        license: "Gemma",
-        origin: "US / Google DeepMind",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // gemma-3-27b-together: 404 model not available on Together 2026-03-03 → dropped
     // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
     // ── Medium-priority overlaps ───────────────────────────────────────────────
     // mistral-small-mistral + mistral-nemo-mistral: no MISTRAL_API_KEY configured → entries dropped 2026-03
     // mistral-nemo-together: Mistral-Nemo-Instruct-2407 removed from Together 2026-03 → entry dropped
     // phi-4-together: microsoft/phi-4 removed from Together 2026-03 → entry dropped
-    RotationEntry {
-        id: "llama4-scout-together",
-        model: "meta-llama/Llama-4-Scout-17B-16E-Instruct",
-        provider: "together",
-        license: "Llama Community",
-        origin: "US / Meta",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // llama4-scout-together: non-serverless model, removed from Together 2026-03-03 → dropped
     // llama4-scout-instruct-basic was removed from Fireworks 2026-03 → entry dropped
 ];
 
@@ -760,12 +697,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rotation_has_58_models() {
-        // 60 baseline
-        // - deepseek-v3-hf: 0% approval, 45min avg latency on HuggingFace (removed 2026-03-01)
-        // - llama4-scout: systematic JSON parse failures on B1 solver (removed 2026-03-01)
-        // = 58
-        assert_eq!(ROTATION.len(), 58, "Expected 58 models in ROTATION");
+    fn rotation_has_45_models() {
+        // 52 prior
+        // - qwen3-8b-hf: timeout on HuggingFace (removed 2026-03-03)
+        // - dicta: timeout on HuggingFace (removed 2026-03-03)
+        // - qwen3-32b-or: timeout on OpenRouter (removed 2026-03-03)
+        // - qwen2.5-72b-together: non-serverless, removed from Together (2026-03-03)
+        // - qwen3-32b-together: non-serverless, removed from Together (2026-03-03)
+        // - gemma-3-27b-together: 404 on Together (2026-03-03)
+        // - llama4-scout-together: non-serverless, removed from Together (2026-03-03)
+        // = 45
+        assert_eq!(ROTATION.len(), 45, "Expected 45 models in ROTATION");
     }
 
     #[test]
