@@ -214,12 +214,6 @@ pub async fn call_model(
                 .context("HTTP request failed")?;
 
             let status = response.status();
-            info!(
-                model = model_id,
-                http_status = status.as_u16(),
-                attempt = attempt,
-                "LLM response received"
-            );
 
             // Surface the response headers before consuming the body.
             let response_headers = response.headers().clone();
@@ -320,13 +314,6 @@ pub async fn call_model(
         }
     })
     .await;
-
-    info!(
-        model = model_id,
-        is_ok = inner_result.is_ok(),
-        elapsed_ms = start_time.elapsed().as_millis() as u64,
-        "Retry loop completed"
-    );
 
     let (content, http_status, model_verified, served_model) = inner_result?;
     let latency_ms = start_time.elapsed().as_millis() as u64;

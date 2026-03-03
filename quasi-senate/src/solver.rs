@@ -60,16 +60,17 @@ pub async fn solve_issue(
                 fc.content
             ));
         }
-        // Afana compiler source — essential so the solver can see existing modules,
-        // data structures, and test patterns rather than hallucinating them.
+        // Afana compiler source (Rust crate) — essential so the solver can see
+        // existing modules, data structures, and test patterns.
         for path in &[
-            "afana/__init__.py",
-            "afana/optimize.py",
-            "afana/compile.py",
-            "afana/tests/test_optimize.py",
+            "afana/src/lib.rs",
+            "afana/src/ast.rs",
+            "afana/src/parser.rs",
+            "afana/src/emit.rs",
+            "afana/src/optimize.rs",
         ] {
             if let Ok(fc) = github.get_file(path, "main").await {
-                context_parts.push(format!("#### {path}\n```python\n{}\n```", fc.content));
+                context_parts.push(format!("#### {path}\n```rust\n{}\n```", fc.content));
             }
         }
     }

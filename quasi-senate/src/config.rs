@@ -591,7 +591,7 @@ pub const ROTATION: &[RotationEntry] = &[
         license: "MIT",
         origin: "US / Deep Cogito",
         roles: CODING_ROLES,
-        max_tokens: None,
+        max_tokens: Some(4096), // Fireworks requires stream=true for >4096
         max_context: None,
     },
     // ── High-priority multi-provider overlaps (Together AI / Cerebras / DeepInfra / Fireworks) ──
@@ -651,7 +651,7 @@ pub const ROTATION: &[RotationEntry] = &[
         license: "MIT",
         origin: "China / DeepSeek",
         roles: CODING_ROLES,
-        max_tokens: None,
+        max_tokens: Some(4096), // Fireworks requires stream=true for >4096
         max_context: None,
     },
     // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
