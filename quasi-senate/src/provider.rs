@@ -240,12 +240,16 @@ pub async fn call_model(
             }
 
             if !status.is_success() {
-                info!(attempt = attempt, http_status = status.as_u16(), "reading error body");
                 let body = response
                     .text()
                     .await
                     .unwrap_or_else(|_| "(unreadable body)".to_string());
-                info!(attempt = attempt, body_len = body.len(), "error body read, returning Err for retry");
+                warn!(
+                    attempt = attempt,
+                    http_status = status.as_u16(),
+                    error_body = &body[..body.len().min(500)],
+                    "Provider returned error"
+                );
                 return Err(anyhow!(
                     "Provider '{}' returned {}: {}",
                     entry.provider,
