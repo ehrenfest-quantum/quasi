@@ -617,16 +617,7 @@ pub const ROTATION: &[RotationEntry] = &[
         max_context: None,
     },
     // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
-    RotationEntry {
-        id: "llama3.3-fireworks",
-        model: "accounts/fireworks/models/llama-v3p3-70b-instruct",
-        provider: "fireworks",
-        license: "Llama Community",
-        origin: "US / Meta",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // llama3.3-fireworks: llama-v3p3-70b-instruct removed from Fireworks 2026-03 → entry dropped
     // deepseek-r1 × 3 new providers
     RotationEntry {
         id: "deepseek-r1-together",
@@ -642,8 +633,9 @@ pub const ROTATION: &[RotationEntry] = &[
     // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
     // deepseek-v3 × 3 new providers
     RotationEntry {
+        // deepseek-v3 → DeepSeek-V3.1 (model string updated 2026-03, V3 removed from Together)
         id: "deepseek-v3-together",
-        model: "deepseek-ai/DeepSeek-V3",
+        model: "deepseek-ai/DeepSeek-V3.1",
         provider: "together",
         license: "MIT",
         origin: "China / DeepSeek",
@@ -730,26 +722,8 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: None,
     },
-    RotationEntry {
-        id: "mistral-nemo-together",
-        model: "mistralai/Mistral-Nemo-Instruct-2407",
-        provider: "together",
-        license: "Apache-2.0",
-        origin: "France / Mistral",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "phi-4-together",
-        model: "microsoft/phi-4",
-        provider: "together",
-        license: "MIT",
-        origin: "US / Microsoft Research",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: Some(24000),
-    },
+    // mistral-nemo-together: Mistral-Nemo-Instruct-2407 removed from Together 2026-03 → entry dropped
+    // phi-4-together: microsoft/phi-4 removed from Together 2026-03 → entry dropped
     RotationEntry {
         id: "llama4-scout-together",
         model: "meta-llama/Llama-4-Scout-17B-16E-Instruct",
