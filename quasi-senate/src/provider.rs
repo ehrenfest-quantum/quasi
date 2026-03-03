@@ -200,6 +200,8 @@ pub async fn call_model(
                 model = model_id,
                 provider = entry.provider,
                 url = url,
+                request_bytes = request_json.len(),
+                attempt = attempt,
                 "Calling LLM"
             );
 
@@ -212,6 +214,12 @@ pub async fn call_model(
                 .context("HTTP request failed")?;
 
             let status = response.status();
+            info!(
+                model = model_id,
+                http_status = status.as_u16(),
+                attempt = attempt,
+                "LLM response received"
+            );
 
             // Surface the response headers before consuming the body.
             let response_headers = response.headers().clone();
