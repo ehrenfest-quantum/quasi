@@ -240,10 +240,12 @@ pub async fn call_model(
             }
 
             if !status.is_success() {
+                info!(attempt = attempt, http_status = status.as_u16(), "reading error body");
                 let body = response
                     .text()
                     .await
                     .unwrap_or_else(|_| "(unreadable body)".to_string());
+                info!(attempt = attempt, body_len = body.len(), "error body read, returning Err for retry");
                 return Err(anyhow!(
                     "Provider '{}' returned {}: {}",
                     entry.provider,
@@ -314,6 +316,13 @@ pub async fn call_model(
         }
     })
     .await;
+
+    info!(
+        model = model_id,
+        is_ok = inner_result.is_ok(),
+        elapsed_ms = start_time.elapsed().as_millis() as u64,
+        "Retry loop completed"
+    );
 
     let (content, http_status, model_verified, served_model) = inner_result?;
     let latency_ms = start_time.elapsed().as_millis() as u64;
