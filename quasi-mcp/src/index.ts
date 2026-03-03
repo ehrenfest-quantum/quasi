@@ -393,6 +393,37 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["ef_path"],
       },
     },
+    {
+      name: "simulate_noisy",
+      description:
+        "Estimate circuit fidelity under realistic noise for an Ehrenfest program (.ef). Compiles via Afana to OpenQASM 3.0, then runs noise-aware simulation using MQT DDSIM (ideal vs noisy, TVD fidelity). Falls back to heuristic gate-fidelity estimate if DDSIM is not installed. Use this to check whether a circuit has a reasonable chance of producing useful results on a given backend before submitting to hardware.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          ef_path: {
+            type: "string",
+            description: "Path to the .ef Ehrenfest program file",
+          },
+          backend: {
+            type: "string",
+            description: "Target backend name (e.g. 'ibm_heron', 'iqm_garnet', 'quantinuum_h2'). Determines noise profile. Default: 'simulator'",
+          },
+          shots: {
+            type: "number",
+            description: "Number of simulation shots (default: 1024)",
+          },
+          sq_err: {
+            type: "number",
+            description: "Override single-qubit gate error rate (0.0-1.0)",
+          },
+          tq_err: {
+            type: "number",
+            description: "Override two-qubit gate error rate (0.0-1.0)",
+          },
+        },
+        required: ["ef_path"],
+      },
+    },
   ],
 }));
 
@@ -657,6 +688,118 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         if (qcecResult.error) {
           parts.push("", `QCEC error: ${qcecResult.error}`);
+        }
+
+        return { content: [{ type: "text", text: parts.join("\n") }] };
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    }
+
+    // ── simulate_noisy ──────────────────────────────────────────────────────
+    if (name === "simulate_noisy") {
+      const { ef_path, backend, shots, sq_err, tq_err } = args as {
+        ef_path: string;
+        backend?: string;
+        shots?: number;
+        sq_err?: number;
+        tq_err?: number;
+      };
+      const tmpDir = mkdtempSync(join(tmpdir(), "ddsim-"));
+
+      try {
+        const qasmFile = join(tmpDir, "circuit.qasm");
+
+        // Compile with optimization (production config)
+        const optProc = spawnSync("afana", [ef_path, "--qasm", "v3", "--optimize", "--reduce-t", "--stats"], {
+          encoding: "utf-8",
+          timeout: 30_000,
+        });
+        if (optProc.status !== 0) {
+          throw new Error(`afana failed: ${optProc.stderr}`);
+        }
+        writeFileSync(qasmFile, optProc.stdout);
+
+        // Parse stats from stderr
+        const parseStatGates = (stats: string, label: string): number | null => {
+          const m = stats.match(new RegExp(`${label}:\\s*(\\d+)`));
+          return m ? parseInt(m[1], 10) : null;
+        };
+        const gateCount = parseStatGates(optProc.stderr, "Gates after optimization");
+        const nQubits = parseStatGates(optProc.stderr, "Qubits");
+
+        // Build ddsim_simulate.py command
+        const scriptPath = join(
+          dirname(fileURLToPath(import.meta.url)),
+          "..",
+          "scripts",
+          "ddsim_simulate.py"
+        );
+        const scriptArgs = [scriptPath, qasmFile];
+        if (backend) { scriptArgs.push("--backend", backend); }
+        if (shots != null) { scriptArgs.push("--shots", String(shots)); }
+        if (sq_err != null) { scriptArgs.push("--sq-err", String(sq_err)); }
+        if (tq_err != null) { scriptArgs.push("--tq-err", String(tq_err)); }
+
+        const simProc = spawnSync("python3", scriptArgs, {
+          encoding: "utf-8",
+          timeout: 120_000,
+        });
+        if (simProc.status !== 0) {
+          throw new Error(`ddsim_simulate.py failed: ${simProc.stderr}`);
+        }
+
+        const simResult = JSON.parse(simProc.stdout.trim()) as {
+          fidelity: number;
+          method: string;
+          noise_model: string;
+          shots: number;
+          ideal_counts: Record<string, number> | null;
+          noisy_counts: Record<string, number> | null;
+          error: string | null;
+        };
+
+        const fidelityPct = (simResult.fidelity * 100).toFixed(1);
+        const backendName = backend ?? "simulator";
+        const threshold = 0.5;
+        const belowThreshold = simResult.fidelity < threshold;
+
+        const parts = [
+          `Noise simulation for: ${ef_path}`,
+          `Target backend: ${backendName}`,
+          "",
+          `Estimated fidelity: ${fidelityPct}% ${belowThreshold ? "(BELOW 50% THRESHOLD)" : ""}`,
+          `Method: ${simResult.method}`,
+          `Noise model: ${simResult.noise_model}`,
+          `Shots: ${simResult.shots}`,
+        ];
+
+        if (nQubits != null) parts.push(`Qubits: ${nQubits}`);
+        if (gateCount != null) parts.push(`Gates (optimized): ${gateCount}`);
+
+        if (belowThreshold) {
+          parts.push("");
+          parts.push("WARNING: Estimated fidelity is below 50%. This circuit is unlikely");
+          parts.push("to produce useful results on the target backend. Consider:");
+          parts.push("  - A backend with lower gate error rates");
+          parts.push("  - Reducing circuit depth");
+          parts.push("  - Applying error mitigation techniques");
+        }
+
+        if (simResult.ideal_counts && simResult.noisy_counts) {
+          const topIdeal = Object.entries(simResult.ideal_counts)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 5);
+          const topNoisy = Object.entries(simResult.noisy_counts)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 5);
+          parts.push("");
+          parts.push("Top ideal outcomes: " + topIdeal.map(([k, v]) => `${k}:${v}`).join(" "));
+          parts.push("Top noisy outcomes: " + topNoisy.map(([k, v]) => `${k}:${v}`).join(" "));
+        }
+
+        if (simResult.error) {
+          parts.push("", `Error: ${simResult.error}`);
         }
 
         return { content: [{ type: "text", text: parts.join("\n") }] };

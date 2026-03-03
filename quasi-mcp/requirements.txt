@@ -1,1 +1,2 @@
 mqt.qcec>=2.2
+mqt.ddsim>=2.0
