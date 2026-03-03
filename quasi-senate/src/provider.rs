@@ -266,24 +266,40 @@ pub async fn call_model(
 
             let status_code = status.as_u16();
 
-            // 8. Verify model identity if the provider sends a verification header.
-            let (model_verified, served_model_val) = if let Some(hdr) = verify_header {
-                let served = response_headers
-                    .get(hdr)
-                    .and_then(|v| v.to_str().ok())
+            // 8. Verify model identity from the response JSON body.
+            //
+            // All OpenAI-compatible APIs return a top-level "model" field in the
+            // response. We compare it against the requested model string. This
+            // replaces the previous header-based check (OpenRouter dropped the
+            // x-finalized-model header) and works for all providers.
+            let (model_verified, served_model_val) = {
+                let served = json
+                    .get("model")
+                    .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
-                let verified = served.as_ref().map(|s| s == expected_model);
+                // Also check the header as fallback (some providers may still send it).
+                let served = served.or_else(|| {
+                    verify_header.and_then(|hdr| {
+                        response_headers
+                            .get(hdr)
+                            .and_then(|v| v.to_str().ok())
+                            .map(|s| s.to_string())
+                    })
+                });
+                let verified = served.as_ref().map(|s| {
+                    // Match if the served model starts with or equals the requested model.
+                    // OpenRouter returns expanded names like "meta-llama/llama-4-maverick-17b-128e-instruct"
+                    // for a request of "meta-llama/llama-4-maverick". Groq returns the exact model string.
+                    s == expected_model || s.starts_with(expected_model)
+                });
                 if let Some(false) = verified {
                     warn!(
                         requested_model = expected_model,
                         served_model = served.as_deref().unwrap_or("(none)"),
-                        header = hdr,
-                        "Provider routed to a different model — possible silent substitution"
+                        "Provider served a different model than requested"
                     );
                 }
                 (verified, served)
-            } else {
-                (None, None)
             };
 
             Ok::<(String, u16, Option<bool>, Option<String>), anyhow::Error>((content, status_code, model_verified, served_model_val))
