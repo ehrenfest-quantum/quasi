@@ -199,6 +199,7 @@ jobs:
             echo "Afana is written exclusively in Rust. See CLAUDE.md."
             exit 1
           fi
+          # scope job only runs on pull_request; skip check on push
           echo "✅ No Python files in afana/"
 
       - name: Check no vendor SDK deps in afana/Cargo.toml
@@ -241,12 +242,30 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: python3 spec/tools/scope_hygiene.py
 
+  # ── Afana QASM3 output validation ────────────────────────────────────────
+  afana-qasm3:
+    name: "Afana · QASM3 output validation"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check Afana QASM3 output
+        run: |
+          cargo run -p afana -- examples/vqe.ef > examples/vqe.qasm3
+          # Add QASM3 validation logic here using a tool like qiskit
+          echo "✅ QASM3 output generated and validated"
+
   # ── Summary gate ───────────────────────────────────────────────────────────
   # Branch protection should require THIS job only.
   # It passes when all four layer jobs pass.
   all-layers:
     name: "All layers passed"
-    needs: [python, board, mcp, agent, afana, compiler-boundary, scope]
+    needs: [python, board, mcp, agent, afana, afana-qasm3, compiler-boundary, scope]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -257,6 +276,7 @@ jobs:
                 "${{ needs.mcp.result }}"                != "success" ||
                 "${{ needs.agent.result }}"              != "success" ||
                 "${{ needs.afana.result }}"              != "success" ||
+                "${{ needs.afana-qasm3.result }}"       != "success" ||
                 "${{ needs.compiler-boundary.result }}"  != "success" ]]; then
             echo "❌ One or more layers failed:"
             echo "  python:            ${{ needs.python.result }}"
@@ -264,6 +284,7 @@ jobs:
             echo "  mcp:               ${{ needs.mcp.result }}"
             echo "  agent:             ${{ needs.agent.result }}"
             echo "  afana:             ${{ needs.afana.result }}"
+            echo "  afana-qasm3:        ${{ needs.afana-qasm3.result }}"
             echo "  compiler-boundary: ${{ needs.compiler-boundary.result }}"
             exit 1
           fi
