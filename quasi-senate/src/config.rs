@@ -302,16 +302,7 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: None,
     },
-    RotationEntry {
-        id: "mistral-nemo-hf",
-        model: "mistralai/Mistral-Nemo-Instruct-2407",
-        provider: "huggingface",
-        license: "Apache-2.0",
-        origin: "France / Mistral",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // mistral-nemo-hf: Mistral-Nemo-Instruct-2407 delisted from HuggingFace chat router 2026-03 → dropped
     // ── Tier 1 — HuggingFace (FREE, rate-limited) ─────────────────────────────
     RotationEntry {
         id: "kimi-k2",
@@ -335,16 +326,7 @@ pub const ROTATION: &[RotationEntry] = &[
         max_context: None,
     },
     // ── Tier 2 — EU / competitive coding (HuggingFace) ───────────────────────
-    RotationEntry {
-        id: "eurollm-22b",
-        model: "utter-project/EuroLLM-22B-Instruct-2512",
-        provider: "huggingface",
-        license: "Apache-2.0",
-        origin: "EU consortium / Unbabel (Portugal)",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // eurollm-22b: EuroLLM-22B-Instruct-2512 not supported on HuggingFace chat router 2026-03 → dropped
     RotationEntry {
         id: "olmo-32b",
         model: "allenai/olmo-3.1-32b-instruct",
@@ -512,16 +494,7 @@ pub const ROTATION: &[RotationEntry] = &[
         max_tokens: None,
         max_context: Some(24000),
     },
-    RotationEntry {
-        id: "phi-4-hf",
-        model: "microsoft/phi-4",
-        provider: "huggingface",
-        license: "MIT",
-        origin: "US / Microsoft Research",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: Some(24000),
-    },
+    // phi-4-hf: microsoft/phi-4 not supported on HuggingFace chat router 2026-03 → dropped
     RotationEntry {
         id: "nemotron-70b",
         model: "nvidia/llama-3.1-nemotron-70b-instruct",
@@ -702,26 +675,7 @@ pub const ROTATION: &[RotationEntry] = &[
     },
     // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
     // ── Medium-priority overlaps ───────────────────────────────────────────────
-    RotationEntry {
-        id: "mistral-small-mistral",
-        model: "mistral-small-latest",
-        provider: "mistral",
-        license: "Apache-2.0",
-        origin: "France / Mistral",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "mistral-nemo-mistral",
-        model: "open-mistral-nemo",
-        provider: "mistral",
-        license: "Apache-2.0",
-        origin: "France / Mistral",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
+    // mistral-small-mistral + mistral-nemo-mistral: no MISTRAL_API_KEY configured → entries dropped 2026-03
     // mistral-nemo-together: Mistral-Nemo-Instruct-2407 removed from Together 2026-03 → entry dropped
     // phi-4-together: microsoft/phi-4 removed from Together 2026-03 → entry dropped
     RotationEntry {
