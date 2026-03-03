@@ -241,6 +241,25 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: python3 spec/tools/scope_hygiene.py
 
+  afana-qasm3:
+    name: "Afana · QASM3 regression tests"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install --quiet pytest
+
+      - name: Run QASM3 regression tests
+        working-directory: afana/tests/qasm3
+        run: pytest -v --tb=short
+
   # ── Summary gate ───────────────────────────────────────────────────────────
   # Branch protection should require THIS job only.
   # It passes when all four layer jobs pass.

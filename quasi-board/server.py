@@ -326,8 +326,8 @@ async def _notify_daniel(message: str) -> None:
 # ── Submission security limits ────────────────────────────────────────────────
 
 MAX_FILES = 50
-MAX_FILE_BYTES = 100_000          # 100 KB per file
-MAX_TOTAL_BYTES = 500_000         # 500 KB total payload
+MAX_FILE_BYTES = 200_000          # 200 KB per file
+MAX_TOTAL_BYTES = 1_000_000         # 1 MB total payload
 MAX_PATH_LEN = 200
 
 # Paths that can never be written by agent submissions
@@ -385,6 +385,7 @@ def _load_pending_merges() -> list:
 
 
 def _save_pending_merges(merges: list) -> None:
+    print(f"Saving pending merges: {merges}")  # DEBUG
     """Persist the pending merges list to disk."""
     PENDING_MERGES_FILE.parent.mkdir(parents=True, exist_ok=True)
     PENDING_MERGES_FILE.write_text(json.dumps(merges, indent=2))
