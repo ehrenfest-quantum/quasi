@@ -15,6 +15,12 @@
  *   { "mcpServers": { "quasi": { "command": "npx", "args": ["-y", "@quasi/mcp-server"] } } }
  */
 
+import { execSync, spawnSync } from "node:child_process";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -372,6 +378,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["program"],
       },
     },
+    {
+      name: "verify_compilation",
+      description:
+        "Verify that Afana's optimization passes preserve circuit equivalence using QCEC (MQT). Compiles an Ehrenfest program (.ef) twice — once without optimization (reference) and once with --optimize --reduce-t (production) — then runs formal equivalence checking on both OpenQASM 3.0 outputs. Returns pass/fail and gate count comparison. Requires mqt.qcec Python package (pip install mqt.qcec).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          ef_path: {
+            type: "string",
+            description: "Path to the .ef Ehrenfest program file to verify",
+          },
+        },
+        required: ["ef_path"],
+      },
+    },
   ],
 }));
 
@@ -558,6 +579,90 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       ].join("\n");
 
       return { content: [{ type: "text", text }] };
+    }
+
+    // ── verify_compilation ─────────────────────────────────────────────────
+    if (name === "verify_compilation") {
+      const { ef_path } = args as { ef_path: string };
+      const tmpDir = mkdtempSync(join(tmpdir(), "qcec-"));
+
+      try {
+        const refQasm = join(tmpDir, "ref.qasm");
+        const optQasm = join(tmpDir, "opt.qasm");
+
+        // Compile without optimization (reference)
+        const refOutput = execSync(`afana "${ef_path}" --qasm v3`, {
+          encoding: "utf-8",
+          timeout: 30_000,
+        });
+        writeFileSync(refQasm, refOutput);
+
+        // Compile with optimization (production) — use spawnSync to capture stderr stats
+        const optProc = spawnSync("afana", [ef_path, "--qasm", "v3", "--optimize", "--reduce-t", "--stats"], {
+          encoding: "utf-8",
+          timeout: 30_000,
+        });
+        if (optProc.status !== 0) {
+          throw new Error(`afana (optimized) failed: ${optProc.stderr}`);
+        }
+        const optOutput = optProc.stdout;
+        const optStats = optProc.stderr;
+        writeFileSync(optQasm, optOutput);
+
+        // Parse gate counts from --stats stderr output
+        const parseStatGates = (stats: string, label: string): number | null => {
+          const m = stats.match(new RegExp(`${label}:\\s*(\\d+)`));
+          return m ? parseInt(m[1], 10) : null;
+        };
+        const refGates = parseStatGates(optStats, "Gates before optimization");
+        const optGates = parseStatGates(optStats, "Gates after optimization");
+        const tBefore = parseStatGates(optStats, "T-gates before");
+        const tAfter = parseStatGates(optStats, "T-gates after");
+
+        // Run QCEC equivalence check
+        const scriptPath = join(
+          dirname(fileURLToPath(import.meta.url)),
+          "..",
+          "scripts",
+          "qcec_verify.py"
+        );
+        const qcecRaw = execSync(`python3 "${scriptPath}" "${refQasm}" "${optQasm}"`, {
+          encoding: "utf-8",
+          timeout: 60_000,
+        });
+        const qcecResult = JSON.parse(qcecRaw.trim()) as {
+          equivalent: boolean;
+          equivalence: string;
+          error: string | null;
+        };
+
+        const ratio = (refGates != null && refGates > 0 && optGates != null)
+          ? ((1 - optGates / refGates) * 100).toFixed(1) : "N/A";
+
+        const parts = [
+          `Compilation verification for: ${ef_path}`,
+          "",
+          `Equivalent: ${qcecResult.equivalent ? "YES" : "NO"}`,
+          `QCEC result: ${qcecResult.equivalence}`,
+          "",
+          `Gate counts:`,
+          `  Before optimization: ${refGates ?? "unknown"}`,
+          `  After optimization:  ${optGates ?? "unknown"}`,
+          `  Gate reduction: ${ratio}%`,
+        ];
+        if (tBefore != null || tAfter != null) {
+          parts.push(`  T-gates before: ${tBefore ?? "unknown"}`);
+          parts.push(`  T-gates after:  ${tAfter ?? "unknown"}`);
+        }
+
+        if (qcecResult.error) {
+          parts.push("", `QCEC error: ${qcecResult.error}`);
+        }
+
+        return { content: [{ type: "text", text: parts.join("\n") }] };
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
     }
 
     // ── validate_ehrenfest ──────────────────────────────────────────────────
