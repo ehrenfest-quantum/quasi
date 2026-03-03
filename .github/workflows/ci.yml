@@ -148,6 +148,10 @@ jobs:
           python3 quasi-agent/generate_issue.py --list-models
           echo "✅ CLI loads cleanly"
 
+      - name: Run pytest
+        working-directory: quasi-agent
+        run: pytest tests/ -v --tb=short
+
 
   # ── Afana compiler (Rust) ──────────────────────────────────────────────────
   afana:
