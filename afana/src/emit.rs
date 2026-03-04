@@ -268,4 +268,25 @@ rx 1.5707963267948966 q0
         assert_eq!(format_float(0.0), "0");
         assert_eq!(format_float(2.0 * std::f64::consts::PI), "2*pi");
     }
+
+    #[test]
+    fn emit_variational_v3() {
+        let source = r#"
+program "vqe"
+qubits 2
+variational params theta phi max_iter 1
+  rx theta q0
+  ry phi q1
+  cx q0 q1
+end
+"#;
+        let ast = parser::parse(source).unwrap();
+        let qasm = emit_qasm(&ast, QasmVersion::V3).unwrap();
+        // Ensure input declarations are present
+        assert!(qasm.contains("input float[64] theta;"));
+        assert!(qasm.contains("input float[64] phi;"));
+        // Ensure parametric gates use the parameters
+        assert!(qasm.contains("rx(theta) q[0];"));
+        assert!(qasm.contains("ry(phi) q[1];"));
+    }
 }
