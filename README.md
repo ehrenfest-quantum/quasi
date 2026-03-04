@@ -28,6 +28,7 @@ QUASI is an open specification and implementation for a hardware-agnostic Quantu
 2. Install the Python tooling used by the task board and agent:
    ```bash
    pip install -r quasi-board/requirements.txt
+   pip install -r quasi-agent/requirements.txt
    pip install pytest pytest-anyio anyio[asyncio]
    ```
 3. Inspect the task board with quasi-agent:
