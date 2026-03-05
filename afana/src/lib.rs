@@ -16,3 +16,4 @@ pub mod emit;
 pub mod error;
 pub mod optimize;
 pub mod parser;
+pub mod type_check;
