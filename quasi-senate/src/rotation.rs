@@ -5,7 +5,7 @@
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 
-use crate::config::{get_provider, ROTATION};
+use crate::config::{get_provider, rotation};
 use crate::types::{Role, RotationEntry};
 
 /// Return `true` if the given provider has its API key set in the environment.
@@ -22,9 +22,9 @@ pub fn provider_has_key(provider_id: &str) -> bool {
 /// Return all `RotationEntry` items whose provider's API key is available
 /// and which support the given `role`.
 pub fn eligible_for_role(role: &Role) -> Vec<&'static RotationEntry> {
-    ROTATION
+    rotation()
         .iter()
-        .filter(|e| e.roles.contains(role) && provider_has_key(e.provider))
+        .filter(|e| !e.quarantined && e.roles.contains(role) && provider_has_key(&e.provider))
         .collect()
 }
 
@@ -45,7 +45,7 @@ pub fn pick_model(
     // Step 1: get all eligible candidates for this role.
     let candidates: Vec<&'static RotationEntry> = eligible_for_role(role)
         .into_iter()
-        .filter(|e| !exclude.contains(&e.id))
+        .filter(|e| !exclude.contains(&e.id.as_str()))
         .collect();
 
     if candidates.is_empty() {
@@ -56,14 +56,14 @@ pub fn pick_model(
 
     // Step 2: sort by (count, same_provider_penalty, rotation_index).
     let rotation_index = |id: &str| -> usize {
-        ROTATION.iter().position(|e| e.id == id).unwrap_or(usize::MAX)
+        rotation().iter().position(|e| e.id == id).unwrap_or(usize::MAX)
     };
 
     let mut sorted = candidates;
     sorted.sort_by_key(|e| {
-        let count = counts.get(e.id).copied().unwrap_or(0);
-        let penalty: u32 = if last_provider == Some(e.provider) { 1 } else { 0 };
-        let idx = rotation_index(e.id);
+        let count = counts.get(&e.id).copied().unwrap_or(0);
+        let penalty: u32 = if last_provider == Some(e.provider.as_str()) { 1 } else { 0 };
+        let idx = rotation_index(&e.id);
         (count, penalty, idx)
     });
 

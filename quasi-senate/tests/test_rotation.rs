@@ -4,9 +4,13 @@
 
 use std::collections::HashMap;
 
-use quasi_senate::config::ROTATION;
+use quasi_senate::config::{init_rotation, rotation};
 use quasi_senate::rotation::{eligible_for_role, pick_model, provider_has_key};
 use quasi_senate::types::Role;
+
+fn ensure_init() {
+    init_rotation();
+}
 
 // ── test_pick_model_basic ──────────────────────────────────────────────────────
 
@@ -14,6 +18,7 @@ use quasi_senate::types::Role;
 /// that has A2Drafter in its roles — or skips gracefully if no provider key is set.
 #[test]
 fn test_pick_model_basic() {
+    ensure_init();
     let counts: HashMap<String, u32> = HashMap::new();
     let result = pick_model(&Role::A2Drafter, &[], &counts, None);
     match result {
@@ -36,6 +41,7 @@ fn test_pick_model_basic() {
 /// Verify the returned model's id is different from the excluded id.
 #[test]
 fn test_anti_collusion() {
+    ensure_init();
     let counts: HashMap<String, u32> = HashMap::new();
 
     // Find any eligible drafter.
@@ -46,7 +52,7 @@ fn test_anti_collusion() {
     };
 
     // Now pick a gate model excluding the drafter.
-    let excluded = &[drafter.id];
+    let excluded = &[drafter.id.as_str()];
     let gate_result = pick_model(&Role::A3Gate, excluded, &counts, None);
     match gate_result {
         Ok(gate) => {
@@ -68,6 +74,7 @@ fn test_anti_collusion() {
 /// A1Council in their roles. Skip gracefully if no keys are set.
 #[test]
 fn test_eligible_for_role_returns_subset() {
+    ensure_init();
     let eligible = eligible_for_role(&Role::A1Council);
     if eligible.is_empty() {
         // No provider keys set — skip.
@@ -84,24 +91,28 @@ fn test_eligible_for_role_returns_subset() {
 
 // ── test_all_rotation_models_have_roles ───────────────────────────────────────
 
-/// Every entry in ROTATION must have at least one role assigned.
+/// Every non-quarantined entry in ROTATION must have at least one role assigned.
 #[test]
 fn test_all_rotation_models_have_roles() {
-    for entry in ROTATION {
-        assert!(
-            !entry.roles.is_empty(),
-            "Model '{}' has an empty roles slice",
-            entry.id
-        );
+    ensure_init();
+    for entry in rotation() {
+        if !entry.quarantined {
+            assert!(
+                !entry.roles.is_empty(),
+                "Model '{}' has an empty roles slice",
+                entry.id
+            );
+        }
     }
 }
 
 // ── test_rotation_count ───────────────────────────────────────────────────────
 
-/// The ROTATION slice must contain exactly 58 models (see config.rs comment for full breakdown).
+/// The ROTATION slice must have at least 40 models (count may change dynamically).
 #[test]
 fn test_rotation_count() {
-    assert_eq!(ROTATION.len(), 58, "Expected 58 models in ROTATION, got {}", ROTATION.len());
+    ensure_init();
+    assert!(rotation().len() >= 40, "Expected at least 40 models in rotation, got {}", rotation().len());
 }
 
 // ── test_pick_model_excludes ───────────────────────────────────────────────────
@@ -110,11 +121,12 @@ fn test_rotation_count() {
 /// verify that the remaining model is returned. Skips if no keys are configured.
 #[test]
 fn test_pick_model_excludes() {
+    ensure_init();
     // Collect all A2Drafter-capable model IDs.
-    let all_drafter_ids: Vec<&'static str> = ROTATION
+    let all_drafter_ids: Vec<&str> = rotation()
         .iter()
         .filter(|e| e.roles.contains(&Role::A2Drafter))
-        .map(|e| e.id)
+        .map(|e| e.id.as_str())
         .collect();
 
     if all_drafter_ids.is_empty() {
@@ -133,8 +145,8 @@ fn test_pick_model_excludes() {
 
     // Mock: set the target provider key so provider_has_key returns true.
     // In practice the environment won't have keys — check gracefully.
-    let target_entry = ROTATION.iter().find(|e| e.id == target_id).unwrap();
-    if !provider_has_key(target_entry.provider) {
+    let target_entry = rotation().iter().find(|e| e.id == target_id).unwrap();
+    if !provider_has_key(&target_entry.provider) {
         // No key for the target provider — nothing to assert, skip.
         return;
     }

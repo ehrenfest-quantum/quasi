@@ -42,7 +42,8 @@
       },
       "id": 100,
       "title": "7-Day Overview",
-      "type": "row"
+      "type": "row",
+      "description": "Key metrics from the last 7 days of senate operations."
     },
     {
       "datasource": {
@@ -95,7 +96,8 @@
         }
       ],
       "title": "LLM Calls (7 days)",
-      "type": "stat"
+      "type": "stat",
+      "description": "Total number of LLM API calls made by the senate pipeline in the selected time range.\n\n**Source:** `COUNT(*) FROM senate_telemetry WHERE dry_run = false`"
     },
     {
       "datasource": {
@@ -148,7 +150,8 @@
         }
       ],
       "title": "Active Models (7 days)",
-      "type": "stat"
+      "type": "stat",
+      "description": "Number of distinct models that received at least one call.\n\n**Source:** `COUNT(DISTINCT base_model)`"
     },
     {
       "datasource": {
@@ -215,7 +218,8 @@
         }
       ],
       "title": "Overall Approval Rate (7 days)",
-      "type": "stat"
+      "type": "stat",
+      "description": "Percentage of calls where the downstream validator approved the output.\n\n**Formula:** `COUNT(verdict IN ('approved','approve','success')) / COUNT(all non-null verdicts) × 100`"
     },
     {
       "datasource": {
@@ -282,7 +286,8 @@
         }
       ],
       "title": "JSON Compliance (7 days)",
-      "type": "stat"
+      "type": "stat",
+      "description": "Percentage of calls returning valid JSON with HTTP 200.\n\n**Formula:** `COUNT(json_parse_ok = true AND http_status = 200) / COUNT(non-null json_parse_ok) × 100`\n\nThe senate requires structured JSON output — models that return free text or malformed JSON fail this metric."
     },
     {
       "datasource": {
@@ -347,7 +352,8 @@
         }
       ],
       "title": "Avg Latency (7 days)",
-      "type": "stat"
+      "type": "stat",
+      "description": "Average response time across all calls.\n\n**Formula:** `AVG(latency_ms) / 1000` (shown in seconds)\n\nIncludes network time + model inference. Varies significantly by provider and model size."
     },
     {
       "datasource": {
@@ -410,7 +416,8 @@
         }
       ],
       "title": "Provider Fidelity (7 days)",
-      "type": "stat"
+      "type": "stat",
+      "description": "Percentage of calls where the served model matched the requested model.\n\n**Formula:** `COUNT(model_verified = true) / COUNT(model_verified IS NOT NULL) × 100`\n\nSome providers (notably OpenRouter) may silently substitute models."
     },
     {
       "collapsed": false,
@@ -473,7 +480,8 @@
         }
       ],
       "title": "🏆 Top Performer (7 days, ≥10 calls)",
-      "type": "stat"
+      "type": "stat",
+      "description": "Model with the **highest approval rate** (≥10 calls, last 7 days).\n\n**Shown as:** metric name = model, value = approval %.\n\nOnly models with ≥10 calls qualify to avoid small-sample bias."
     },
     {
       "datasource": {
@@ -523,8 +531,9 @@
           "rawSql": "SELECT now() AS time, base_model AS metric, coalesce(round(100.0 * sum(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','approve','success','rejected','json_fail') THEN 1 END),0),0),0) AS value FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY value ASC NULLS LAST LIMIT 1"
         }
       ],
-      "title": "🏅 Sir Slopalot (7 days, ≥10 calls)",
-      "type": "stat"
+      "title": "🐩 Sir Slopalot (7 days, ≥10 calls)",
+      "type": "stat",
+      "description": "Model with the **lowest approval rate** (≥10 calls, last 7 days).\n\n**Shown as:** metric name = model, value = approval %.\n\nThe poodle of shame. Consider quarantining persistent underperformers."
     },
     {
       "datasource": {
@@ -575,7 +584,8 @@
         }
       ],
       "title": "⚡ Fastest Model (7 days, ≥10 calls)",
-      "type": "stat"
+      "type": "stat",
+      "description": "Model with the **lowest median latency** (≥10 calls, last 7 days).\n\n**Formula:** `ROUND(AVG(latency_ms)/1000.0, 1)` in seconds.\n\nSpeed matters for pipeline throughput — faster models complete more cycles per day."
     },
     {
       "collapsed": false,
@@ -806,7 +816,8 @@
         }
       ],
       "title": "Model Performance — 7 Days (sorted by approval rate)",
-      "type": "table"
+      "type": "table",
+      "description": "Full ranking table: model × provider with approval rate, JSON compliance, median latency, call count.\n\nSorted by approval rate descending. Use this to compare models side-by-side."
     },
     {
       "collapsed": false,
@@ -825,7 +836,7 @@
         "type": "postgres",
         "uid": "ffeagtzfyvvnkf"
       },
-      "description": "Each cell: approval % in that role. Grey = no data. Red < 40% < Orange < 60% < Yellow < 75% < Green.",
+      "description": "Cross-tabulation of approval rates by model (rows) × senate role (columns).\n\nReveals role-specific strengths: a model might excel at B1_solver (coding) but fail at A3_gate (reasoning).\n\n**Roles:** A1=council, A2=drafter, A3=gate, B1=solver, B2=reviewer",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -979,7 +990,8 @@
         }
       ],
       "title": "Approval Rate Trend — 4-Hour Bins",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Approval rate over time in 4-hour bins, per model.\n\nLook for: sudden drops (provider issues), gradual decline (model degradation), or step changes (model updates)."
     },
     {
       "datasource": {
@@ -1030,7 +1042,8 @@
         }
       ],
       "title": "JSON Compliance Trend — 4-Hour Bins",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "JSON compliance trend in 4-hour bins.\n\nDrops here indicate the model is returning malformed output — often a sign of prompt format changes or model updates."
     },
     {
       "datasource": {
@@ -1079,7 +1092,8 @@
         }
       ],
       "title": "Latency Trend — 4-Hour Bins",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Latency trend in 4-hour bins.\n\nSpikes indicate provider congestion or rate limiting. Sustained increases suggest capacity issues."
     },
     {
       "collapsed": false,
@@ -1098,7 +1112,7 @@
         "type": "postgres",
         "uid": "ffeagtzfyvvnkf"
       },
-      "description": "Rows where model_verified IS NOT NULL (OpenRouter only sends x-finalized-model header). Red rows = served model differed from requested model.",
+      "description": "Log of OpenRouter model substitutions — cases where a different model was served than requested.\n\n**Columns:** timestamp, requested model, served model, response status.\n\nOpenRouter is the most common substitution offender due to its routing architecture.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -1237,7 +1251,8 @@
         }
       ],
       "title": "Provider Fidelity Summary (7 days)",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "Provider fidelity (model_verified rate) per model as horizontal bars.\n\n1.0 = always serves the right model. <1.0 = substitutions detected."
     },
     {
       "collapsed": false,
@@ -1333,7 +1348,8 @@
         }
       ],
       "title": "JSON Parse Failures by Model (7 days)",
-      "type": "table"
+      "type": "table",
+      "description": "Models that frequently return unparseable JSON.\n\n**Columns:** model, total calls, parse failures, failure rate.\n\nHigh failure rates here indicate the model doesn't reliably follow the structured output prompt."
     },
     {
       "datasource": {
@@ -1401,7 +1417,8 @@
         }
       ],
       "title": "Retry Rates by Model (7 days)",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "Retry rate per model — percentage of calls that needed ≥1 retry.\n\n**Source:** `retries > 0` from `senate_telemetry`.\n\nHigh retry rates waste API credits and slow down the pipeline."
     },
     {
       "collapsed": false,
@@ -1473,7 +1490,8 @@
         }
       ],
       "title": "Retry Rate (pipeline_attempt=2)",
-      "type": "stat"
+      "type": "stat",
+      "description": "Percentage of calls that required a second pipeline attempt.\n\n**Formula:** `COUNT(pipeline_attempt = 2) / COUNT(*) × 100`\n\nA pipeline retry happens when the first attempt's output fails downstream validation and the entire role is re-run with the same or different model."
     },
     {
       "fieldConfig": {
@@ -1536,7 +1554,8 @@
         }
       ],
       "title": "Attempts Needed by Model (7 days)",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "Distribution of pipeline attempts needed per model.\n\nModels that consistently need attempt 2 are unreliable for their assigned role."
     },
     {
       "fieldConfig": {
@@ -1611,7 +1630,8 @@
         }
       ],
       "title": "Approval Rate: Attempt 1 vs 2",
-      "type": "table"
+      "type": "table",
+      "description": "Side-by-side comparison: approval rate on attempt 1 vs attempt 2.\n\nIf attempt 2 is significantly better, the retry mechanism is working. If similar, the model is consistently failing."
     },
     {
       "collapsed": false,
@@ -1682,7 +1702,8 @@
         }
       ],
       "title": "Reasoning Coverage (A3+B2)",
-      "type": "stat"
+      "type": "stat",
+      "description": "Percentage of A3_gate and B2_reviewer calls that include verdict_reasoning.\n\n**Formula:** `COUNT(verdict_reasoning IS NOT NULL) / COUNT(*) × 100` for roles A3_gate, B2_reviewer.\n\nModels should always explain their approval/rejection decisions."
     },
     {
       "fieldConfig": {
@@ -1739,7 +1760,8 @@
         }
       ],
       "title": "Avg Reasoning Length by Model (chars)",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "Average length of verdict reasoning text per model.\n\nLonger reasoning isn't always better, but very short reasoning (<50 chars) often indicates low-effort responses."
     },
     {
       "fieldConfig": {
@@ -1810,7 +1832,8 @@
         }
       ],
       "title": "A3 Gate — Recent Rejections with Reasoning",
-      "type": "table"
+      "type": "table",
+      "description": "Recent A3_gate rejections with their reasoning text.\n\nUse this to audit gate quality: are rejections well-justified or spurious?"
     },
     {
       "fieldConfig": {
@@ -1880,7 +1903,8 @@
         }
       ],
       "title": "B2 Reviewer — Recent Verdicts with Reasoning & Issues",
-      "type": "table"
+      "type": "table",
+      "description": "Recent B2_reviewer verdicts with reasoning and identified issues.\n\nShows whether reviewers provide actionable code review feedback."
     },
     {
       "collapsed": false,
@@ -1951,7 +1975,8 @@
         }
       ],
       "title": "CI Pass Rate (all senate PRs)",
-      "type": "stat"
+      "type": "stat",
+      "description": "CI (GitHub Actions) pass rate across all senate-generated PRs.\n\n**Source:** `pr_outcomes` table.\n\nA key end-to-end metric: does the generated code actually build and pass tests?"
     },
     {
       "fieldConfig": {
@@ -2010,7 +2035,8 @@
         }
       ],
       "title": "Merge Rate (senate PRs)",
-      "type": "stat"
+      "type": "stat",
+      "description": "Merge rate for senate-generated PRs.\n\n**Source:** `pr_outcomes.merged`.\n\nThe ultimate quality signal: did a human maintainer accept the model's contribution?"
     },
     {
       "fieldConfig": {
@@ -2074,7 +2100,8 @@
         }
       ],
       "title": "CI Pass Rate by Solver Model",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "CI pass rate broken down by solver model.\n\nReveals which models produce code that reliably passes automated tests."
     },
     {
       "fieldConfig": {
@@ -2169,7 +2196,8 @@
         }
       ],
       "title": "Senate PR Log",
-      "type": "table"
+      "type": "table",
+      "description": "Full log of senate-generated PRs with solver model, CI status, and merge outcome.\n\nUse for auditing individual contributions."
     }
   ],
   "refresh": "5m",

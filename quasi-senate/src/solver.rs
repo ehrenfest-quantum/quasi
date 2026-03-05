@@ -22,6 +22,7 @@ struct SolveResultRaw {
 ///
 /// * `exclude` — model IDs to exclude (at minimum: the drafter's model id)
 /// * `retry_feedback` — if retry, include review feedback
+#[allow(clippy::too_many_arguments)]
 pub async fn solve_issue(
     github: &GitHubClient,
     issue_number: u32,
@@ -154,7 +155,7 @@ pub async fn solve_issue(
     // 7. Call the LLM
     let system = crate::prompts::solver_system_prompt();
     let max_tokens = entry.max_tokens.unwrap_or(8192);
-    let call_result = crate::provider::call_model(entry, &system, &user, 0.2, max_tokens).await?;
+    let call_result = crate::provider::call_model(entry, system, &user, 0.2, max_tokens).await?;
     let raw = call_result.content.clone();
 
     // 8. Parse raw response — map failure to ParseFailure so pipeline can write telemetry.

@@ -21,6 +21,7 @@ struct IssueDraftRaw {
 ///
 /// * `drafter_exclude` — model IDs to exclude (anti-collusion from previous attempt)
 /// * `retry_feedback` — if this is a retry, include rejection feedback
+#[allow(clippy::too_many_arguments)]
 pub async fn draft_issue(
     github: &GitHubClient,
     charter_json: &str,
@@ -98,7 +99,7 @@ pub async fn draft_issue(
 
     // 9. Call the LLM
     let system = crate::prompts::drafter_system_prompt();
-    let call_result = crate::provider::call_model(entry, &system, &user, 0.7, 2048).await?;
+    let call_result = crate::provider::call_model(entry, system, &user, 0.7, 2048).await?;
     let raw = call_result.content.clone();
 
     // 10. Parse raw response — map failure to ParseFailure so pipeline can write telemetry.

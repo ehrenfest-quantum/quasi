@@ -31,8 +31,8 @@ struct ChatMessage {
 }
 
 #[derive(Serialize)]
-struct ChatRequest {
-    model: &'static str,
+struct ChatRequest<'a> {
+    model: &'a str,
     messages: Vec<ChatMessage>,
     max_tokens: u32,
     temperature: f32,
@@ -96,7 +96,7 @@ pub async fn call_model(
     max_tokens: u32,
 ) -> Result<CallResult> {
     // 1. Resolve provider config.
-    let provider = get_provider(entry.provider)
+    let provider = get_provider(&entry.provider)
         .ok_or_else(|| anyhow!("Unknown provider '{}' for model '{}'", entry.provider, entry.id))?;
 
     // 2. Read API key from environment.
@@ -118,7 +118,7 @@ pub async fn call_model(
     let user_prompt_truncated: String = match entry.max_context {
         Some(max_ctx) if user_prompt.len() > max_ctx as usize => {
             warn!(
-                model = entry.id,
+                model = entry.id.as_str(),
                 original_len = user_prompt.len(),
                 truncated_to = max_ctx,
                 "Truncating user prompt to fit model context window"
@@ -132,7 +132,7 @@ pub async fn call_model(
 
     // 4. Build the request body.
     let request_body = ChatRequest {
-        model: entry.model,
+        model: &entry.model,
         messages: vec![
             ChatMessage {
                 role: "system",
@@ -171,8 +171,8 @@ pub async fn call_model(
     let url = provider.url;
     let timeout_secs = provider.timeout_secs;
     let verify_header = provider.verify_header;
-    let expected_model = entry.model;
-    let model_id = entry.id;
+    let expected_model: &str = &entry.model;
+    let model_id: &str = &entry.id;
 
     // ExponentialBackoff::from_millis(base) yields: base, base*2, base*4, …
     // We want 2 s, 4 s, 8 s → 3 attempts max.
@@ -198,7 +198,7 @@ pub async fn call_model(
 
             info!(
                 model = model_id,
-                provider = entry.provider,
+                provider = entry.provider.as_str(),
                 url = url,
                 request_bytes = request_json.len(),
                 attempt = attempt,

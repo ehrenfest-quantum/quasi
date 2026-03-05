@@ -56,7 +56,7 @@ pub async fn run_council(ctx: &mut AppContext) -> Result<Charter> {
                         model_id: pf.entry.id.to_string(),
                         model_string: pf.entry.model.to_string(),
                         provider: pf.entry.provider.to_string(),
-                        base_model: base_model_id(pf.entry.id),
+                        base_model: base_model_id(&pf.entry.id),
                         level: None,
                         issue_number: None,
                         latency_ms: pf.call.latency_ms,
@@ -91,7 +91,7 @@ pub async fn run_council(ctx: &mut AppContext) -> Result<Charter> {
             model_id: a1_entry.id.to_string(),
             model_string: a1_entry.model.to_string(),
             provider: a1_entry.provider.to_string(),
-            base_model: base_model_id(a1_entry.id),
+            base_model: base_model_id(&a1_entry.id),
             level: None,
             issue_number: None,
             latency_ms: a1_call.latency_ms,
@@ -119,8 +119,7 @@ pub async fn run_council(ctx: &mut AppContext) -> Result<Charter> {
 
     // 3. Post charter to Matrix #senate-council
     if let Some(bot) = &ctx.matrix {
-        // Identify which model was used — not tracked directly, use "council"
-        let (plain, html) = crate::matrix::format_charter_message(&charter, "council");
+        let (plain, html) = crate::matrix::format_charter_message(&charter, &a1_entry.id);
         match bot.join_room("#senate-council:paulsboutique.hal-contract.org").await {
             Ok(room_id) => {
                 if let Err(err) = bot.send_message(&room_id, &plain, &html).await {
@@ -216,7 +215,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
                             model_id: pf.entry.id.to_string(),
                             model_string: pf.entry.model.to_string(),
                             provider: pf.entry.provider.to_string(),
-                            base_model: base_model_id(pf.entry.id),
+                            base_model: base_model_id(&pf.entry.id),
                             level: Some(level),
                             issue_number: None,
                             latency_ms: pf.call.latency_ms,
@@ -266,7 +265,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
         // A.3 — Gate review (exclude the drafter)
         let gate_exclude: Vec<&str> = {
             let mut v: Vec<&str> = exclude_refs.clone();
-            v.push(a2_entry.id);
+            v.push(&a2_entry.id);
             v
         };
 
@@ -293,7 +292,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
                             model_id: pf.entry.id.to_string(),
                             model_string: pf.entry.model.to_string(),
                             provider: pf.entry.provider.to_string(),
-                            base_model: base_model_id(pf.entry.id),
+                            base_model: base_model_id(&pf.entry.id),
                             level: Some(level),
                             issue_number: None,
                             latency_ms: pf.call.latency_ms,
@@ -369,7 +368,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
                     model_id: a2_entry.id.to_string(),
                     model_string: a2_entry.model.to_string(),
                     provider: a2_entry.provider.to_string(),
-                    base_model: base_model_id(a2_entry.id),
+                    base_model: base_model_id(&a2_entry.id),
                     level: Some(level),
                     issue_number: Some(issue.number),
                     latency_ms: a2_call.latency_ms,
@@ -398,7 +397,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
                     model_id: a3_entry.id.to_string(),
                     model_string: a3_entry.model.to_string(),
                     provider: a3_entry.provider.to_string(),
-                    base_model: base_model_id(a3_entry.id),
+                    base_model: base_model_id(&a3_entry.id),
                     level: Some(level),
                     issue_number: Some(issue.number),
                     latency_ms: a3_call.latency_ms,
@@ -422,8 +421,8 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
             // Record event to ledger
             let _ = crate::ledger::record_event(
                 "issue_generated",
-                a2_entry.model,
-                a2_entry.provider,
+                &a2_entry.model,
+                &a2_entry.provider,
                 level,
                 &issue.html_url,
             )
@@ -480,7 +479,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
                 model_id: a2_entry.id.to_string(),
                 model_string: a2_entry.model.to_string(),
                 provider: a2_entry.provider.to_string(),
-                base_model: base_model_id(a2_entry.id),
+                base_model: base_model_id(&a2_entry.id),
                 level: Some(level),
                 issue_number: None,
                 latency_ms: a2_call.latency_ms,
@@ -509,7 +508,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
                 model_id: a3_entry.id.to_string(),
                 model_string: a3_entry.model.to_string(),
                 provider: a3_entry.provider.to_string(),
-                base_model: base_model_id(a3_entry.id),
+                base_model: base_model_id(&a3_entry.id),
                 level: Some(level),
                 issue_number: None,
                 latency_ms: a3_call.latency_ms,
@@ -587,7 +586,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
     let counts = load_model_counts(&ctx.db, "B1_solver").await;
     let last_provider = ctx.state.last_solve_provider.as_deref();
 
-    let mut solver_exclude: Vec<String> = drafter_model.iter().map(|m| m.clone()).collect();
+    let mut solver_exclude: Vec<String> = drafter_model.into_iter().collect();
     let mut retry_feedback: Option<String> = None;
 
     // 4. Retry loop — up to 2 attempts
@@ -623,7 +622,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
                             model_id: pf.entry.id.to_string(),
                             model_string: pf.entry.model.to_string(),
                             provider: pf.entry.provider.to_string(),
-                            base_model: base_model_id(pf.entry.id),
+                            base_model: base_model_id(&pf.entry.id),
                             level: None,
                             issue_number: Some(issue_number),
                             latency_ms: pf.call.latency_ms,
@@ -677,7 +676,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
 
         // B.2 — Review (exclude drafter + solver)
         let mut reviewer_exclude = exclude_refs.clone();
-        reviewer_exclude.push(b1_entry.id);
+        reviewer_exclude.push(&b1_entry.id);
 
         // Pass the same repo context the solver built — reviewer sees the same files.
 
@@ -705,7 +704,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
                             model_id: pf.entry.id.to_string(),
                             model_string: pf.entry.model.to_string(),
                             provider: pf.entry.provider.to_string(),
-                            base_model: base_model_id(pf.entry.id),
+                            base_model: base_model_id(&pf.entry.id),
                             level: None,
                             issue_number: Some(issue_number),
                             latency_ms: pf.call.latency_ms,
@@ -747,7 +746,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
                 model_id: b1_entry.id.to_string(),
                 model_string: b1_entry.model.to_string(),
                 provider: b1_entry.provider.to_string(),
-                base_model: base_model_id(b1_entry.id),
+                base_model: base_model_id(&b1_entry.id),
                 level: None,
                 issue_number: Some(issue_number),
                 latency_ms: b1_call.latency_ms,
@@ -777,7 +776,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
                 model_id: b2_entry.id.to_string(),
                 model_string: b2_entry.model.to_string(),
                 provider: b2_entry.provider.to_string(),
-                base_model: base_model_id(b2_entry.id),
+                base_model: base_model_id(&b2_entry.id),
                 level: None,
                 issue_number: Some(issue_number),
                 latency_ms: b2_call.latency_ms,
@@ -841,7 +840,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
                 &pr_url,
                 pr_number,
                 issue_number,
-                b1_entry.id,
+                &b1_entry.id,
                 cycle_id,
             )
             .await;
@@ -849,8 +848,8 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
             // Record event to ledger
             let _ = crate::ledger::record_event(
                 "completion",
-                b1_entry.model,
-                b1_entry.provider,
+                &b1_entry.model,
+                &b1_entry.provider,
                 0,
                 &pr_url,
             )
@@ -883,8 +882,11 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
                 }
             }
 
-            // Update state
+            // Update state — mark issue as solved so it won't be auto-picked again
             ctx.state.last_solve_provider = Some(b1_entry.provider.to_string());
+            ctx.state
+                .solve_retries
+                .insert(issue_number.to_string(), 2);
             save_state(&ctx.state)?;
 
             return Ok(pr_url);
@@ -929,9 +931,10 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
     }
 
     // Mark issue as exhausted in state so it won't be auto-picked again this phase.
+    // Set to 2 directly (the threshold in find_oldest_senate_issue) so the issue is
+    // immediately excluded after exhausting the retry loop.
     let key = issue_number.to_string();
-    let count = ctx.state.solve_retries.entry(key).or_insert(0);
-    *count += 1;
+    ctx.state.solve_retries.insert(key, 2);
     // last_solve_provider already reflects the actual provider from the last successful call above.
     if let Err(e) = save_state(&ctx.state) {
         warn!("pipeline: failed to save state after solve exhaustion: {e}");
@@ -1047,8 +1050,10 @@ async fn apply_and_pr(
     // a. Get default branch SHA
     let base_sha = ctx.github.get_default_branch_sha().await?;
 
-    // b. Create branch
-    let branch_name = format!("senate/fix-{issue_number}-{}", b1_entry.id);
+    // b. Create branch — use a short UUID suffix to avoid 422 "Reference already exists"
+    //    collisions from prior runs that left orphaned branches.
+    let short_id = &Uuid::new_v4().to_string()[..8];
+    let branch_name = format!("senate/fix-{issue_number}-{}-{short_id}", b1_entry.id);
     ctx.github.create_branch(&branch_name, &base_sha).await?;
 
     // c. Apply edits to existing files

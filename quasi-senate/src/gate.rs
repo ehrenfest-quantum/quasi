@@ -59,7 +59,7 @@ pub async fn gate_review(
     }
 
     // 4. Call the LLM
-    let call_result = crate::provider::call_model(entry, &system, &user, 0.2, 1024).await?;
+    let call_result = crate::provider::call_model(entry, system, &user, 0.2, 1024).await?;
     let raw = call_result.content.clone();
 
     // 5. Parse raw response — map failure to ParseFailure so pipeline can write telemetry.

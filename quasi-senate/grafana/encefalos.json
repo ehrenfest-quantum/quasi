@@ -26,7 +26,24 @@
       },
       "id": 200,
       "title": "϶ Overview",
-      "type": "row"
+      "type": "row",
+      "description": "The Encefalos (϶) system measures AI model value-for-money across 7 quality dimensions, normalized by provider cost factor."
+    },
+    {
+      "id": 232,
+      "type": "text",
+      "title": "Methodology",
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Encefalos (϶) — Quality-Adjusted AI Value Score\n\nThe ϶ score measures **value-for-money** of AI models used in the QUASI senate pipeline. Each model is scored across 7 empirical dimensions, combined into a weighted composite **Q**, then divided by a provider cost factor.\n\n#### Formula\n\n```\n϶ = Q / cost_factor\n\nQ = 0.35·q₁ + 0.20·q₂ + 0.10·q₃ + 0.10·q₄ + 0.10·q₅ + 0.10·q₆ + 0.05·q₇\n```\n\n| Dimension | Weight | What it measures | Source column |\n|---|---|---|---|\n| **q₁** Correctness | 35% | Downstream approval rate | `downstream_verdict` |\n| **q₂** Compliance | 20% | Valid JSON + HTTP 200 | `json_parse_ok`, `http_status` |\n| **q₃** Latency | 10% | Speed vs slowest model (1 = fastest) | `latency_ms` (P50) |\n| **q₄** Fidelity | 10% | Served model = requested model | `model_verified` |\n| **q₅** Reliability | 10% | First-attempt success (no retries) | `retries`, `pipeline_attempt` |\n| **q₆** Reasoning | 10% | Quality of verdict explanations | `verdict_reasoning` |\n| **q₇** Traceability | 5% | Links to GitHub issues | `issue_number` |\n\n#### Cost Factors\n\nCost factors normalize for provider pricing tiers. A model on a cheap provider gets a ϶ boost; expensive providers must deliver proportionally higher quality.\n\n| Provider | Factor | | Provider | Factor |\n|---|---|---|---|---|\n| HuggingFace | 0.6 | | Together | 0.9 |\n| Cerebras | 0.7 | | Fireworks | 0.9 |\n| Sarvam | 0.7 | | OpenRouter | 1.0 |\n| SwissAI | 0.7 | | Mistral | 1.1 |\n| Groq | 0.8 | | DeepInfra | 1.0 |\n\n#### Senate Roles\n\nModels are evaluated in 5 pipeline roles, grouped into **Coding** and **Reasoning**:\n\n| Role | Group | Function |\n|---|---|---|\n| **A1_council** | Reasoning | Strategic priority-setting |\n| **A2_drafter** | Reasoning | GitHub issue creation |\n| **A3_gate** | Reasoning | Proposal approval/rejection |\n| **B1_solver** | Coding | Code implementation |\n| **B2_reviewer** | Coding | Pull request review |\n\n#### Data Source\n\nAll metrics come from the `senate_telemetry` table on the QUASI PostgreSQL database. Each row represents one model invocation in the senate pipeline. The dashboard respects the time range picker — adjust it to compare different periods."
+      },
+      "transparent": true
     },
     {
       "fieldConfig": {
@@ -52,7 +69,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 1
+        "y": 7
       },
       "id": 201,
       "options": {
@@ -64,7 +81,7 @@
             "lastNotNull"
           ]
         },
-        "textMode": "auto"
+        "textMode": "name"
       },
       "targets": [
         {
@@ -72,14 +89,15 @@
             "type": "postgres",
             "uid": "ffeagtzfyvvnkf"
           },
-          "format": "table",
+          "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT base_model || ' (' || provider || ')' AS value\nFROM (WITH\ndims AS (\n  SELECT\n    base_model, provider, COUNT(*) AS n,\n    AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.0 END) AS q1,\n    AVG(CASE WHEN json_parse_ok = true AND http_status = 200 THEN 1.0 ELSE 0.0 END) AS q2,\n    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms) AS p50_ms,\n    AVG(CASE WHEN model_verified IS NOT NULL THEN\n          CASE WHEN model_verified = true THEN 1.0 ELSE 0.0 END\n        ELSE NULL END) AS q4_raw,\n    AVG(CASE WHEN retries = 0 AND pipeline_attempt = 1 THEN 1.0 ELSE 0.0 END) AS q5,\n    AVG(CASE WHEN role IN ('A3_gate','B2_reviewer') AND verdict_reasoning IS NOT NULL THEN\n          CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.5 END\n        ELSE NULL END) AS q6_raw,\n    AVG(CASE WHEN issue_number IS NOT NULL THEN 1.0 ELSE 0.5 END) AS q7\n  FROM senate_telemetry\n  WHERE $__timeFilter(timestamp) AND dry_run = false AND downstream_verdict IS NOT NULL\n  GROUP BY base_model, provider HAVING COUNT(*) >= 3\n),\nlat_max AS (SELECT MAX(p50_ms) AS mx FROM dims),\nscored AS (\n  SELECT d.base_model, d.provider, d.n,\n    d.q1 AS q1, d.q2 AS q2,\n    GREATEST(0, 1.0 - d.p50_ms / NULLIF(lm.mx, 0)) AS q3,\n    COALESCE(d.q4_raw, 0.5) AS q4,\n    d.q5 AS q5, COALESCE(d.q6_raw, 0.5) AS q6, d.q7 AS q7,\n    CASE d.provider\n      WHEN 'groq' THEN 0.8 WHEN 'cerebras' THEN 0.7 WHEN 'fireworks' THEN 0.9\n      WHEN 'huggingface' THEN 0.6 WHEN 'together' THEN 0.9 WHEN 'sarvam' THEN 0.7\n      WHEN 'swissai' THEN 0.7 WHEN 'mistral' THEN 1.1 ELSE 1.0\n    END AS cost_f\n  FROM dims d CROSS JOIN lat_max lm\n)\nSELECT base_model, provider, n,\n  ROUND(q1::numeric,3) AS q1_correctness, ROUND(q2::numeric,3) AS q2_compliance,\n  ROUND(q3::numeric,3) AS q3_latency,     ROUND(q4::numeric,3) AS q4_fidelity,\n  ROUND(q5::numeric,3) AS q5_reliability, ROUND(q6::numeric,3) AS q6_reasoning,\n  ROUND(q7::numeric,3) AS q7_traceability,\n  ROUND((0.35*q1+0.20*q2+0.10*q3+0.10*q4+0.10*q5+0.10*q6+0.05*q7)::numeric,3) AS Q_composite,\n  ROUND(((0.35*q1+0.20*q2+0.10*q3+0.10*q4+0.10*q5+0.10*q6+0.05*q7)/cost_f)::numeric,3) AS enc_score\nFROM scored) enc\nORDER BY enc_score DESC LIMIT 1",
+          "rawSql": "SELECT now() AS time, base_model || ' (' || provider || ')' AS metric, enc_score AS value\nFROM (WITH\ndims AS (\n  SELECT\n    base_model, provider, COUNT(*) AS n,\n    AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.0 END) AS q1,\n    AVG(CASE WHEN json_parse_ok = true AND http_status = 200 THEN 1.0 ELSE 0.0 END) AS q2,\n    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms) AS p50_ms,\n    AVG(CASE WHEN model_verified IS NOT NULL THEN\n          CASE WHEN model_verified = true THEN 1.0 ELSE 0.0 END\n        ELSE NULL END) AS q4_raw,\n    AVG(CASE WHEN retries = 0 AND pipeline_attempt = 1 THEN 1.0 ELSE 0.0 END) AS q5,\n    AVG(CASE WHEN verdict_reasoning IS NOT NULL THEN\n          CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.5 END\n        ELSE NULL END) AS q6_raw,\n    AVG(CASE WHEN issue_number IS NOT NULL THEN 1.0 ELSE 0.5 END) AS q7\n  FROM senate_telemetry\n  WHERE $__timeFilter(timestamp) AND dry_run = false AND downstream_verdict IS NOT NULL\n  GROUP BY base_model, provider HAVING COUNT(*) >= 3\n),\nlat_max AS (SELECT MAX(p50_ms) AS mx FROM dims),\nscored AS (\n  SELECT d.base_model, d.provider, d.n,\n    d.q1 AS q1, d.q2 AS q2,\n    GREATEST(0, 1.0 - d.p50_ms / NULLIF(lm.mx, 0)) AS q3,\n    COALESCE(d.q4_raw, 0.5) AS q4,\n    d.q5 AS q5, COALESCE(d.q6_raw, 0.5) AS q6, d.q7 AS q7,\n    CASE d.provider\n      WHEN 'groq' THEN 0.8 WHEN 'cerebras' THEN 0.7 WHEN 'fireworks' THEN 0.9\n      WHEN 'huggingface' THEN 0.6 WHEN 'together' THEN 0.9 WHEN 'sarvam' THEN 0.7\n      WHEN 'swissai' THEN 0.7 WHEN 'mistral' THEN 1.1 ELSE 1.0\n    END AS cost_f\n  FROM dims d CROSS JOIN lat_max lm\n)\nSELECT base_model, provider, n,\n  ROUND((0.35*q1+0.20*q2+0.10*q3+0.10*q4+0.10*q5+0.10*q6+0.05*q7)::numeric,3) AS Q_composite,\n  ROUND(((0.35*q1+0.20*q2+0.10*q3+0.10*q4+0.10*q5+0.10*q6+0.05*q7)/cost_f)::numeric,3) AS enc_score\nFROM scored) enc\nORDER BY enc_score DESC LIMIT 1",
           "refId": "A"
         }
       ],
       "title": "🏆 Best ϶ Model",
-      "type": "stat"
+      "type": "stat",
+      "description": "The model with the highest ϶ score across ALL senate roles (coding + reasoning) in the selected time range.\n\n**϶ = Q / cost_factor**\n\nQ is a weighted composite of 7 dimensions. Models need ≥3 calls to qualify."
     },
     {
       "fieldConfig": {
@@ -113,7 +131,7 @@
         "h": 4,
         "w": 4,
         "x": 6,
-        "y": 1
+        "y": 7
       },
       "id": 202,
       "options": {
@@ -125,7 +143,7 @@
             "lastNotNull"
           ]
         },
-        "textMode": "auto"
+        "textMode": "value"
       },
       "targets": [
         {
@@ -133,14 +151,15 @@
             "type": "postgres",
             "uid": "ffeagtzfyvvnkf"
           },
-          "format": "table",
+          "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT enc_score AS value\nFROM (WITH\ndims AS (\n  SELECT\n    base_model, provider, COUNT(*) AS n,\n    AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.0 END) AS q1,\n    AVG(CASE WHEN json_parse_ok = true AND http_status = 200 THEN 1.0 ELSE 0.0 END) AS q2,\n    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms) AS p50_ms,\n    AVG(CASE WHEN model_verified IS NOT NULL THEN\n          CASE WHEN model_verified = true THEN 1.0 ELSE 0.0 END\n        ELSE NULL END) AS q4_raw,\n    AVG(CASE WHEN retries = 0 AND pipeline_attempt = 1 THEN 1.0 ELSE 0.0 END) AS q5,\n    AVG(CASE WHEN role IN ('A3_gate','B2_reviewer') AND verdict_reasoning IS NOT NULL THEN\n          CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.5 END\n        ELSE NULL END) AS q6_raw,\n    AVG(CASE WHEN issue_number IS NOT NULL THEN 1.0 ELSE 0.5 END) AS q7\n  FROM senate_telemetry\n  WHERE $__timeFilter(timestamp) AND dry_run = false AND downstream_verdict IS NOT NULL\n  GROUP BY base_model, provider HAVING COUNT(*) >= 3\n),\nlat_max AS (SELECT MAX(p50_ms) AS mx FROM dims),\nscored AS (\n  SELECT d.base_model, d.provider, d.n,\n    d.q1 AS q1, d.q2 AS q2,\n    GREATEST(0, 1.0 - d.p50_ms / NULLIF(lm.mx, 0)) AS q3,\n    COALESCE(d.q4_raw, 0.5) AS q4,\n    d.q5 AS q5, COALESCE(d.q6_raw, 0.5) AS q6, d.q7 AS q7,\n    CASE d.provider\n      WHEN 'groq' THEN 0.8 WHEN 'cerebras' THEN 0.7 WHEN 'fireworks' THEN 0.9\n      WHEN 'huggingface' THEN 0.6 WHEN 'together' THEN 0.9 WHEN 'sarvam' THEN 0.7\n      WHEN 'swissai' THEN 0.7 WHEN 'mistral' THEN 1.1 ELSE 1.0\n    END AS cost_f\n  FROM dims d CROSS JOIN lat_max lm\n)\nSELECT base_model, provider, n,\n  ROUND(q1::numeric,3) AS q1_correctness, ROUND(q2::numeric,3) AS q2_compliance,\n  ROUND(q3::numeric,3) AS q3_latency,     ROUND(q4::numeric,3) AS q4_fidelity,\n  ROUND(q5::numeric,3) AS q5_reliability, ROUND(q6::numeric,3) AS q6_reasoning,\n  ROUND(q7::numeric,3) AS q7_traceability,\n  ROUND((0.35*q1+0.20*q2+0.10*q3+0.10*q4+0.10*q5+0.10*q6+0.05*q7)::numeric,3) AS Q_composite,\n  ROUND(((0.35*q1+0.20*q2+0.10*q3+0.10*q4+0.10*q5+0.10*q6+0.05*q7)/cost_f)::numeric,3) AS enc_score\nFROM scored) enc\nORDER BY enc_score DESC LIMIT 1",
+          "rawSql": "SELECT now() AS time, base_model || ' (' || provider || ')' AS metric, enc_score AS value\nFROM (WITH\ndims AS (\n  SELECT\n    base_model, provider, COUNT(*) AS n,\n    AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.0 END) AS q1,\n    AVG(CASE WHEN json_parse_ok = true AND http_status = 200 THEN 1.0 ELSE 0.0 END) AS q2,\n    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms) AS p50_ms,\n    AVG(CASE WHEN model_verified IS NOT NULL THEN\n          CASE WHEN model_verified = true THEN 1.0 ELSE 0.0 END\n        ELSE NULL END) AS q4_raw,\n    AVG(CASE WHEN retries = 0 AND pipeline_attempt = 1 THEN 1.0 ELSE 0.0 END) AS q5,\n    AVG(CASE WHEN verdict_reasoning IS NOT NULL THEN\n          CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.5 END\n        ELSE NULL END) AS q6_raw,\n    AVG(CASE WHEN issue_number IS NOT NULL THEN 1.0 ELSE 0.5 END) AS q7\n  FROM senate_telemetry\n  WHERE $__timeFilter(timestamp) AND dry_run = false AND downstream_verdict IS NOT NULL\n  GROUP BY base_model, provider HAVING COUNT(*) >= 3\n),\nlat_max AS (SELECT MAX(p50_ms) AS mx FROM dims),\nscored AS (\n  SELECT d.base_model, d.provider, d.n,\n    d.q1 AS q1, d.q2 AS q2,\n    GREATEST(0, 1.0 - d.p50_ms / NULLIF(lm.mx, 0)) AS q3,\n    COALESCE(d.q4_raw, 0.5) AS q4,\n    d.q5 AS q5, COALESCE(d.q6_raw, 0.5) AS q6, d.q7 AS q7,\n    CASE d.provider\n      WHEN 'groq' THEN 0.8 WHEN 'cerebras' THEN 0.7 WHEN 'fireworks' THEN 0.9\n      WHEN 'huggingface' THEN 0.6 WHEN 'together' THEN 0.9 WHEN 'sarvam' THEN 0.7\n      WHEN 'swissai' THEN 0.7 WHEN 'mistral' THEN 1.1 ELSE 1.0\n    END AS cost_f\n  FROM dims d CROSS JOIN lat_max lm\n)\nSELECT base_model, provider, n,\n  ROUND((0.35*q1+0.20*q2+0.10*q3+0.10*q4+0.10*q5+0.10*q6+0.05*q7)::numeric,3) AS Q_composite,\n  ROUND(((0.35*q1+0.20*q2+0.10*q3+0.10*q4+0.10*q5+0.10*q6+0.05*q7)/cost_f)::numeric,3) AS enc_score\nFROM scored) enc\nORDER BY enc_score DESC LIMIT 1",
           "refId": "A"
         }
       ],
       "title": "Best ϶/€ Score",
-      "type": "stat"
+      "type": "stat",
+      "description": "The numeric ϶ score of the best overall model.\n\n**Scale:** >0.7 = good (green), 0.4–0.7 = moderate (yellow), <0.4 = poor (red).\n\nScores >1.0 are possible when low-cost providers deliver high quality."
     },
     {
       "fieldConfig": {
@@ -174,7 +193,7 @@
         "h": 4,
         "w": 4,
         "x": 10,
-        "y": 1
+        "y": 7
       },
       "id": 203,
       "options": {
@@ -201,7 +220,8 @@
         }
       ],
       "title": "Avg Q Composite",
-      "type": "stat"
+      "type": "stat",
+      "description": "Unweighted average Q composite across all qualifying models.\n\n**Q = 0.35·q₁ + 0.20·q₂ + 0.10·q₃ + 0.10·q₄ + 0.10·q₅ + 0.10·q₆ + 0.05·q₇**"
     },
     {
       "fieldConfig": {
@@ -235,7 +255,7 @@
         "h": 4,
         "w": 4,
         "x": 14,
-        "y": 1
+        "y": 7
       },
       "id": 204,
       "options": {
@@ -262,7 +282,8 @@
         }
       ],
       "title": "Provider Fidelity q₄",
-      "type": "stat"
+      "type": "stat",
+      "description": "Average provider fidelity (q₄) — how often the model actually served matches the model requested.\n\n**Source:** `model_verified` column in `senate_telemetry`. Some providers silently substitute cheaper models."
     },
     {
       "fieldConfig": {
@@ -296,7 +317,7 @@
         "h": 4,
         "w": 4,
         "x": 18,
-        "y": 1
+        "y": 7
       },
       "id": 205,
       "options": {
@@ -323,7 +344,8 @@
         }
       ],
       "title": "First-Attempt Success q₅",
-      "type": "stat"
+      "type": "stat",
+      "description": "Average first-attempt success rate (q₅) — calls that succeeded with zero retries and on the first pipeline attempt.\n\n**Source:** `retries = 0 AND pipeline_attempt = 1`"
     },
     {
       "fieldConfig": {
@@ -349,7 +371,7 @@
         "h": 4,
         "w": 2,
         "x": 22,
-        "y": 1
+        "y": 7
       },
       "id": 206,
       "options": {
@@ -376,7 +398,240 @@
         }
       ],
       "title": "Avg Throughput",
-      "type": "stat"
+      "type": "stat",
+      "description": "Average output throughput in tokens/second across all models.\n\n**Formula:** `output_tokens_approx * 1000 / latency_ms`"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "—",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 11
+      },
+      "id": 228,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "name"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT now() AS time, base_model || ' (' || provider || ')' AS metric, enc_score AS value\nFROM (WITH\ndims AS (\n  SELECT\n    base_model, provider, COUNT(*) AS n,\n    AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.0 END) AS q1,\n    AVG(CASE WHEN json_parse_ok = true AND http_status = 200 THEN 1.0 ELSE 0.0 END) AS q2,\n    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms) AS p50_ms,\n    AVG(CASE WHEN model_verified IS NOT NULL THEN\n          CASE WHEN model_verified = true THEN 1.0 ELSE 0.0 END\n        ELSE NULL END) AS q4_raw,\n    AVG(CASE WHEN retries = 0 AND pipeline_attempt = 1 THEN 1.0 ELSE 0.0 END) AS q5,\n    AVG(CASE WHEN verdict_reasoning IS NOT NULL THEN\n          CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.5 END\n        ELSE NULL END) AS q6_raw,\n    AVG(CASE WHEN issue_number IS NOT NULL THEN 1.0 ELSE 0.5 END) AS q7\n  FROM senate_telemetry\n  WHERE $__timeFilter(timestamp) AND dry_run = false AND downstream_verdict IS NOT NULL\n    AND role IN ('B1_solver','B2_reviewer')\n  GROUP BY base_model, provider HAVING COUNT(*) >= 2\n),\nlat_max AS (SELECT MAX(p50_ms) AS mx FROM dims),\nscored AS (\n  SELECT d.base_model, d.provider, d.n,\n    d.q1 AS q1, d.q2 AS q2,\n    GREATEST(0, 1.0 - d.p50_ms / NULLIF(lm.mx, 0)) AS q3,\n    COALESCE(d.q4_raw, 0.5) AS q4,\n    d.q5 AS q5, COALESCE(d.q6_raw, 0.5) AS q6, d.q7 AS q7,\n    CASE d.provider\n      WHEN 'groq' THEN 0.8 WHEN 'cerebras' THEN 0.7 WHEN 'fireworks' THEN 0.9\n      WHEN 'huggingface' THEN 0.6 WHEN 'together' THEN 0.9 WHEN 'sarvam' THEN 0.7\n      WHEN 'swissai' THEN 0.7 WHEN 'mistral' THEN 1.1 ELSE 1.0\n    END AS cost_f\n  FROM dims d CROSS JOIN lat_max lm\n)\nSELECT base_model, provider, n,\n  ROUND((0.35*q1+0.20*q2+0.10*q3+0.10*q4+0.10*q5+0.10*q6+0.05*q7)::numeric,3) AS Q_composite,\n  ROUND(((0.35*q1+0.20*q2+0.10*q3+0.10*q4+0.10*q5+0.10*q6+0.05*q7)/cost_f)::numeric,3) AS enc_score\nFROM scored) enc\nORDER BY enc_score DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "💻 Best Coder",
+      "type": "stat",
+      "description": "Best model for **coding tasks** (roles: B1_solver, B2_reviewer).\n\nB1_solver writes code to solve GitHub issues. B2_reviewer reviews pull requests for correctness.\n\nUses same ϶ formula but filtered to coding roles only. Minimum 2 calls to qualify."
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "—",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.4
+              },
+              {
+                "color": "green",
+                "value": 0.7
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 11
+      },
+      "id": 229,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT now() AS time, base_model || ' (' || provider || ')' AS metric, enc_score AS value\nFROM (WITH\ndims AS (\n  SELECT\n    base_model, provider, COUNT(*) AS n,\n    AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.0 END) AS q1,\n    AVG(CASE WHEN json_parse_ok = true AND http_status = 200 THEN 1.0 ELSE 0.0 END) AS q2,\n    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms) AS p50_ms,\n    AVG(CASE WHEN model_verified IS NOT NULL THEN\n          CASE WHEN model_verified = true THEN 1.0 ELSE 0.0 END\n        ELSE NULL END) AS q4_raw,\n    AVG(CASE WHEN retries = 0 AND pipeline_attempt = 1 THEN 1.0 ELSE 0.0 END) AS q5,\n    AVG(CASE WHEN verdict_reasoning IS NOT NULL THEN\n          CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.5 END\n        ELSE NULL END) AS q6_raw,\n    AVG(CASE WHEN issue_number IS NOT NULL THEN 1.0 ELSE 0.5 END) AS q7\n  FROM senate_telemetry\n  WHERE $__timeFilter(timestamp) AND dry_run = false AND downstream_verdict IS NOT NULL\n    AND role IN ('B1_solver','B2_reviewer')\n  GROUP BY base_model, provider HAVING COUNT(*) >= 2\n),\nlat_max AS (SELECT MAX(p50_ms) AS mx FROM dims),\nscored AS (\n  SELECT d.base_model, d.provider, d.n,\n    d.q1 AS q1, d.q2 AS q2,\n    GREATEST(0, 1.0 - d.p50_ms / NULLIF(lm.mx, 0)) AS q3,\n    COALESCE(d.q4_raw, 0.5) AS q4,\n    d.q5 AS q5, COALESCE(d.q6_raw, 0.5) AS q6, d.q7 AS q7,\n    CASE d.provider\n      WHEN 'groq' THEN 0.8 WHEN 'cerebras' THEN 0.7 WHEN 'fireworks' THEN 0.9\n      WHEN 'huggingface' THEN 0.6 WHEN 'together' THEN 0.9 WHEN 'sarvam' THEN 0.7\n      WHEN 'swissai' THEN 0.7 WHEN 'mistral' THEN 1.1 ELSE 1.0\n    END AS cost_f\n  FROM dims d CROSS JOIN lat_max lm\n)\nSELECT base_model, provider, n,\n  ROUND((0.35*q1+0.20*q2+0.10*q3+0.10*q4+0.10*q5+0.10*q6+0.05*q7)::numeric,3) AS Q_composite,\n  ROUND(((0.35*q1+0.20*q2+0.10*q3+0.10*q4+0.10*q5+0.10*q6+0.05*q7)/cost_f)::numeric,3) AS enc_score\nFROM scored) enc\nORDER BY enc_score DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Coder ϶ Score",
+      "type": "stat",
+      "description": "The ϶ score of the best coding model.\n\nCoding-specific scoring still uses all 7 Q dimensions but only counts calls where `role IN ('B1_solver', 'B2_reviewer')`."
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "—",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 9,
+        "y": 11
+      },
+      "id": 230,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "name"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT now() AS time, base_model || ' (' || provider || ')' AS metric, enc_score AS value\nFROM (WITH\ndims AS (\n  SELECT\n    base_model, provider, COUNT(*) AS n,\n    AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.0 END) AS q1,\n    AVG(CASE WHEN json_parse_ok = true AND http_status = 200 THEN 1.0 ELSE 0.0 END) AS q2,\n    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms) AS p50_ms,\n    AVG(CASE WHEN model_verified IS NOT NULL THEN\n          CASE WHEN model_verified = true THEN 1.0 ELSE 0.0 END\n        ELSE NULL END) AS q4_raw,\n    AVG(CASE WHEN retries = 0 AND pipeline_attempt = 1 THEN 1.0 ELSE 0.0 END) AS q5,\n    AVG(CASE WHEN verdict_reasoning IS NOT NULL THEN\n          CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.5 END\n        ELSE NULL END) AS q6_raw,\n    AVG(CASE WHEN issue_number IS NOT NULL THEN 1.0 ELSE 0.5 END) AS q7\n  FROM senate_telemetry\n  WHERE $__timeFilter(timestamp) AND dry_run = false AND downstream_verdict IS NOT NULL\n    AND role IN ('A1_council','A2_drafter','A3_gate')\n  GROUP BY base_model, provider HAVING COUNT(*) >= 2\n),\nlat_max AS (SELECT MAX(p50_ms) AS mx FROM dims),\nscored AS (\n  SELECT d.base_model, d.provider, d.n,\n    d.q1 AS q1, d.q2 AS q2,\n    GREATEST(0, 1.0 - d.p50_ms / NULLIF(lm.mx, 0)) AS q3,\n    COALESCE(d.q4_raw, 0.5) AS q4,\n    d.q5 AS q5, COALESCE(d.q6_raw, 0.5) AS q6, d.q7 AS q7,\n    CASE d.provider\n      WHEN 'groq' THEN 0.8 WHEN 'cerebras' THEN 0.7 WHEN 'fireworks' THEN 0.9\n      WHEN 'huggingface' THEN 0.6 WHEN 'together' THEN 0.9 WHEN 'sarvam' THEN 0.7\n      WHEN 'swissai' THEN 0.7 WHEN 'mistral' THEN 1.1 ELSE 1.0\n    END AS cost_f\n  FROM dims d CROSS JOIN lat_max lm\n)\nSELECT base_model, provider, n,\n  ROUND((0.35*q1+0.20*q2+0.10*q3+0.10*q4+0.10*q5+0.10*q6+0.05*q7)::numeric,3) AS Q_composite,\n  ROUND(((0.35*q1+0.20*q2+0.10*q3+0.10*q4+0.10*q5+0.10*q6+0.05*q7)/cost_f)::numeric,3) AS enc_score\nFROM scored) enc\nORDER BY enc_score DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "🧠 Best Reasoner",
+      "type": "stat",
+      "description": "Best model for **reasoning tasks** (roles: A1_council, A2_drafter, A3_gate).\n\nA1_council sets strategic priorities. A2_drafter creates GitHub issues. A3_gate approves/rejects proposals.\n\nUses same ϶ formula but filtered to reasoning roles only. Minimum 2 calls to qualify."
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "—",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.4
+              },
+              {
+                "color": "green",
+                "value": 0.7
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 11
+      },
+      "id": 231,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "ffeagtzfyvvnkf"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT now() AS time, base_model || ' (' || provider || ')' AS metric, enc_score AS value\nFROM (WITH\ndims AS (\n  SELECT\n    base_model, provider, COUNT(*) AS n,\n    AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.0 END) AS q1,\n    AVG(CASE WHEN json_parse_ok = true AND http_status = 200 THEN 1.0 ELSE 0.0 END) AS q2,\n    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms) AS p50_ms,\n    AVG(CASE WHEN model_verified IS NOT NULL THEN\n          CASE WHEN model_verified = true THEN 1.0 ELSE 0.0 END\n        ELSE NULL END) AS q4_raw,\n    AVG(CASE WHEN retries = 0 AND pipeline_attempt = 1 THEN 1.0 ELSE 0.0 END) AS q5,\n    AVG(CASE WHEN verdict_reasoning IS NOT NULL THEN\n          CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.5 END\n        ELSE NULL END) AS q6_raw,\n    AVG(CASE WHEN issue_number IS NOT NULL THEN 1.0 ELSE 0.5 END) AS q7\n  FROM senate_telemetry\n  WHERE $__timeFilter(timestamp) AND dry_run = false AND downstream_verdict IS NOT NULL\n    AND role IN ('A1_council','A2_drafter','A3_gate')\n  GROUP BY base_model, provider HAVING COUNT(*) >= 2\n),\nlat_max AS (SELECT MAX(p50_ms) AS mx FROM dims),\nscored AS (\n  SELECT d.base_model, d.provider, d.n,\n    d.q1 AS q1, d.q2 AS q2,\n    GREATEST(0, 1.0 - d.p50_ms / NULLIF(lm.mx, 0)) AS q3,\n    COALESCE(d.q4_raw, 0.5) AS q4,\n    d.q5 AS q5, COALESCE(d.q6_raw, 0.5) AS q6, d.q7 AS q7,\n    CASE d.provider\n      WHEN 'groq' THEN 0.8 WHEN 'cerebras' THEN 0.7 WHEN 'fireworks' THEN 0.9\n      WHEN 'huggingface' THEN 0.6 WHEN 'together' THEN 0.9 WHEN 'sarvam' THEN 0.7\n      WHEN 'swissai' THEN 0.7 WHEN 'mistral' THEN 1.1 ELSE 1.0\n    END AS cost_f\n  FROM dims d CROSS JOIN lat_max lm\n)\nSELECT base_model, provider, n,\n  ROUND((0.35*q1+0.20*q2+0.10*q3+0.10*q4+0.10*q5+0.10*q6+0.05*q7)::numeric,3) AS Q_composite,\n  ROUND(((0.35*q1+0.20*q2+0.10*q3+0.10*q4+0.10*q5+0.10*q6+0.05*q7)/cost_f)::numeric,3) AS enc_score\nFROM scored) enc\nORDER BY enc_score DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Reasoner ϶ Score",
+      "type": "stat",
+      "description": "The ϶ score of the best reasoning model.\n\nReasoning-specific scoring uses all 7 Q dimensions but only counts calls where `role IN ('A1_council', 'A2_drafter', 'A3_gate')`."
     },
     {
       "collapsed": false,
@@ -384,7 +639,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 5
+        "y": 15
       },
       "id": 207,
       "title": "϶ Ranking — All Models",
@@ -660,7 +915,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 6
+        "y": 16
       },
       "id": 208,
       "options": {
@@ -684,7 +939,8 @@
         }
       ],
       "title": "Encefalos Score — Full Ranking (code-gen weights: q₁×0.35, q₂×0.20, q₃–q₆×0.10, q₇×0.05)",
-      "type": "table"
+      "type": "table",
+      "description": "Full ranking table showing all qualifying models with their 7 individual dimension scores, the weighted Q composite, and the final ϶ score (Q/cost_factor).\n\n**Weights:** q₁ correctness ×0.35, q₂ compliance ×0.20, q₃ latency ×0.10, q₄ fidelity ×0.10, q₅ reliability ×0.10, q₆ reasoning ×0.10, q₇ traceability ×0.05.\n\n**Cost factors** normalize for provider pricing: Cerebras=0.7, HuggingFace=0.6, Groq=0.8, Together/Fireworks=0.9, Mistral=1.1, others=1.0. Lower cost → higher ϶ for same quality."
     },
     {
       "collapsed": false,
@@ -692,7 +948,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 16
+        "y": 26
       },
       "id": 209,
       "title": "q₁ Correctness · q₂ Compliance · q₃ Latency",
@@ -732,7 +988,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 17
+        "y": 27
       },
       "id": 210,
       "options": {
@@ -759,7 +1015,8 @@
         }
       ],
       "title": "q₁ Correctness by Model (approval rate)",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "**q₁ Correctness** — approval rate by downstream validators.\n\n**Formula:** `AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1.0 ELSE 0.0 END)`\n\n**Weight in Q:** 35% (highest — correctness is the primary goal)\n\n**Source:** `downstream_verdict` column. Set by A3_gate (for reasoning) or B2_reviewer + CI (for coding)."
     },
     {
       "fieldConfig": {
@@ -795,7 +1052,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 17
+        "y": 27
       },
       "id": 211,
       "options": {
@@ -822,7 +1079,8 @@
         }
       ],
       "title": "q₂ Compliance by Model (json_ok + http 200)",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "**q₂ Compliance** — structured output reliability.\n\n**Formula:** `AVG(CASE WHEN json_parse_ok = true AND http_status = 200 THEN 1.0 ELSE 0.0 END)`\n\n**Weight in Q:** 20%\n\nMeasures whether the model returns valid JSON and a successful HTTP response. Critical because the senate pipeline requires parseable structured output."
     },
     {
       "fieldConfig": {
@@ -858,7 +1116,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 17
+        "y": 27
       },
       "id": 212,
       "options": {
@@ -885,7 +1143,8 @@
         }
       ],
       "title": "q₃ Latency Score by Model (1 − P50/max, higher=faster)",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "**q₃ Latency** — speed score normalized to the slowest model.\n\n**Formula:** `1.0 - (P50_latency_ms / max_P50_across_all_models)`\n\nA score of 1.0 = fastest, 0.0 = slowest in the cohort. Uses median (P50) to be robust against outliers.\n\n**Weight in Q:** 10%"
     },
     {
       "collapsed": false,
@@ -893,7 +1152,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 25
+        "y": 35
       },
       "id": 213,
       "title": "q₄ Provider Fidelity · q₅ Reliability · Throughput",
@@ -933,7 +1192,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 26
+        "y": 36
       },
       "id": 214,
       "options": {
@@ -960,7 +1219,8 @@
         }
       ],
       "title": "q₄ Provider Fidelity (model_verified rate)",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "**q₄ Provider Fidelity** — model substitution detection.\n\n**Formula:** `AVG(CASE WHEN model_verified = true THEN 1.0 ELSE 0.0 END)` (NULL = unknown, counted as 0.5)\n\n**Weight in Q:** 10%\n\nSome providers (especially OpenRouter) may silently swap the requested model for a cheaper one. The senate verifies served model identity via response headers."
     },
     {
       "fieldConfig": {
@@ -996,7 +1256,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 26
+        "y": 36
       },
       "id": 215,
       "options": {
@@ -1023,7 +1283,8 @@
         }
       ],
       "title": "q₅ Reliability (retries=0 AND attempt=1)",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "**q₅ Reliability** — first-attempt success rate.\n\n**Formula:** `AVG(CASE WHEN retries = 0 AND pipeline_attempt = 1 THEN 1.0 ELSE 0.0 END)`\n\n**Weight in Q:** 10%\n\nMeasures operational reliability: did the call succeed without needing retries or pipeline re-attempts? Penalizes flaky APIs and rate-limited providers."
     },
     {
       "fieldConfig": {
@@ -1052,7 +1313,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 26
+        "y": 36
       },
       "id": 216,
       "options": {
@@ -1079,7 +1340,8 @@
         }
       ],
       "title": "Throughput by Model (output tokens/s)",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "Output throughput in tokens per second.\n\n**Formula:** `output_tokens_approx * 1000 / latency_ms`\n\nNot a Q dimension — shown for reference. Higher throughput = faster generation. Varies by model size, provider hardware, and load."
     },
     {
       "collapsed": false,
@@ -1087,7 +1349,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 44
       },
       "id": 217,
       "title": "q₆ Domain Reasoning · q₇ Traceability · Model Substitution",
@@ -1127,7 +1389,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 35
+        "y": 45
       },
       "id": 218,
       "options": {
@@ -1154,7 +1416,8 @@
         }
       ],
       "title": "q₆ Domain Reasoning — Reasoning Coverage by Model",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "**q₆ Domain Reasoning** — quality of explanations in review/gate roles.\n\n**Formula:** For A3_gate and B2_reviewer calls that include `verdict_reasoning`: approved verdicts score 1.0, others score 0.5. NULL reasoning = excluded.\n\n**Weight in Q:** 10%\n\nMeasures whether models provide sound reasoning when making approval/rejection decisions, not just correct verdicts."
     },
     {
       "fieldConfig": {
@@ -1190,7 +1453,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 35
+        "y": 45
       },
       "id": 219,
       "options": {
@@ -1217,7 +1480,8 @@
         }
       ],
       "title": "q₇ Traceability — Issue+Cycle Link Rate",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "**q₇ Traceability** — link rate to GitHub issues.\n\n**Formula:** `AVG(CASE WHEN issue_number IS NOT NULL THEN 1.0 ELSE 0.5 END)`\n\n**Weight in Q:** 5% (lowest — supplementary signal)\n\nMeasures whether model outputs create traceable artifacts (GitHub issues, PRs). Models that produce work linked to the issue tracker score higher."
     },
     {
       "fieldConfig": {
@@ -1257,7 +1521,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 35
+        "y": 45
       },
       "id": 220,
       "options": {},
@@ -1274,7 +1538,8 @@
         }
       ],
       "title": "Model Substitution Events (q₄ violations)",
-      "type": "table"
+      "type": "table",
+      "description": "Log of model substitution events — cases where the provider served a different model than requested.\n\n**Detection:** `model_verified = false` OR `served_model != model_string`\n\nThese events directly impact q₄ (Provider Fidelity) scores."
     },
     {
       "collapsed": false,
@@ -1282,7 +1547,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 43
+        "y": 53
       },
       "id": 221,
       "title": "϶ Trends over Time",
@@ -1305,7 +1570,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 44
+        "y": 54
       },
       "id": 222,
       "options": {
@@ -1330,7 +1595,8 @@
         }
       ],
       "title": "q₁ Correctness Trend by Model (4-hour bins)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Correctness (q₁) trend over time, bucketed in 4-hour intervals per model.\n\nShows whether model performance is improving, degrading, or stable. Useful for detecting provider-side model updates or degradation."
     },
     {
       "fieldConfig": {
@@ -1349,7 +1615,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 44
+        "y": 54
       },
       "id": 223,
       "options": {
@@ -1374,7 +1640,8 @@
         }
       ],
       "title": "q₅ Reliability Trend — First-Attempt Success (4-hour bins)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "First-attempt success (q₅) trend over time, bucketed in 4-hour intervals.\n\nSpikes in failure often correlate with provider outages or rate limiting changes."
     },
     {
       "collapsed": false,
@@ -1382,7 +1649,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 52
+        "y": 62
       },
       "id": 224,
       "title": "PR Outcomes — CI Signal into q₁",
@@ -1422,7 +1689,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 53
+        "y": 63
       },
       "id": 225,
       "options": {
@@ -1449,7 +1716,8 @@
         }
       ],
       "title": "CI Pass Rate by Solver Model",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "CI pass rate by solver model — percentage of PRs where CI (GitHub Actions) passes.\n\n**Source:** `pr_outcomes` table joined to `senate_telemetry`.\n\nThis feeds back into q₁: a PR that passes CI is more likely to be approved."
     },
     {
       "fieldConfig": {
@@ -1485,7 +1753,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 53
+        "y": 63
       },
       "id": 226,
       "options": {
@@ -1512,7 +1780,8 @@
         }
       ],
       "title": "Merge Rate by Solver Model",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "Merge rate by solver model — percentage of PRs that get merged to main.\n\n**Source:** `pr_outcomes` table.\n\nThe ultimate measure of code quality: did the human maintainer accept the model's work?"
     },
     {
       "fieldConfig": {
@@ -1595,7 +1864,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 53
+        "y": 63
       },
       "id": 227,
       "options": {},
@@ -1612,7 +1881,8 @@
         }
       ],
       "title": "Senate PR Log — CI + Merge Status",
-      "type": "table"
+      "type": "table",
+      "description": "Full log of senate-generated PRs with their CI status and merge outcome.\n\nColumns: PR number, solver model, CI result (pass/fail), merge status, timestamps."
     }
   ],
   "refresh": "5m",

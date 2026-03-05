@@ -38,12 +38,7 @@ pub async fn run_council(
         .collect();
 
     // 4. Fetch merged PRs since 30 days ago
-    let thirty_days_ago = {
-        // Simple date arithmetic: current date minus 30 days (ISO 8601 prefix comparison)
-        // We use a fixed offset approach since we avoid external time crates
-        let since = chrono_minus_30_days();
-        since
-    };
+    let thirty_days_ago = chrono_minus_30_days();
     let merged_prs = github
         .list_merged_prs_since(&thirty_days_ago)
         .await
@@ -109,7 +104,7 @@ pub async fn run_council(
     }
 
     // 10. Call the LLM
-    let call_result = crate::provider::call_model(entry, &system, &user, 0.2, 8192).await?;
+    let call_result = crate::provider::call_model(entry, system, &user, 0.2, 8192).await?;
 
     // 11. Parse response
     let charter =

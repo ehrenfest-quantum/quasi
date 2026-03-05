@@ -1,12 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2026 QUASI Contributors
-//! Static configuration: provider map, model rotation, capability ladder.
+//! Configuration: provider map, model rotation (TOML-loaded), capability ladder.
 //!
-//! Ported from quasi-agent/generate_issue.py.
-//! 58 rotation entries across 10 providers — do not add models here without
-//! a corresponding PR to docs/ELIGIBLE-MODELS.md.
+//! The rotation roster is loaded from an external TOML file at startup.
+//! Falls back to the embedded default (`rotation.toml` compiled into the binary).
+//! Edit `/home/vops/quasi-senate-rotation.toml` on the server to add/remove
+//! models without recompiling.
 
-use crate::types::{Role, RotationEntry};
+use std::collections::HashSet;
+use std::sync::OnceLock;
+
+use serde::Deserialize;
+use tracing::{info, warn};
+
+use crate::types::RotationEntry;
 
 // ── Providers ─────────────────────────────────────────────────────────────────
 
@@ -143,530 +150,101 @@ pub fn get_provider(name: &str) -> Option<&'static Provider> {
 
 // ── Rotation Roster ───────────────────────────────────────────────────────────
 //
-// Role assignment rationale (from quasi-senate-loop.md §2):
-//   - Reasoning specialists → A1Council, A3Gate, B2Reviewer
-//   - Coding specialists    → A2Drafter, B1Solver
-//   - General / regional    → A2Drafter, B1Solver (default)
-//
-// Cost preference: prefer Groq (free tier) and HuggingFace (free, rate-limited)
-// for review roles (small token budgets); flagship OpenRouter models for B.1
-// solving (8K output needed). Fireworks is pay-per-token.
+// Loaded at startup from external TOML (server path) or embedded default.
+// To add/remove models: edit rotation.toml and restart the service.
 
-// Role constant slices
-const REASONING_ROLES: &[Role] = &[Role::A1Council, Role::A2Drafter, Role::A3Gate, Role::B2Reviewer];
-const CODING_ROLES: &[Role] = &[Role::A2Drafter, Role::B1Solver];
-const REVIEW_ROLES: &[Role] = &[Role::A1Council, Role::A3Gate, Role::B2Reviewer];
-const DEFAULT_ROLES: &[Role] = &[Role::A2Drafter, Role::B1Solver];
-const ALL_ROLES: &[Role] = &[Role::A1Council, Role::A2Drafter, Role::A3Gate, Role::B1Solver, Role::B2Reviewer];
+/// External TOML path checked at startup (before falling back to embedded).
+const EXTERNAL_ROTATION_PATH: &str = "/home/vops/quasi-senate-rotation.toml";
 
-pub const ROTATION: &[RotationEntry] = &[
-    // ── Tier 1 — Strong coding (OpenRouter) ──────────────────────────────────
-    RotationEntry {
-        id: "deepseek-v3",
-        model: "deepseek/deepseek-chat-v3-0324",
-        provider: "openrouter",
-        license: "MIT",
-        origin: "China / DeepSeek",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // deepseek-v3-hf removed 2026-03-01: 0% approval rate on B1/A2, avg 45min latency on HuggingFace
-    // (systematic HF routing slowness + model produces non-JSON output under coding prompts)
-    RotationEntry {
-        id: "deepseek-r1",
-        model: "deepseek/deepseek-r1",
-        provider: "openrouter",
-        license: "MIT",
-        origin: "China / DeepSeek",
-        roles: REASONING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        // deepseek-r1-distill-llama-70b was decommissioned from Groq 2026-03
-        // replaced with kimi-k2 (strong reasoning, free tier, Groq LPU)
-        id: "kimi-k2-groq",
-        model: "moonshotai/kimi-k2-instruct",
-        provider: "groq",
-        license: "Modified MIT",
-        origin: "China / Moonshot AI",
-        roles: REASONING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "qwen3-coder",
-        model: "qwen/qwen3-coder",
-        provider: "openrouter",
-        license: "Apache-2.0",
-        origin: "China / Alibaba",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "llama4",
-        model: "meta-llama/llama-4-maverick",
-        provider: "openrouter",
-        license: "Llama Community",
-        origin: "US / Meta",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // llama4-maverick-instruct-basic was removed from Fireworks 2026-03 → entry dropped
-    // ── Tier 1 — Groq (FREE TIER — preferred for review roles) ───────────────
-    // llama4-scout removed 2026-03-01: systematically produces Python string concat in JSON
-    // edits (e.g. "replace": "def main():" + "\n\t...") causing 100% parse failure on B1 solver
-    RotationEntry {
-        id: "llama3.3",
-        model: "meta-llama/llama-3.3-70b-instruct",
-        provider: "openrouter",
-        license: "Llama Community",
-        origin: "US / Meta",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "llama3.3-groq",
-        model: "llama-3.3-70b-versatile",
-        provider: "groq",
-        license: "Llama Community",
-        origin: "US / Meta",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "llama3.3-hf",
-        model: "meta-llama/Llama-3.3-70B-Instruct",
-        provider: "huggingface",
-        license: "Llama Community",
-        origin: "US / Meta",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        // llama-4-maverick on Groq LPU — benchmark vs. OpenRouter/Fireworks variants
-        id: "llama4-maverick-groq",
-        model: "meta-llama/llama-4-maverick-17b-128e-instruct",
-        provider: "groq",
-        license: "Llama Community",
-        origin: "US / Meta",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        // OpenAI GPT-OSS 120B on Groq LPU — headline benchmark: custom silicon vs. GPU
-        id: "gpt-oss-120b-groq",
-        model: "openai/gpt-oss-120b",
-        provider: "groq",
-        license: "Open",
-        origin: "US / OpenAI",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // ── Tier 2 — EU / competitive coding ─────────────────────────────────────
-    RotationEntry {
-        id: "mistral-small",
-        model: "mistralai/mistral-small-3.1-24b-instruct",
-        provider: "openrouter",
-        license: "Apache-2.0",
-        origin: "France / Mistral",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "mistral-small-native",
-        model: "mistral-small-2503",
-        provider: "mistral",
-        license: "Apache-2.0",
-        origin: "France / Mistral",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "mistral-nemo",
-        model: "mistralai/mistral-nemo",
-        provider: "openrouter",
-        license: "Apache-2.0",
-        origin: "France / Mistral",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // mistral-nemo-hf: Mistral-Nemo-Instruct-2407 delisted from HuggingFace chat router 2026-03 → dropped
-    RotationEntry {
-        id: "qwen2.5-coder-32b-hf",
-        model: "Qwen/Qwen2.5-Coder-32B-Instruct",
-        provider: "huggingface",
-        license: "Apache-2.0",
-        origin: "China / Alibaba (coding-tuned)",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // qwen3-8b-hf: timeout on HuggingFace health check 2026-03-03 → dropped
-    RotationEntry {
-        id: "qwen3-32b-hf",
-        model: "Qwen/Qwen3-32B",
-        provider: "huggingface",
-        license: "Apache-2.0",
-        origin: "China / Alibaba",
-        roles: REASONING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "deepseek-v3-hf",
-        model: "deepseek-ai/DeepSeek-V3-0324",
-        provider: "huggingface",
-        license: "DeepSeek",
-        origin: "China / DeepSeek (MoE-671B)",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // ── Tier 1 — HuggingFace (FREE, rate-limited) ─────────────────────────────
-    RotationEntry {
-        id: "kimi-k2",
-        model: "moonshotai/Kimi-K2-Instruct",
-        provider: "huggingface",
-        license: "Modified MIT",
-        origin: "China / Moonshot AI",
-        // kimi-k2 is strong on reasoning — good for review roles
-        roles: REASONING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "glm-4.7",
-        model: "zai-org/GLM-4.7",
-        provider: "huggingface",
-        license: "MIT",
-        origin: "China / Zhipu AI",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // ── Tier 2 — EU / competitive coding (HuggingFace) ───────────────────────
-    // eurollm-22b: EuroLLM-22B-Instruct-2512 not supported on HuggingFace chat router 2026-03 → dropped
-    RotationEntry {
-        id: "olmo-32b",
-        model: "allenai/olmo-3.1-32b-instruct",
-        provider: "openrouter",
-        license: "Apache-2.0",
-        origin: "US / Allen AI (fully open)",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // ── Tier 3 — Regional participation ──────────────────────────────────────
-    RotationEntry {
-        id: "sarvam-m",
-        model: "sarvam-m",
-        provider: "sarvam",
-        license: "Open",
-        origin: "India / Sarvam AI",
-        roles: DEFAULT_ROLES,
-        max_tokens: Some(1500),
-        max_context: None,
-    },
-    RotationEntry {
-        id: "jamba",
-        model: "ai21/jamba-large-1.7",
-        provider: "openrouter",
-        license: "Jamba Open",
-        origin: "Israel / AI21",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // dicta: timeout on HuggingFace health check 2026-03-03 → dropped
-    RotationEntry {
-        id: "swallow-70b",
-        model: "tokyotech-llm/Llama-3.3-Swallow-70B-Instruct-v0.4",
-        provider: "huggingface",
-        license: "Llama 3.3 Community",
-        origin: "Japan / Tokyo Institute of Technology",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "sea-lion",
-        model: "aisingapore/Qwen-SEA-LION-v4-32B-IT",
-        provider: "huggingface",
-        license: "Apache-2.0",
-        origin: "Singapore / AI Singapore",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "ernie-4.5",
-        model: "baidu/ernie-4.5-21b-a3b",
-        provider: "openrouter",
-        license: "ERNIE Open",
-        origin: "China / Baidu",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "apertus",
-        model: "swiss-ai/Apertus-70B-Instruct-2509",
-        provider: "huggingface",
-        license: "Fully open",
-        origin: "Switzerland / ETH Zurich + EPFL + CSCS",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // ── Tier 1 additions — strong reasoning (OpenRouter) ─────────────────────
-    RotationEntry {
-        id: "qwq-32b",
-        model: "qwen/qwq-32b",
-        provider: "openrouter",
-        license: "Apache-2.0",
-        origin: "China / Alibaba (Qwen — reasoning model)",
-        roles: REASONING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // ── Tier 1 — Groq (FREE TIER) ─────────────────────────────────────────────
-    RotationEntry {
-        id: "qwen3-32b",
-        model: "qwen/qwen3-32b",
-        provider: "groq",
-        license: "Apache-2.0",
-        origin: "China / Alibaba (Qwen3 dense 32B)",
-        // qwen3-32b on groq is free and has reasoning capability
-        roles: ALL_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // qwen3-32b-or: timeout on OpenRouter health check 2026-03-03 → dropped
-    RotationEntry {
-        id: "qwen3-30b",
-        model: "qwen/qwen3-30b-a3b-instruct-2507",
-        provider: "openrouter",
-        license: "Apache-2.0",
-        origin: "China / Alibaba (Qwen3 MoE, 30B total / 3B active)",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // ── HuggingFace (FREE) ────────────────────────────────────────────────────
-    RotationEntry {
-        id: "gemma-3-27b",
-        model: "google/gemma-3-27b-it",
-        provider: "huggingface",
-        license: "Gemma",
-        origin: "US / Google DeepMind",
-        // gemma-3-27b is a solid reasoning model on HF (free)
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "gemma-3-27b-or",
-        model: "google/gemma-3-27b-it",
-        provider: "openrouter",
-        license: "Gemma",
-        origin: "US / Google DeepMind",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "command-a",
-        model: "cohere/command-a",
-        provider: "openrouter",
-        license: "CC-BY-NC-4.0",
-        origin: "Canada / Cohere (Toronto)",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // ── OpenRouter additions ──────────────────────────────────────────────────
-    RotationEntry {
-        id: "phi-4",
-        model: "microsoft/phi-4",
-        provider: "openrouter",
-        license: "MIT",
-        origin: "US / Microsoft Research",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: Some(24000),
-    },
-    // phi-4-hf: microsoft/phi-4 not supported on HuggingFace chat router 2026-03 → dropped
-    RotationEntry {
-        id: "nemotron-70b",
-        model: "nvidia/llama-3.1-nemotron-70b-instruct",
-        provider: "openrouter",
-        license: "NVIDIA Open Model",
-        origin: "US / NVIDIA Research",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "hermes-3",
-        model: "nousresearch/hermes-3-llama-3.1-70b",
-        provider: "openrouter",
-        license: "Llama Community",
-        origin: "US / Nous Research",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "qwen2.5-72b",
-        model: "qwen/qwen-2.5-72b-instruct",
-        provider: "openrouter",
-        license: "Qwen Community",
-        origin: "China / Alibaba (general, not code-specific)",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "qwen2.5-72b-hf",
-        model: "Qwen/Qwen2.5-72B-Instruct",
-        provider: "huggingface",
-        license: "Qwen Community",
-        origin: "China / Alibaba (general, not code-specific)",
-        roles: DEFAULT_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "gemma-3-12b",
-        model: "google/gemma-3-12b-it",
-        provider: "openrouter",
-        license: "Gemma",
-        origin: "US / Google DeepMind",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // ── HuggingFace additions (FREE) ──────────────────────────────────────────
-    RotationEntry {
-        id: "qwen2.5-7b",
-        model: "qwen/qwen-2.5-7b-instruct",
-        provider: "openrouter",
-        license: "Qwen Community",
-        origin: "China / Alibaba (smaller model, L0 tasks)",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // ── Fireworks additions — Tier 1 (pay-per-token) ──────────────────────────
-    RotationEntry {
-        id: "cogito-671b",
-        model: "accounts/cogito/models/cogito-671b-v2-p1",
-        provider: "fireworks",
-        license: "MIT",
-        origin: "US / Deep Cogito",
-        roles: CODING_ROLES,
-        max_tokens: Some(4096), // Fireworks requires stream=true for >4096
-        max_context: None,
-    },
-    // ── High-priority multi-provider overlaps (Together AI / Cerebras / DeepInfra / Fireworks) ──
-    // llama3.3 × 4 providers (benchmark: custom-silicon vs. optimised-GPU vs. aggregator)
-    RotationEntry {
-        id: "llama3.3-together",
-        model: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-        provider: "together",
-        license: "Llama Community",
-        origin: "US / Meta",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        id: "llama3.3-cerebras",
-        model: "llama3.1-8b",
-        provider: "cerebras",
-        license: "Llama Community",
-        origin: "US / Meta",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
-    // llama3.3-fireworks: llama-v3p3-70b-instruct removed from Fireworks 2026-03 → entry dropped
-    // deepseek-r1 × 3 new providers
-    RotationEntry {
-        id: "deepseek-r1-together",
-        model: "deepseek-ai/DeepSeek-R1",
-        provider: "together",
-        license: "MIT",
-        origin: "China / DeepSeek",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // deepseek-r1 was removed from Fireworks 2026-03 → entry dropped
-    // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
-    // deepseek-v3 × 3 new providers
-    RotationEntry {
-        // deepseek-v3 → DeepSeek-V3.1 (model string updated 2026-03, V3 removed from Together)
-        id: "deepseek-v3-together",
-        model: "deepseek-ai/DeepSeek-V3.1",
-        provider: "together",
-        license: "MIT",
-        origin: "China / DeepSeek",
-        roles: REVIEW_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    RotationEntry {
-        // deepseek-v3 → deepseek-v3p2 (model string updated 2026-03)
-        id: "deepseek-v3-fireworks",
-        model: "accounts/fireworks/models/deepseek-v3p2",
-        provider: "fireworks",
-        license: "MIT",
-        origin: "China / DeepSeek",
-        roles: CODING_ROLES,
-        max_tokens: Some(4096), // Fireworks requires stream=true for >4096
-        max_context: None,
-    },
-    // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
-    // qwen2.5-72b × 2 new providers
-    // qwen2.5-72b-together: non-serverless model, removed from Together 2026-03-03 → dropped
-    // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
-    // qwen3-32b × 3 providers (headline: Groq LPU vs. Cerebras WSE head-to-head)
-    // qwen3-32b-together: non-serverless model, removed from Together 2026-03-03 → dropped
-    RotationEntry {
-        id: "qwen3-32b-cerebras",
-        model: "qwen-3-235b-a22b-instruct-2507",
-        provider: "cerebras",
-        license: "Apache-2.0",
-        origin: "China / Alibaba",
-        roles: CODING_ROLES,
-        max_tokens: None,
-        max_context: None,
-    },
-    // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
-    // gemma-3-27b × 2 new providers
-    // gemma-3-27b-together: 404 model not available on Together 2026-03-03 → dropped
-    // deepinfra: no credits yet — entry commented out (re-enable when credits arrive)
-    // ── Medium-priority overlaps ───────────────────────────────────────────────
-    // mistral-small-mistral + mistral-nemo-mistral: no MISTRAL_API_KEY configured → entries dropped 2026-03
-    // mistral-nemo-together: Mistral-Nemo-Instruct-2407 removed from Together 2026-03 → entry dropped
-    // phi-4-together: microsoft/phi-4 removed from Together 2026-03 → entry dropped
-    // llama4-scout-together: non-serverless model, removed from Together 2026-03-03 → dropped
-    // llama4-scout-instruct-basic was removed from Fireworks 2026-03 → entry dropped
-];
+/// Embedded default compiled into the binary.
+const EMBEDDED_ROTATION_TOML: &str = include_str!("../rotation.toml");
+
+/// TOML document shape: `[[rotation]]` array.
+#[derive(Deserialize)]
+struct RotationFile {
+    rotation: Vec<RotationEntry>,
+}
+
+/// Stores the leaked rotation slice for `&'static` access.
+static ROTATION: OnceLock<&'static [RotationEntry]> = OnceLock::new();
+
+/// Initialize the rotation roster. Must be called once at startup before
+/// any code accesses `rotation()`.
+///
+/// Load order:
+///   1. External file at `EXTERNAL_ROTATION_PATH` (hand-editable on server)
+///   2. Embedded default (`rotation.toml` compiled into the binary)
+///
+/// Panics on validation failure (duplicate IDs, unknown providers, empty roles).
+pub fn init_rotation() {
+    ROTATION.get_or_init(|| {
+        let entries = load_rotation();
+        validate_rotation(&entries);
+        // Leak into 'static so all consumers keep their &'static RotationEntry signatures.
+        let leaked: &'static [RotationEntry] = Box::leak(entries.into_boxed_slice());
+        info!(count = leaked.len(), "Rotation roster loaded");
+        leaked
+    });
+}
+
+/// Access the rotation roster. Panics if `init_rotation()` was not called.
+pub fn rotation() -> &'static [RotationEntry] {
+    ROTATION.get().expect("init_rotation() must be called before rotation()")
+}
+
+fn load_rotation() -> Vec<RotationEntry> {
+    // Try external file first.
+    match std::fs::read_to_string(EXTERNAL_ROTATION_PATH) {
+        Ok(content) => {
+            info!(path = EXTERNAL_ROTATION_PATH, "Loading rotation from external TOML");
+            match toml::from_str::<RotationFile>(&content) {
+                Ok(file) => return file.rotation,
+                Err(e) => {
+                    warn!(
+                        path = EXTERNAL_ROTATION_PATH,
+                        error = %e,
+                        "Failed to parse external TOML — falling back to embedded default"
+                    );
+                }
+            }
+        }
+        Err(_) => {
+            info!("No external rotation file — using embedded default");
+        }
+    }
+
+    // Fallback: embedded default.
+    toml::from_str::<RotationFile>(EMBEDDED_ROTATION_TOML)
+        .expect("Embedded rotation.toml must be valid")
+        .rotation
+}
+
+fn validate_rotation(entries: &[RotationEntry]) {
+    // 1. No duplicate IDs.
+    let mut seen = HashSet::new();
+    for entry in entries {
+        if !seen.insert(&entry.id) {
+            panic!("Duplicate rotation ID: '{}'", entry.id);
+        }
+    }
+
+    // 2. All providers must exist in the compiled PROVIDERS map.
+    for entry in entries {
+        if get_provider(&entry.provider).is_none() {
+            panic!(
+                "Model '{}' references unknown provider '{}'",
+                entry.id, entry.provider
+            );
+        }
+    }
+
+    // 3. Every entry must have at least one role (unless quarantined).
+    for entry in entries {
+        if entry.roles.is_empty() && !entry.quarantined {
+            panic!("Model '{}' has no roles assigned", entry.id);
+        }
+    }
+}
 
 // ── Capability Ladder ──────────────────────────────────────────────────────────
 
@@ -696,25 +274,22 @@ pub const LABEL_TAXONOMY: &str =
 mod tests {
     use super::*;
 
+    fn ensure_init() {
+        init_rotation();
+    }
+
     #[test]
-    fn rotation_has_45_models() {
-        // 52 prior
-        // - qwen3-8b-hf: timeout on HuggingFace (removed 2026-03-03)
-        // - dicta: timeout on HuggingFace (removed 2026-03-03)
-        // - qwen3-32b-or: timeout on OpenRouter (removed 2026-03-03)
-        // - qwen2.5-72b-together: non-serverless, removed from Together (2026-03-03)
-        // - qwen3-32b-together: non-serverless, removed from Together (2026-03-03)
-        // - gemma-3-27b-together: 404 on Together (2026-03-03)
-        // - llama4-scout-together: non-serverless, removed from Together (2026-03-03)
-        // = 45
-        assert_eq!(ROTATION.len(), 45, "Expected 45 models in ROTATION");
+    fn rotation_has_at_least_40_models() {
+        ensure_init();
+        assert!(rotation().len() >= 40, "Expected at least 40 models in rotation, got {}", rotation().len());
     }
 
     #[test]
     fn all_rotation_providers_exist() {
-        for entry in ROTATION {
+        ensure_init();
+        for entry in rotation() {
             assert!(
-                get_provider(entry.provider).is_some(),
+                get_provider(&entry.provider).is_some(),
                 "Model {} has unknown provider '{}'",
                 entry.id,
                 entry.provider
@@ -724,8 +299,25 @@ mod tests {
 
     #[test]
     fn all_roles_nonempty() {
-        for entry in ROTATION {
+        ensure_init();
+        for entry in rotation() {
             assert!(!entry.roles.is_empty(), "Model {} has no roles", entry.id);
         }
+    }
+
+    #[test]
+    fn no_duplicate_ids() {
+        ensure_init();
+        let mut seen = HashSet::new();
+        for entry in rotation() {
+            assert!(seen.insert(&entry.id), "Duplicate rotation ID: '{}'", entry.id);
+        }
+    }
+
+    #[test]
+    fn embedded_toml_parses() {
+        let file: RotationFile = toml::from_str(EMBEDDED_ROTATION_TOML)
+            .expect("Embedded rotation.toml must parse");
+        assert!(!file.rotation.is_empty());
     }
 }

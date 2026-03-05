@@ -26,7 +26,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Provider-level benchmarking for the QUASI Senate Loop \u2014 latency, pass rate, retry rate, and model substitution tracking across OpenRouter, Groq, HuggingFace, Fireworks, and other providers.",
+  "description": "Provider-level benchmarking for the QUASI Senate Loop — latency, pass rate, retry rate, and model substitution tracking across OpenRouter, Groq, HuggingFace, Fireworks, and other providers.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -88,7 +88,8 @@
           "rawSql": "SELECT COUNT(DISTINCT cycle_id) AS value FROM senate_telemetry\nWHERE timestamp > now() - interval '24 hours' AND dry_run = false",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Number of complete senate cycles executed today.\n\n**Source:** Distinct `cycle_id` values in `senate_telemetry` for the current day."
     },
     {
       "id": 2,
@@ -150,7 +151,8 @@
           "rawSql": "SELECT ROUND(100.0 * AVG(CASE WHEN downstream_verdict IN ('approved', 'approve', 'success') THEN 1.0 ELSE 0.0 END), 1) AS value\nFROM senate_telemetry\nWHERE timestamp > now() - interval '24 hours' AND dry_run = false AND downstream_verdict IS NOT NULL",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "24-hour pass rate gauge — percentage of calls with a successful outcome.\n\nGreen (>80%), yellow (60-80%), red (<60%)."
     },
     {
       "id": 3,
@@ -215,7 +217,8 @@
           "rawSql": "SELECT PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY latency_ms) AS value\nFROM senate_telemetry\nWHERE timestamp > now() - interval '24 hours' AND dry_run = false AND error IS NULL",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Median response latency across all providers in the last 24 hours.\n\n**Formula:** `PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms) / 1000`"
     },
     {
       "id": 4,
@@ -280,11 +283,12 @@
           "rawSql": "SELECT ROUND(100.0 * AVG(CASE WHEN model_verified = false THEN 1.0 ELSE 0.0 END), 1) AS value\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND provider = 'openrouter' AND model_verified IS NOT NULL AND dry_run = false",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Rate of model substitutions — how often providers serve a different model than requested.\n\n**Source:** `model_verified = false` or `served_model != model_string`\n\nHigher rates indicate provider routing issues."
     },
     {
       "id": 5,
-      "title": "Pass Rate by Provider \u00d7 Base Model",
+      "title": "Pass Rate by Provider × Base Model",
       "type": "table",
       "gridPos": {
         "x": 0,
@@ -319,7 +323,8 @@
           "rawSql": "SELECT base_model, provider, role,\n       COUNT(*) AS n,\n       ROUND(100.0 * AVG(CASE WHEN downstream_verdict IN ('approved', 'approve', 'success') THEN 1.0 ELSE 0.0 END), 1) AS pass_rate_pct,\n       ROUND(AVG(latency_ms)) AS avg_latency_ms,\n       ROUND(100.0 * AVG(CASE WHEN json_parse_ok THEN 1.0 ELSE 0.0 END), 1) AS json_ok_pct\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false AND downstream_verdict IS NOT NULL\nGROUP BY base_model, provider, role\nHAVING COUNT(*) >= 5\nORDER BY base_model, role, pass_rate_pct DESC",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Pass rate breakdown by provider and base model.\n\nReveals which provider×model combinations are most/least reliable."
     },
     {
       "id": 6,
@@ -358,7 +363,8 @@
           "refId": "A",
           "timeColumn": "time"
         }
-      ]
+      ],
+      "description": "Latency distribution over time per provider.\n\nUse this to spot provider outages, congestion windows, or latency regressions."
     },
     {
       "id": 7,
@@ -392,7 +398,8 @@
           "rawSql": "SELECT provider,\n       COUNT(*) AS total_calls,\n       ROUND(100.0 * AVG(CASE WHEN retries > 0 THEN 1.0 ELSE 0.0 END), 1) AS retry_pct,\n       ROUND(100.0 * AVG(CASE WHEN error IS NOT NULL THEN 1.0 ELSE 0.0 END), 1) AS error_pct,\n       ROUND(100.0 * AVG(CASE WHEN json_parse_ok = false THEN 1.0 ELSE 0.0 END), 1) AS json_fail_pct\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\nGROUP BY provider\nORDER BY total_calls DESC",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Retry and HTTP error rates per provider.\n\nHigh retry rates indicate API instability. High error rates may indicate rate limiting or authentication issues."
     },
     {
       "id": 8,
@@ -424,7 +431,8 @@
           "rawSql": "SELECT timestamp, model_id, model_string, served_model, model_verified\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND provider = 'openrouter'\n  AND (model_verified = false OR (served_model IS NOT NULL AND served_model != model_string))\nORDER BY timestamp DESC\nLIMIT 50",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Log of OpenRouter model substitutions.\n\n**Detection:** `model_verified = false` OR `served_model IS NOT NULL AND served_model != model_string`\n\nOpenRouter routes across backends and may silently swap models under load."
     },
     {
       "id": 9,
@@ -541,7 +549,8 @@
           "rawSql": "SELECT\n    CASE\n        WHEN provider IN ('groq', 'cerebras') THEN 'custom_silicon'\n        WHEN provider IN ('fireworks', 'together') THEN 'optimized_gpu'\n        WHEN provider = 'deepinfra' THEN 'standard_gpu'\n        WHEN provider = 'openrouter' THEN 'aggregator'\n        WHEN provider = 'huggingface' THEN 'aggregator'\n        WHEN provider = 'mistral' THEN 'model_native'\n        WHEN provider = 'sarvam' THEN 'model_native'\n        ELSE 'other'\n    END AS architecture,\n    provider,\n    COUNT(*) AS n,\n    ROUND(100.0 * AVG(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1 ELSE 0 END), 1) AS pass_rate_pct,\n    ROUND(AVG(latency_ms)) AS avg_latency_ms,\n    ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms)) AS p95_latency_ms,\n    ROUND(100.0 * AVG(CASE WHEN json_parse_ok THEN 1 ELSE 0 END), 1) AS json_ok_pct\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false AND downstream_verdict IS NOT NULL\nGROUP BY architecture, provider\nHAVING COUNT(*) >= 10\nORDER BY architecture, pass_rate_pct DESC",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Provider architecture classification.\n\n**Categories:**\n- `model_native`: Direct provider (Groq, Cerebras, Mistral) — own hardware\n- `routing_layer`: Aggregator (OpenRouter, DeepInfra) — routes to backends\n- `inference_api`: Hosted inference (HuggingFace, Together, Fireworks)"
     }
   ],
   "refresh": "5m",
@@ -560,7 +569,7 @@
   },
   "timepicker": {},
   "timezone": "utc",
-  "title": "QUASI Senate \u2014 Provider Benchmark",
+  "title": "QUASI Senate — Provider Benchmark",
   "uid": "quasi-senate-provider-bench",
   "version": 1,
   "weekStart": ""

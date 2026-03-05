@@ -31,23 +31,28 @@ impl std::fmt::Display for Role {
 
 // ── Rotation entry ────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RotationEntry {
     /// Short name used as identifier: "deepseek-v3"
-    pub id: &'static str,
+    pub id: String,
     /// API model string: "deepseek/deepseek-chat-v3-0324"
-    pub model: &'static str,
+    pub model: String,
     /// Key into PROVIDERS map
-    pub provider: &'static str,
+    pub provider: String,
     /// SPDX or brief license name
-    pub license: &'static str,
+    pub license: String,
     /// Country/org for coverage tracking
-    pub origin: &'static str,
+    pub origin: String,
     /// Which Senate roles this model can fill
-    pub roles: &'static [Role],
+    pub roles: Vec<Role>,
+    /// Quarantined models are excluded from selection (managed by quasi-roster)
+    #[serde(default)]
+    pub quarantined: bool,
     /// Override for models with small output windows
+    #[serde(default)]
     pub max_tokens: Option<u32>,
     /// Override for models with small context windows
+    #[serde(default)]
     pub max_context: Option<u32>,
 }
 

@@ -8,7 +8,7 @@ use std::time::Instant;
 use tokio::time::{timeout, Duration};
 use tracing::{info, warn};
 
-use crate::config::{get_provider, ROTATION};
+use crate::config::{get_provider, rotation};
 use crate::provider::call_model;
 use crate::types::RotationEntry;
 
@@ -45,7 +45,7 @@ pub struct ProbeResult {
 /// Probe a single model with a minimal health-check prompt.
 async fn probe_model(entry: &'static RotationEntry, timeout_secs: u64) -> ProbeResult {
     // Check if the provider's API key is available.
-    let provider_cfg = match get_provider(entry.provider) {
+    let provider_cfg = match get_provider(&entry.provider) {
         Some(p) => p,
         None => {
             return ProbeResult {
@@ -111,7 +111,7 @@ pub async fn run_check_models(
     filter_provider: Option<&str>,
     timeout_secs: u64,
 ) -> Vec<ProbeResult> {
-    let entries: Vec<&'static RotationEntry> = ROTATION
+    let entries: Vec<&'static RotationEntry> = rotation()
         .iter()
         .filter(|e| match filter_provider {
             Some(p) => e.provider == p,

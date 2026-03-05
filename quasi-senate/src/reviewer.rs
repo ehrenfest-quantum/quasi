@@ -20,6 +20,7 @@ struct ReviewVerdictRaw {
 /// Review a proposed solution (B.2). Returns verdict and the rotation entry used.
 ///
 /// * `exclude` — model IDs to exclude (at minimum: drafter and solver model IDs)
+#[allow(clippy::too_many_arguments)]
 pub async fn review_solution(
     issue_title: &str,
     issue_body: &str,
@@ -63,7 +64,7 @@ pub async fn review_solution(
     }
 
     // 4. Call the LLM
-    let call_result = crate::provider::call_model(entry, &system, &user, 0.2, 2048).await?;
+    let call_result = crate::provider::call_model(entry, system, &user, 0.2, 2048).await?;
     let raw = call_result.content.clone();
 
     // 5. Parse raw response — map failure to ParseFailure so pipeline can write telemetry.
