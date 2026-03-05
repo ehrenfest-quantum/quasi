@@ -332,9 +332,55 @@ def fetch_open_issues(token: str) -> list[dict]:
     return [i for i in all_issues if GENERATOR_PATTERN.search(i.get("body") or "")]
 
 
-def pick_solve_issue(issues: list[dict], last_issue: int | None) -> dict | None:
-    """Pick oldest open Pauli-Test issue, skipping the last attempted."""
+def fetch_issues_with_open_prs(token: str) -> set:
+    """Return set of issue numbers that already have an open PR (closes #NNN)."""
+    url: str | None = f"{GITHUB_API_BASE}/pulls?state=open&per_page=100"
+    covered: set = set()
+    pat = re.compile(r"\(closes #(\d+)\)")
+    while url:
+        req = urllib.request.Request(
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                prs = json.loads(resp.read().decode())
+                if not isinstance(prs, list):
+                    break
+                for pr in prs:
+                    m = pat.search(pr.get("title", ""))
+                    if m:
+                        covered.add(int(m.group(1)))
+                link = resp.headers.get("Link", "")
+                next_url = None
+                for part in link.split(","):
+                    if 'rel="next"' in part:
+                        m2 = re.search(r"<([^>]+)>", part)
+                        if m2:
+                            next_url = m2.group(1)
+                url = next_url
+        except urllib.error.HTTPError:
+            break
+    log(f"Issues with open PRs: {covered}")
+    return covered
+
+
+def pick_solve_issue(issues: list[dict], last_issue: int | None,
+                     token: str | None = None) -> dict | None:
+    """Pick oldest open Pauli-Test issue, skipping the last attempted
+    and issues that already have an open PR."""
     if not issues:
+        return None
+    # Filter out issues that already have open PRs
+    if token:
+        covered = fetch_issues_with_open_prs(token)
+        issues = [i for i in issues if i["number"] not in covered]
+    if not issues:
+        log("All eligible issues already have open PRs.")
         return None
     candidates = sorted(issues, key=lambda i: i["number"])
     for issue in candidates:
@@ -402,7 +448,7 @@ def main() -> None:
             return
 
         last_issue = state.get("last_solve_issue")
-        issue = pick_solve_issue(open_issues, last_issue)
+        issue = pick_solve_issue(open_issues, last_issue, token=token)
         if issue is None:
             log("No suitable issue found.")
             return

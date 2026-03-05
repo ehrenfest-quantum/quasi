@@ -6,7 +6,7 @@ use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use regex::Regex;
 
-use quasi_senate::config::ROTATION;
+use quasi_senate::config::{init_rotation, rotation};
 use quasi_senate::fedi::FediClient;
 use quasi_senate::github::GitHubClient;
 use quasi_senate::health_check::run_check_models;
@@ -96,7 +96,10 @@ async fn main() -> Result<()> {
     // 2. Initialize tracing
     init_telemetry();
 
-    // 3. Parse CLI
+    // 3. Load rotation roster (external TOML → embedded fallback)
+    init_rotation();
+
+    // 4. Parse CLI
     let cli = Cli::parse();
 
     // 4. Handle commands that don't need full AppContext first.
@@ -147,6 +150,10 @@ async fn main() -> Result<()> {
             tracing::warn!("Migration warning (may already exist): {e}");
         }
         let migration = include_str!("../migrations/004_model_health.sql");
+        if let Err(e) = db.batch_execute(migration).await {
+            tracing::warn!("Migration warning (may already exist): {e}");
+        }
+        let migration = include_str!("../migrations/005_roster_events.sql");
         if let Err(e) = db.batch_execute(migration).await {
             tracing::warn!("Migration warning (may already exist): {e}");
         }
@@ -239,8 +246,12 @@ async fn find_oldest_senate_issue(ctx: &mut AppContext) -> Result<u32> {
     let issues = ctx.github.list_open_issues(40).await?;
     let re = Regex::new(r"Generator model:\s*`([^`]+)`")?;
 
+    // Skip issues that already have an open PR to prevent duplicate PRs.
+    let issues_with_prs = ctx.github.issues_with_open_prs().await.unwrap_or_default();
+
     // Issues are returned newest-first; reverse to get oldest-first.
-    // Skip issues that have exhausted their solve retries (>= 2 attempts).
+    // Skip issues that have exhausted their solve retries (>= 2 attempts)
+    // or that already have an open PR.
     let senate_issues: Vec<_> = issues
         .into_iter()
         .filter(|issue| {
@@ -255,7 +266,8 @@ async fn find_oldest_senate_issue(ctx: &mut AppContext) -> Result<u32> {
                 .get(&issue.number.to_string())
                 .copied()
                 .unwrap_or(0);
-            is_senate && retries < 2
+            let has_pr = issues_with_prs.contains(&issue.number);
+            is_senate && retries < 2 && !has_pr
         })
         .collect();
 
@@ -283,12 +295,12 @@ async fn find_oldest_senate_issue(ctx: &mut AppContext) -> Result<u32> {
 /// Print a formatted table of eligible models and their roles.
 fn print_models_table() {
     println!(
-        "  {:<22} {:<14} {:<36} {:<22} {}",
-        "ID", "Provider", "Roles", "License", "Origin"
+        "  {id:<22} {provider:<14} {roles:<36} {license:<22} Origin",
+        id = "ID", provider = "Provider", roles = "Roles", license = "License"
     );
     println!("  {}", "-".repeat(120));
 
-    for entry in ROTATION {
+    for entry in rotation() {
         let roles: String = entry
             .roles
             .iter()

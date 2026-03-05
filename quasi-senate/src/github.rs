@@ -291,6 +291,41 @@ impl GitHubClient {
         Ok(())
     }
 
+    /// Return the set of issue numbers that already have an open senate PR.
+    /// Checks for PRs whose title contains `(closes #NNN)`.
+    pub async fn issues_with_open_prs(&self) -> Result<std::collections::HashSet<u32>> {
+        let url = format!(
+            "{}/pulls?state=open&per_page=100",
+            self.base_url()
+        );
+        let resp = self
+            .client
+            .get(&url)
+            .headers(self.default_headers())
+            .send()
+            .await
+            .context("issues_with_open_prs: network error")?;
+
+        if !resp.status().is_success() {
+            return Err(self.github_error(resp).await);
+        }
+
+        let prs: Vec<Value> = resp.json().await.context("issues_with_open_prs: deserialise")?;
+        let re = Regex::new(r"\(closes #(\d+)\)").expect("valid regex");
+        let mut covered = std::collections::HashSet::new();
+        for pr in &prs {
+            if let Some(title) = pr["title"].as_str() {
+                if let Some(caps) = re.captures(title) {
+                    if let Ok(n) = caps[1].parse::<u32>() {
+                        covered.insert(n);
+                    }
+                }
+            }
+        }
+        info!("issues_with_open_prs: {} issues already have open PRs", covered.len());
+        Ok(covered)
+    }
+
     pub async fn create_pull_request(
         &self,
         title: &str,
