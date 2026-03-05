@@ -211,7 +211,7 @@
             "uid": "ffeagtzfyvvnkf"
           },
           "format": "table",
-          "rawSql": "SELECT round(100.0 * sum(CASE WHEN downstream_verdict='approved' THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','rejected','json_fail') THEN 1 END), 0), 1) AS \"Approval %\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false"
+          "rawSql": "SELECT round(100.0 * sum(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','approve','success','rejected','json_fail') THEN 1 END), 0), 1) AS \"Approval %\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false"
         }
       ],
       "title": "Overall Approval Rate (7 days)",
@@ -278,7 +278,7 @@
             "uid": "ffeagtzfyvvnkf"
           },
           "format": "table",
-          "rawSql": "SELECT round(100.0 * sum(CASE WHEN json_parse_ok = true THEN 1 ELSE 0 END) / count(*), 1) AS \"JSON %\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false"
+          "rawSql": "SELECT round(100.0 * sum(CASE WHEN json_parse_ok = true THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN json_parse_ok IS NOT NULL THEN 1 END), 0), 1) AS \"JSON %\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false"
         }
       ],
       "title": "JSON Compliance (7 days)",
@@ -469,7 +469,7 @@
             "uid": "ffeagtzfyvvnkf"
           },
           "format": "time_series",
-          "rawSql": "SELECT now() AS time, base_model AS metric, coalesce(round(100.0 * sum(CASE WHEN downstream_verdict='approved' THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','rejected','json_fail') THEN 1 END),0),0),0) AS value FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY value DESC NULLS LAST LIMIT 1"
+          "rawSql": "SELECT now() AS time, base_model AS metric, coalesce(round(100.0 * sum(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','approve','success','rejected','json_fail') THEN 1 END),0),0),0) AS value FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY value DESC NULLS LAST LIMIT 1"
         }
       ],
       "title": "🏆 Top Performer (7 days, ≥10 calls)",
@@ -520,7 +520,7 @@
             "uid": "ffeagtzfyvvnkf"
           },
           "format": "time_series",
-          "rawSql": "SELECT now() AS time, base_model AS metric, coalesce(round(100.0 * sum(CASE WHEN downstream_verdict='approved' THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','rejected','json_fail') THEN 1 END),0),0),0) AS value FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY value ASC NULLS LAST LIMIT 1"
+          "rawSql": "SELECT now() AS time, base_model AS metric, coalesce(round(100.0 * sum(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','approve','success','rejected','json_fail') THEN 1 END),0),0),0) AS value FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY value ASC NULLS LAST LIMIT 1"
         }
       ],
       "title": "🏅 Sir Slopalot (7 days, ≥10 calls)",
@@ -571,7 +571,7 @@
             "uid": "ffeagtzfyvvnkf"
           },
           "format": "time_series",
-          "rawSql": "SELECT now() AS time, base_model AS metric, round(avg(latency_ms)/1000.0)::int AS value FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY avg(latency_ms) ASC LIMIT 1"
+          "rawSql": "SELECT now() AS time, base_model AS metric, round(avg(latency_ms)/1000.0, 1) AS value FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 10 ORDER BY avg(latency_ms) ASC LIMIT 1"
         }
       ],
       "title": "⚡ Fastest Model (7 days, ≥10 calls)",
@@ -802,7 +802,7 @@
             "uid": "ffeagtzfyvvnkf"
           },
           "format": "table",
-          "rawSql": "SELECT base_model AS \"Model\", count(*) AS \"Calls\", round(100.0 * sum(CASE WHEN downstream_verdict='approved' THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','rejected','json_fail') THEN 1 END),0),1) AS \"Approval %\", round(100.0 * sum(CASE WHEN json_parse_ok = true THEN 1 ELSE 0 END) / count(*),1) AS \"JSON %\", round(avg(latency_ms)/1000.0,1) AS \"Latency (s)\", round(avg(retries),2) AS \"Avg Retries\", round(100.0 * sum(CASE WHEN model_verified = true THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN model_verified IS NOT NULL THEN 1 END),0),1) AS \"Fidelity %\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 3 ORDER BY \"Approval %\" DESC NULLS LAST"
+          "rawSql": "SELECT base_model AS \"Model\", count(*) AS \"Calls\", round(100.0 * sum(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','approve','success','rejected','json_fail') THEN 1 END),0),1) AS \"Approval %\", round(100.0 * sum(CASE WHEN json_parse_ok = true THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN json_parse_ok IS NOT NULL THEN 1 END),0),1) AS \"JSON %\", round(avg(latency_ms)/1000.0,1) AS \"Latency (s)\", round(avg(retries),2) AS \"Avg Retries\", round(100.0 * sum(CASE WHEN model_verified = true THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN model_verified IS NOT NULL THEN 1 END),0),1) AS \"Fidelity %\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 3 ORDER BY \"Approval %\" DESC NULLS LAST"
         }
       ],
       "title": "Model Performance — 7 Days (sorted by approval rate)",
@@ -911,7 +911,7 @@
             "uid": "ffeagtzfyvvnkf"
           },
           "format": "table",
-          "rawSql": "SELECT base_model AS \"Model\", count(*) AS \"Calls\", round(100.0 * sum(CASE WHEN downstream_verdict='approved' AND role='A1_council' THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN role='A1_council' AND downstream_verdict IN ('approved','rejected','json_fail') THEN 1 ELSE 0 END),0),0) AS \"A1 Council\", round(100.0 * sum(CASE WHEN downstream_verdict='approved' AND role='A2_drafter' THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN role='A2_drafter' AND downstream_verdict IN ('approved','rejected','json_fail') THEN 1 ELSE 0 END),0),0) AS \"A2 Drafter\", round(100.0 * sum(CASE WHEN downstream_verdict='approved' AND role='A3_gate' THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN role='A3_gate' AND downstream_verdict IN ('approved','rejected','json_fail') THEN 1 ELSE 0 END),0),0) AS \"A3 Gate\", round(100.0 * sum(CASE WHEN downstream_verdict='approved' AND role='B1_solver' THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN role='B1_solver' AND downstream_verdict IN ('approved','rejected','json_fail') THEN 1 ELSE 0 END),0),0) AS \"B1 Solver\", round(100.0 * sum(CASE WHEN downstream_verdict='approved' AND role='B2_reviewer' THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN role='B2_reviewer' AND downstream_verdict IN ('approved','rejected','json_fail') THEN 1 ELSE 0 END),0),0) AS \"B2 Reviewer\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 2 ORDER BY count(*) DESC"
+          "rawSql": "SELECT base_model AS \"Model\", count(*) AS \"Calls\", round(100.0 * sum(CASE WHEN downstream_verdict IN ('approved','approve','success') AND role='A1_council' THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN role='A1_council' AND downstream_verdict IN ('approved','approve','success','rejected','json_fail') THEN 1 ELSE 0 END),0),0) AS \"A1 Council\", round(100.0 * sum(CASE WHEN downstream_verdict IN ('approved','approve','success') AND role='A2_drafter' THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN role='A2_drafter' AND downstream_verdict IN ('approved','approve','success','rejected','json_fail') THEN 1 ELSE 0 END),0),0) AS \"A2 Drafter\", round(100.0 * sum(CASE WHEN downstream_verdict IN ('approved','approve','success') AND role='A3_gate' THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN role='A3_gate' AND downstream_verdict IN ('approved','approve','success','rejected','json_fail') THEN 1 ELSE 0 END),0),0) AS \"A3 Gate\", round(100.0 * sum(CASE WHEN downstream_verdict IN ('approved','approve','success') AND role='B1_solver' THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN role='B1_solver' AND downstream_verdict IN ('approved','approve','success','rejected','json_fail') THEN 1 ELSE 0 END),0),0) AS \"B1 Solver\", round(100.0 * sum(CASE WHEN downstream_verdict IN ('approved','approve','success') AND role='B2_reviewer' THEN 1 ELSE 0 END) / NULLIF(sum(CASE WHEN role='B2_reviewer' AND downstream_verdict IN ('approved','approve','success','rejected','json_fail') THEN 1 ELSE 0 END),0),0) AS \"B2 Reviewer\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 2 ORDER BY count(*) DESC"
         }
       ],
       "title": "Approval % by Model × Role (7 days)",
@@ -975,7 +975,7 @@
             "uid": "ffeagtzfyvvnkf"
           },
           "format": "time_series",
-          "rawSql": "SELECT date_trunc('hour', timestamp) + (floor(extract(epoch from timestamp - date_trunc('day',timestamp)) / 14400) * interval '4 hours') AS time, base_model AS metric, round(100.0 * sum(CASE WHEN downstream_verdict='approved' THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','rejected','json_fail') THEN 1 END),0),1) AS \"Approval %\" FROM senate_telemetry WHERE $__timeFilter(timestamp) AND dry_run = false GROUP BY 1, 2 HAVING count(*) >= 2 ORDER BY 1, 2"
+          "rawSql": "SELECT date_trunc('day', timestamp) + (floor(extract(epoch from timestamp - date_trunc('day',timestamp)) / 14400) * interval '4 hours') AS time, base_model AS metric, round(100.0 * sum(CASE WHEN downstream_verdict IN ('approved','approve','success') THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN downstream_verdict IN ('approved','approve','success','rejected','json_fail') THEN 1 END),0),1) AS \"Approval %\" FROM senate_telemetry WHERE $__timeFilter(timestamp) AND dry_run = false GROUP BY 1, 2 HAVING count(*) >= 2 ORDER BY 1, 2"
         }
       ],
       "title": "Approval Rate Trend — 4-Hour Bins",
@@ -1026,7 +1026,7 @@
             "uid": "ffeagtzfyvvnkf"
           },
           "format": "time_series",
-          "rawSql": "SELECT date_trunc('hour', timestamp) + (floor(extract(epoch from timestamp - date_trunc('day',timestamp)) / 14400) * interval '4 hours') AS time, base_model AS metric, round(100.0 * sum(CASE WHEN json_parse_ok = true THEN 1 ELSE 0 END) / count(*),1) AS \"JSON %\" FROM senate_telemetry WHERE $__timeFilter(timestamp) AND dry_run = false GROUP BY 1, 2 HAVING count(*) >= 2 ORDER BY 1, 2"
+          "rawSql": "SELECT date_trunc('day', timestamp) + (floor(extract(epoch from timestamp - date_trunc('day',timestamp)) / 14400) * interval '4 hours') AS time, base_model AS metric, round(100.0 * sum(CASE WHEN json_parse_ok = true THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN json_parse_ok IS NOT NULL THEN 1 END),0),1) AS \"JSON %\" FROM senate_telemetry WHERE $__timeFilter(timestamp) AND dry_run = false GROUP BY 1, 2 HAVING count(*) >= 2 ORDER BY 1, 2"
         }
       ],
       "title": "JSON Compliance Trend — 4-Hour Bins",
@@ -1075,7 +1075,7 @@
             "uid": "ffeagtzfyvvnkf"
           },
           "format": "time_series",
-          "rawSql": "SELECT date_trunc('hour', timestamp) + (floor(extract(epoch from timestamp - date_trunc('day',timestamp)) / 14400) * interval '4 hours') AS time, base_model AS metric, round(avg(latency_ms)/1000.0,2) AS \"Latency (s)\" FROM senate_telemetry WHERE $__timeFilter(timestamp) AND dry_run = false GROUP BY 1, 2 HAVING count(*) >= 2 ORDER BY 1, 2"
+          "rawSql": "SELECT date_trunc('day', timestamp) + (floor(extract(epoch from timestamp - date_trunc('day',timestamp)) / 14400) * interval '4 hours') AS time, base_model AS metric, round(avg(latency_ms)/1000.0,2) AS \"Latency (s)\" FROM senate_telemetry WHERE $__timeFilter(timestamp) AND dry_run = false GROUP BY 1, 2 HAVING count(*) >= 2 ORDER BY 1, 2"
         }
       ],
       "title": "Latency Trend — 4-Hour Bins",
@@ -1326,7 +1326,7 @@
             "uid": "ffeagtzfyvvnkf"
           },
           "format": "table",
-          "rawSql": "SELECT base_model AS \"Model\", count(*) AS \"Calls\", sum(CASE WHEN json_parse_ok = false THEN 1 ELSE 0 END) AS \"Failures\", round(100.0 * sum(CASE WHEN json_parse_ok = false THEN 1 ELSE 0 END) / count(*),1) AS \"Fail %\", string_agg(DISTINCT role, ', ') FILTER (WHERE json_parse_ok = false) AS \"Failed In Roles\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 3 ORDER BY \"Fail %\" DESC NULLS LAST"
+          "rawSql": "SELECT base_model AS \"Model\", count(*) AS \"Calls\", sum(CASE WHEN json_parse_ok = false THEN 1 ELSE 0 END) AS \"Failures\", round(100.0 * sum(CASE WHEN json_parse_ok = false THEN 1 ELSE 0 END) / NULLIF(count(CASE WHEN json_parse_ok IS NOT NULL THEN 1 END),0),1) AS \"Fail %\", string_agg(DISTINCT role, ', ') FILTER (WHERE json_parse_ok = false) AS \"Failed In Roles\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 3 ORDER BY \"Fail %\" DESC NULLS LAST"
         }
       ],
       "title": "JSON Parse Failures by Model (7 days)",
