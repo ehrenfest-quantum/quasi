@@ -11,6 +11,12 @@
 ; All fields use text keys for schema clarity. Production encodings MAY use
 ; integer keys (CBOR map key compression) with a registered key table.
 
+; Custom quantum type definition
+UserDefinedType = {
+  "name": tstr,
+  "representation": [+ tstr],
+}
+
 ; ─── Root ────────────────────────────────────────────────────────────────────
 
 EhrenfestProgram = {
