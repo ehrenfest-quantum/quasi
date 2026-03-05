@@ -421,7 +421,7 @@
           },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT timestamp, model_id, model_string, served_model, model_verified\nFROM senate_telemetry\nWHERE provider = 'openrouter' AND served_model IS NOT NULL AND model_verified = false\nORDER BY timestamp DESC\nLIMIT 50",
+          "rawSql": "SELECT timestamp, model_id, model_string, served_model, model_verified\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND provider = 'openrouter'\n  AND (model_verified = false OR (served_model IS NOT NULL AND served_model != model_string))\nORDER BY timestamp DESC\nLIMIT 50",
           "refId": "A"
         }
       ]

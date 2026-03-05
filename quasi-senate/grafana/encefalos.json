@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Quality-adjusted value per euro across AI inference providers. Q is computed from 7 empirical dimensions (senate_telemetry + pr_outcomes). \u03f6 = Q / cost_factor.",
+  "description": "Quality-adjusted value per euro across AI inference providers. Q is computed from 7 empirical dimensions (senate_telemetry + pr_outcomes). ϶ = Q / cost_factor.",
   "links": [
     {
       "title": "Model Performance",
@@ -25,7 +25,7 @@
         "y": 0
       },
       "id": 200,
-      "title": "\u03f6 Overview",
+      "title": "϶ Overview",
       "type": "row"
     },
     {
@@ -34,7 +34,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "noValue": "\u2014",
+          "noValue": "—",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -78,7 +78,7 @@
           "refId": "A"
         }
       ],
-      "title": "\ud83c\udfc6 Best \u03f6 Model",
+      "title": "🏆 Best ϶ Model",
       "type": "stat"
     },
     {
@@ -87,7 +87,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "noValue": "\u2014",
+          "noValue": "—",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -139,7 +139,7 @@
           "refId": "A"
         }
       ],
-      "title": "Best \u03f6/\u20ac Score",
+      "title": "Best ϶/€ Score",
       "type": "stat"
     },
     {
@@ -148,7 +148,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "noValue": "\u2014",
+          "noValue": "—",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -209,7 +209,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "noValue": "\u2014",
+          "noValue": "—",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -261,7 +261,7 @@
           "refId": "A"
         }
       ],
-      "title": "Provider Fidelity q\u2084",
+      "title": "Provider Fidelity q₄",
       "type": "stat"
     },
     {
@@ -270,7 +270,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "noValue": "\u2014",
+          "noValue": "—",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -322,7 +322,7 @@
           "refId": "A"
         }
       ],
-      "title": "First-Attempt Success q\u2085",
+      "title": "First-Attempt Success q₅",
       "type": "stat"
     },
     {
@@ -331,7 +331,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "noValue": "\u2014",
+          "noValue": "—",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -387,7 +387,7 @@
         "y": 5
       },
       "id": 207,
-      "title": "\u03f6 Ranking \u2014 All Models",
+      "title": "϶ Ranking — All Models",
       "type": "row"
     },
     {
@@ -410,7 +410,7 @@
               },
               {
                 "id": "displayName",
-                "value": "\u03f6 Score"
+                "value": "϶ Score"
               },
               {
                 "id": "custom.width",
@@ -482,7 +482,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "q\u2081 correct"
+                "value": "q₁ correct"
               },
               {
                 "id": "custom.displayMode",
@@ -518,7 +518,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "q\u2082 struct"
+                "value": "q₂ struct"
               },
               {
                 "id": "custom.displayMode",
@@ -554,7 +554,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "q\u2083 speed"
+                "value": "q₃ speed"
               }
             ]
           },
@@ -566,7 +566,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "q\u2084 fidelity"
+                "value": "q₄ fidelity"
               },
               {
                 "id": "custom.displayMode",
@@ -602,7 +602,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "q\u2085 rely"
+                "value": "q₅ rely"
               },
               {
                 "id": "custom.displayMode",
@@ -638,7 +638,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "q\u2086 reason"
+                "value": "q₆ reason"
               }
             ]
           },
@@ -650,7 +650,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "q\u2087 trace"
+                "value": "q₇ trace"
               }
             ]
           }
@@ -683,7 +683,7 @@
           "refId": "A"
         }
       ],
-      "title": "Encefalos Score \u2014 Full Ranking (code-gen weights: q\u2081\u00d70.35, q\u2082\u00d70.20, q\u2083\u2013q\u2086\u00d70.10, q\u2087\u00d70.05)",
+      "title": "Encefalos Score — Full Ranking (code-gen weights: q₁×0.35, q₂×0.20, q₃–q₆×0.10, q₇×0.05)",
       "type": "table"
     },
     {
@@ -695,7 +695,7 @@
         "y": 16
       },
       "id": 209,
-      "title": "q\u2081 Correctness \u00b7 q\u2082 Compliance \u00b7 q\u2083 Latency",
+      "title": "q₁ Correctness · q₂ Compliance · q₃ Latency",
       "type": "row"
     },
     {
@@ -706,7 +706,7 @@
           },
           "max": 1,
           "min": 0,
-          "noValue": "\u2014",
+          "noValue": "—",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -741,7 +741,8 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "values": true
         },
         "valueMode": "color"
       },
@@ -757,7 +758,7 @@
           "refId": "A"
         }
       ],
-      "title": "q\u2081 Correctness by Model (approval rate)",
+      "title": "q₁ Correctness by Model (approval rate)",
       "type": "bargauge"
     },
     {
@@ -768,7 +769,7 @@
           },
           "max": 1,
           "min": 0,
-          "noValue": "\u2014",
+          "noValue": "—",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -803,7 +804,8 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "values": true
         },
         "valueMode": "color"
       },
@@ -819,7 +821,7 @@
           "refId": "A"
         }
       ],
-      "title": "q\u2082 Compliance by Model (json_ok + http 200)",
+      "title": "q₂ Compliance by Model (json_ok + http 200)",
       "type": "bargauge"
     },
     {
@@ -830,7 +832,7 @@
           },
           "max": 1,
           "min": 0,
-          "noValue": "\u2014",
+          "noValue": "—",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -865,7 +867,8 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "values": true
         },
         "valueMode": "color"
       },
@@ -881,7 +884,7 @@
           "refId": "A"
         }
       ],
-      "title": "q\u2083 Latency Score by Model (1 \u2212 P50/max, higher=faster)",
+      "title": "q₃ Latency Score by Model (1 − P50/max, higher=faster)",
       "type": "bargauge"
     },
     {
@@ -893,7 +896,7 @@
         "y": 25
       },
       "id": 213,
-      "title": "q\u2084 Provider Fidelity \u00b7 q\u2085 Reliability \u00b7 Throughput",
+      "title": "q₄ Provider Fidelity · q₅ Reliability · Throughput",
       "type": "row"
     },
     {
@@ -904,7 +907,7 @@
           },
           "max": 1,
           "min": 0,
-          "noValue": "\u2014",
+          "noValue": "—",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -939,7 +942,8 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "values": true
         },
         "valueMode": "color"
       },
@@ -955,7 +959,7 @@
           "refId": "A"
         }
       ],
-      "title": "q\u2084 Provider Fidelity (model_verified rate)",
+      "title": "q₄ Provider Fidelity (model_verified rate)",
       "type": "bargauge"
     },
     {
@@ -966,7 +970,7 @@
           },
           "max": 1,
           "min": 0,
-          "noValue": "\u2014",
+          "noValue": "—",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1001,7 +1005,8 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "values": true
         },
         "valueMode": "color"
       },
@@ -1017,7 +1022,7 @@
           "refId": "A"
         }
       ],
-      "title": "q\u2085 Reliability (retries=0 AND attempt=1)",
+      "title": "q₅ Reliability (retries=0 AND attempt=1)",
       "type": "bargauge"
     },
     {
@@ -1056,7 +1061,8 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "values": true
         },
         "valueMode": "color"
       },
@@ -1084,7 +1090,7 @@
         "y": 34
       },
       "id": 217,
-      "title": "q\u2086 Domain Reasoning \u00b7 q\u2087 Traceability \u00b7 Model Substitution",
+      "title": "q₆ Domain Reasoning · q₇ Traceability · Model Substitution",
       "type": "row"
     },
     {
@@ -1095,7 +1101,7 @@
           },
           "max": 1,
           "min": 0,
-          "noValue": "\u2014",
+          "noValue": "—",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1130,7 +1136,8 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "values": true
         },
         "valueMode": "color"
       },
@@ -1146,7 +1153,7 @@
           "refId": "A"
         }
       ],
-      "title": "q\u2086 Domain Reasoning \u2014 Reasoning Coverage by Model",
+      "title": "q₆ Domain Reasoning — Reasoning Coverage by Model",
       "type": "bargauge"
     },
     {
@@ -1157,7 +1164,7 @@
           },
           "max": 1,
           "min": 0,
-          "noValue": "\u2014",
+          "noValue": "—",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1192,7 +1199,8 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "values": true
         },
         "valueMode": "color"
       },
@@ -1208,7 +1216,7 @@
           "refId": "A"
         }
       ],
-      "title": "q\u2087 Traceability \u2014 Issue+Cycle Link Rate",
+      "title": "q₇ Traceability — Issue+Cycle Link Rate",
       "type": "bargauge"
     },
     {
@@ -1261,11 +1269,11 @@
           },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT timestamp, provider, model_id, served_model,\n  CASE WHEN model_verified = false THEN '\u274c substituted' ELSE '\u2705 verified' END AS status\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\n  AND model_verified IS NOT NULL\nORDER BY timestamp DESC\nLIMIT 40",
+          "rawSql": "SELECT timestamp, provider, model_id, served_model,\n  CASE WHEN model_verified = false THEN '❌ substituted' ELSE '✅ verified' END AS status\nFROM senate_telemetry\nWHERE $__timeFilter(timestamp) AND dry_run = false\n  AND model_verified IS NOT NULL\nORDER BY timestamp DESC\nLIMIT 40",
           "refId": "A"
         }
       ],
-      "title": "Model Substitution Events (q\u2084 violations)",
+      "title": "Model Substitution Events (q₄ violations)",
       "type": "table"
     },
     {
@@ -1277,7 +1285,7 @@
         "y": 43
       },
       "id": 221,
-      "title": "\u03f6 Trends over Time",
+      "title": "϶ Trends over Time",
       "type": "row"
     },
     {
@@ -1321,7 +1329,7 @@
           "refId": "A"
         }
       ],
-      "title": "q\u2081 Correctness Trend by Model (4-hour bins)",
+      "title": "q₁ Correctness Trend by Model (4-hour bins)",
       "type": "timeseries"
     },
     {
@@ -1365,7 +1373,7 @@
           "refId": "A"
         }
       ],
-      "title": "q\u2085 Reliability Trend \u2014 First-Attempt Success (4-hour bins)",
+      "title": "q₅ Reliability Trend — First-Attempt Success (4-hour bins)",
       "type": "timeseries"
     },
     {
@@ -1377,7 +1385,7 @@
         "y": 52
       },
       "id": 224,
-      "title": "PR Outcomes \u2014 CI Signal into q\u2081",
+      "title": "PR Outcomes — CI Signal into q₁",
       "type": "row"
     },
     {
@@ -1423,7 +1431,8 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "values": true
         },
         "valueMode": "color"
       },
@@ -1485,7 +1494,8 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "values": true
         },
         "valueMode": "color"
       },
@@ -1529,19 +1539,19 @@
                     "options": {
                       "error": {
                         "color": "orange",
-                        "text": "\u26a0\ufe0f error"
+                        "text": "⚠️ error"
                       },
                       "failing": {
                         "color": "red",
-                        "text": "\u274c failing"
+                        "text": "❌ failing"
                       },
                       "passing": {
                         "color": "green",
-                        "text": "\u2705 passing"
+                        "text": "✅ passing"
                       },
                       "pending": {
                         "color": "blue",
-                        "text": "\u23f3 pending"
+                        "text": "⏳ pending"
                       }
                     },
                     "type": "value"
@@ -1601,7 +1611,7 @@
           "refId": "A"
         }
       ],
-      "title": "Senate PR Log \u2014 CI + Merge Status",
+      "title": "Senate PR Log — CI + Merge Status",
       "type": "table"
     }
   ],
@@ -1621,6 +1631,6 @@
     "to": "now"
   },
   "timepicker": {},
-  "title": "QUASI Encefalos \u2014 AI Compute Value (\u03f6/\u20ac)",
+  "title": "QUASI Encefalos — AI Compute Value (϶/€)",
   "uid": "quasi-encefalos"
 }

@@ -1219,7 +1219,9 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "fields": "/^Fidelity %$/",
+          "values": true
         },
         "showUnfilled": true
       },
@@ -1229,8 +1231,9 @@
             "type": "postgres",
             "uid": "ffeagtzfyvvnkf"
           },
-          "format": "time_series",
-          "rawSql": "SELECT provider AS metric, round(100.0 * sum(CASE WHEN model_verified = true THEN 1 ELSE 0 END) / count(*),1) AS \"Fidelity %\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false AND model_verified IS NOT NULL GROUP BY provider HAVING count(*) >= 5 ORDER BY \"Fidelity %\" DESC"
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT provider, round(100.0 * sum(CASE WHEN model_verified = true THEN 1 ELSE 0 END) / count(*),1) AS \"Fidelity %\" FROM senate_telemetry WHERE $__timeFilter(timestamp) AND dry_run = false AND model_verified IS NOT NULL GROUP BY provider HAVING count(*) >= 5 ORDER BY \"Fidelity %\" DESC"
         }
       ],
       "title": "Provider Fidelity Summary (7 days)",
@@ -1380,7 +1383,9 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "fields": "/^Avg Retries$/",
+          "values": true
         },
         "showUnfilled": true
       },
@@ -1390,8 +1395,9 @@
             "type": "postgres",
             "uid": "ffeagtzfyvvnkf"
           },
-          "format": "time_series",
-          "rawSql": "SELECT base_model AS metric, round(avg(retries),2) AS \"Avg Retries\" FROM senate_telemetry WHERE timestamp > now() - interval '7 days' AND dry_run = false GROUP BY base_model HAVING count(*) >= 5 ORDER BY avg(retries) DESC LIMIT 20"
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT base_model, round(avg(retries),2) AS \"Avg Retries\" FROM senate_telemetry WHERE $__timeFilter(timestamp) AND dry_run = false GROUP BY base_model HAVING count(*) >= 5 ORDER BY avg(retries) DESC LIMIT 20"
         }
       ],
       "title": "Retry Rates by Model (7 days)",
@@ -1511,7 +1517,9 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "fields": "/^retry_pct$/",
+          "values": true
         },
         "valueMode": "color"
       },
@@ -1712,7 +1720,9 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "fields": "/^avg_reasoning_chars$/",
+          "values": true
         },
         "valueMode": "color"
       },
@@ -2045,7 +2055,9 @@
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
-          ]
+          ],
+          "fields": "/^ci_pass_pct$/",
+          "values": true
         },
         "valueMode": "color"
       },
