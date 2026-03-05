@@ -28,6 +28,7 @@ async def test_propose_returns_202():
     from server import app
 
     with patch("server._load_proposals", return_value=[]), \
+         patch("server.fetch_tasks", return_value=[]), \
          patch("server._save_proposals") as mock_save, \
          patch("server._notify_daniel", new_callable=AsyncMock):
         transport = ASGITransport(app=app)
@@ -42,6 +43,8 @@ async def test_propose_returns_202():
     saved = mock_save.call_args[0][0]
     assert saved[0]["title"] == "Add ZX-calculus optimization to Afana compiler"
     assert saved[0]["status"] == "pending"
+    assert saved[0]["estimated_effort"] == "medium"
+    assert saved[0]["affected_components"] == ["afana", "spec"]
 
 
 @pytest.mark.anyio
@@ -55,6 +58,68 @@ async def test_propose_missing_title_returns_400():
         resp = await ac.post("/quasi-board/inbox", json=bad)
 
     assert resp.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_propose_trivial_effort_returns_400():
+    from httpx import ASGITransport, AsyncClient
+    from server import app
+
+    bad = {
+        **PROPOSE_ACTIVITY,
+        "object": {
+            **PROPOSE_ACTIVITY["object"],
+            "quasi:estimatedEffort": "trivial",
+        },
+    }
+    with patch("server._load_proposals", return_value=[]), \
+         patch("server.fetch_tasks", return_value=[]):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            resp = await ac.post("/quasi-board/inbox", json=bad)
+
+    assert resp.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_propose_duplicate_title_returns_409():
+    from httpx import ASGITransport, AsyncClient
+    from server import app
+
+    existing = [{"id": "prop-001", "title": "Add ZX-calculus optimization to Afana", "status": "pending"}]
+    with patch("server._load_proposals", return_value=existing), \
+         patch("server.fetch_tasks", return_value=[]):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            resp = await ac.post("/quasi-board/inbox", json=PROPOSE_ACTIVITY)
+
+    assert resp.status_code == 409
+
+
+@pytest.mark.anyio
+async def test_propose_l0_cap_returns_409():
+    from httpx import ASGITransport, AsyncClient
+    from server import app
+
+    existing = [
+        {"id": "prop-001", "title": "A", "status": "pending", "level": "L0"},
+        {"id": "prop-002", "title": "B", "status": "pending", "level": "L0"},
+    ]
+    l0_activity = {
+        **PROPOSE_ACTIVITY,
+        "object": {
+            **PROPOSE_ACTIVITY["object"],
+            "quasi:level": "L0",
+            "quasi:title": "Add non-trivial hardware smoke test",
+        },
+    }
+    with patch("server._load_proposals", return_value=existing), \
+         patch("server.fetch_tasks", return_value=[]):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            resp = await ac.post("/quasi-board/inbox", json=l0_activity)
+
+    assert resp.status_code == 429
 
 
 @pytest.mark.anyio
