@@ -77,37 +77,67 @@ pub fn emit_qasm(ast: &EhrenfestAst, version: QasmVersion) -> Result<String, Emi
         }
     }
 
-    // Variational loops → QASM 3.0 input parameters.
+    // Variational loops → QASM 3.0 with classical control flow.
     for vloop in &ast.variational_loops {
         lines.push(String::new());
         lines.push(format!(
-            "// Variational ansatz — max_iter={} (classical loop managed by caller)",
+            "// Variational ansatz — max_iter={}",
             vloop.max_iter
         ));
         if version == QasmVersion::V3 {
+            // Declare variational parameters as mutable floats.
             for p in &vloop.params {
-                lines.push(format!("input float[64] {p};"));
+                lines.push(format!("mutable float[64] {p};"));
             }
-        }
-        lines.push(String::new());
-        for vg in &vloop.body {
-            let qubit_args: String = vg
-                .qubits
-                .iter()
-                .map(|idx| format!("q[{idx}]"))
-                .collect::<Vec<_>>()
-                .join(", ");
+            // Emit the for loop with classical control.
+            lines.push(format!("for int i in [0:{}-1] {{", vloop.max_iter));
+            for vg in &vloop.body {
+                let qubit_args: String = vg
+                    .qubits
+                    .iter()
+                    .map(|idx| format!("q[{idx}]"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
 
-            if vg.param_refs.is_empty() {
-                lines.push(format!("{} {};", vg.name.as_str(), qubit_args));
-            } else {
-                let param_args = vg.param_refs.join(", ");
-                lines.push(format!(
-                    "{}({}) {};",
-                    vg.name.as_str(),
-                    param_args,
-                    qubit_args
-                ));
+                if vg.param_refs.is_empty() {
+                    lines.push(format!("    {} {};", vg.name.as_str(), qubit_args));
+                } else {
+                    let param_args = vg.param_refs.join(", ");
+                    lines.push(format!(
+                        "    {}({}) {};",
+                        vg.name.as_str(),
+                        param_args,
+                        qubit_args
+                    ));
+                }
+            }
+            lines.push("    // Classical parameter update would occur here".into());
+            lines.push("}".into());
+        } else {
+            // QASM 2.0 fallback: emit parameters as comments.
+            lines.push("// QASM 2.0 does not support variational loops".into());
+            for p in &vloop.params {
+                lines.push(format!("// parameter: {p}"));
+            }
+            for vg in &vloop.body {
+                let qubit_args: String = vg
+                    .qubits
+                    .iter()
+                    .map(|idx| format!("q[{idx}]"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                if vg.param_refs.is_empty() {
+                    lines.push(format!("{} {};", vg.name.as_str(), qubit_args));
+                } else {
+                    let param_args = vg.param_refs.join(", ");
+                    lines.push(format!(
+                        "{}({}) {};",
+                        vg.name.as_str(),
+                        param_args,
+                        qubit_args
+                    ));
+                }
             }
         }
     }
