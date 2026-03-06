@@ -4,12 +4,11 @@
 """
 Generate canonical CBOR examples for QUASI-001 Ehrenfest schema.
 
-Writes hex-encoded CBOR to spec/examples/
+Writes hex-encoded CBOR to spec/examples/ and binary .paul to examples/
 Run from repo root: python3 spec/tools/generate_examples.py
 """
 
 import binascii
-import json
 import sys
 from pathlib import Path
 
@@ -19,20 +18,32 @@ except ImportError:
     print("cbor2 required: pip install cbor2", file=sys.stderr)
     sys.exit(1)
 
-EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
-EXAMPLES_DIR.mkdir(parents=True, exist_ok=True)
+SPEC_EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
+SPEC_EXAMPLES_DIR.mkdir(parents=True, exist_ok=True)
+
+BINARY_EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
+BINARY_EXAMPLES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def encode(program: dict) -> bytes:
     return cbor2.dumps(program, canonical=True)
 
 
-def write_example(name: str, program: dict) -> None:
+def write_example(name: str, program: dict, binary_name: str = None) -> bytes:
     raw = encode(program)
+
+    # Write hex-encoded to spec/examples/
     hex_str = binascii.hexlify(raw).decode()
-    path = EXAMPLES_DIR / f"{name}.cbor.hex"
-    path.write_text(hex_str + "\n")
-    print(f"  {path.name}  ({len(raw)} bytes)")
+    hex_path = SPEC_EXAMPLES_DIR / f"{name}.cbor.hex"
+    hex_path.write_text(hex_str + "\n")
+    print(f"  {hex_path.relative_to(SPEC_EXAMPLES_DIR.parent.parent)}  ({len(raw)} bytes)")
+
+    # Write binary .paul to examples/
+    if binary_name:
+        bin_path = BINARY_EXAMPLES_DIR / f"{binary_name}.paul"
+        bin_path.write_bytes(raw)
+        print(f"  {bin_path.relative_to(BINARY_EXAMPLES_DIR.parent)}  ({len(raw)} bytes, binary)")
+
     return raw
 
 
@@ -183,12 +194,12 @@ heisenberg_4q = {
 def main() -> None:
     print("Generating Ehrenfest CBOR examples...")
     examples = [
-        ("transverse_ising_2q", transverse_ising_2q),
-        ("rabi_oscillation_1q", rabi_oscillation_1q),
-        ("heisenberg_4q", heisenberg_4q),
+        ("transverse_ising_2q", transverse_ising_2q, "ising"),
+        ("rabi_oscillation_1q", rabi_oscillation_1q, "rabi"),
+        ("heisenberg_4q", heisenberg_4q, "heisenberg"),
     ]
-    for name, program in examples:
-        write_example(name, program)
+    for name, program, binary_name in examples:
+        write_example(name, program, binary_name)
     print("Done.")
 
 

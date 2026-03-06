@@ -4,20 +4,7 @@
 
 use thiserror::Error;
 
-/// Errors raised during `.ef` text parsing.
-#[derive(Debug, Error)]
-pub enum ParseError {
-    #[error("line {line}: {message}")]
-    Syntax { line: usize, message: String },
-
-    #[error("unexpected end of file while expecting {expected}")]
-    UnexpectedEof { expected: String },
-
-    #[error("{0}")]
-    Io(#[from] std::io::Error),
-}
-
-/// Errors raised during CBOR deserialization of `.ef` binary programs.
+/// Errors raised during CBOR deserialization of Ehrenfest binary programs.
 #[derive(Debug, Error)]
 pub enum CborError {
     #[error("CBOR decode: {0}")]

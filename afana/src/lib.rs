@@ -3,16 +3,20 @@
 //! Afana — the Ehrenfest-to-OpenQASM compiler.
 //!
 //! ```text
-//! Ehrenfest (.ef text / CBOR binary)
-//!     → parse / deserialize
-//!     → EhrenfestAst
+//! Ehrenfest (CBOR binary)
+//!     → deserialize (cbor.rs)
+//!     → EhrenfestProgram (Hamiltonians, observables, noise constraints)
+//!     → trotterize (trotter.rs)
+//!     → EhrenfestAst (gate sequences)
 //!     → optimize (T-gate reduction, ZX-calculus)
 //!     → emit OpenQASM 2.0 / 3.0
 //! ```
+//!
+//! Ehrenfest programs are CBOR binary. There is no text form.
 
 pub mod ast;
 pub mod cbor;
 pub mod emit;
 pub mod error;
 pub mod optimize;
-pub mod parser;
+pub mod trotter;

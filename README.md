@@ -34,9 +34,10 @@ QUASI is an open specification and implementation for a hardware-agnostic Quantu
    ```bash
    python3 quasi-agent/cli.py list
    ```
-4. Run one of the bundled examples to inspect the input program:
+4. Browse the Ehrenfest examples (CBOR binary with documentation):
    ```bash
-   cat examples/bell.ef
+   ls spec/examples/
+   cat spec/examples/rabi_oscillation_1q.md
    ```
 
 ## The Problem
@@ -50,7 +51,7 @@ Natural language (human describes problem)
         ↓
    AI model (Claude, GPT, Llama, ...)
         ↓  generates
-   Ehrenfest program (.ef)       ← physics-native, not human-readable
+   Ehrenfest program (CBOR)      ← physics-native, not human-readable
         ↓  compiled by
    Afana                         ← the Ehrenfest compiler
         ↓  optimized via
@@ -61,7 +62,7 @@ Natural language (human describes problem)
    IBM | IQM | Quantinuum | neQxt | Simulator | ...
 ```
 
-**Ehrenfest** is QUASI's specification language. Named after Paul Ehrenfest (1880–1933). It is not made for humans — CBOR binary, no canonical text form. It thinks in Hamiltonians and observables, not gates. The AI writes the program. The human never sees it.
+**Ehrenfest** is QUASI's specification language. Named after Paul Ehrenfest (1880–1933). It is not made for humans — CBOR binary, no text form, no file extension. It thinks in Hamiltonians and observables, not gates. The AI writes the program. The human never sees it.
 
 **Afana** is the Ehrenfest compiler. Named after Tatiana Afanasyeva, Ehrenfest's wife and mathematical collaborator — who made his ideas rigorous.
 

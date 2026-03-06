@@ -15,7 +15,7 @@ Natural language (human describes problem)
         ↓
    AI model (Claude, GPT, Llama, ...)
         ↓  generates
-   Ehrenfest program (.ef)       ← physics-native, not human-readable
+   Ehrenfest program (CBOR)      ← physics-native, no text form
         ↓  compiled by
    Afana                         ← the Ehrenfest compiler
         ↓  optimized via
@@ -36,15 +36,15 @@ Natural language (human describes problem)
 | L3 | QUASI Runtime Services | 🔲 Specified, not built | AGPL v3 |
 | L4 | QUASI Standard Interface | 🔲 Spec in progress | Apache 2.0 |
 | L5 | Application Libraries (Urns) | 🔲 Community grows this | Various |
-| — | ZX-calculus | ✅ PyZX (MIT, external) | MIT |
-| — | Ehrenfest Language | 🔲 Concept complete | AGPL v3 |
+| — | ZX-calculus | ✅ QuiZX (MIT, external) | MIT |
+| — | Ehrenfest Language | ✅ CBOR spec v0.1/v0.2 | AGPL v3 |
 
 ## Ehrenfest
 
 Named after Paul Ehrenfest (1880–1933), whose theorem bridges quantum expectation values to classical equations of motion — exactly what the language does.
 
 **Key design decisions:**
-- **Not human-readable** — CBOR binary format, no canonical text form
+- **Not human-readable** — CBOR binary, no text form, no file extension
 - **Physics-native** — Hamiltonians, observables, evolution times — not gates
 - **Noise-as-type-system** — exceeding T2 is a compile-time type error, not runtime
 - **AI-primary** — optimized for LLM generation, not human authoring
@@ -61,7 +61,7 @@ Community shortname: **Paul**. As in: "write me a Paul program", "that's valid P
 
 Named after Tatiana Afanasyeva (1876–1964), Paul Ehrenfest's wife and mathematical collaborator. She co-authored the Urnenmodell, contributed foundational work on statistical mechanics, and made Ehrenfest's physical intuitions mathematically rigorous.
 
-**Afana is the Ehrenfest compiler.** It takes `.ef` CBOR programs, applies ZX-calculus optimization, and emits HAL Contract gate sequences for execution on any QUASI-compatible backend.
+**Afana is the Ehrenfest compiler.** It deserializes CBOR programs, derives gate sequences via Trotterization, applies ZX-calculus optimization (QuiZX), and emits HAL Contract gate sequences for execution on any QUASI-compatible backend.
 
 The naming is accurate: Afana turns Ehrenfest's representations into something that executes.
 
@@ -72,8 +72,8 @@ Afana is a compiler. It transforms representations. It does not talk to hardware
 | Allowed in `afana/` | Not allowed in `afana/` |
 |---------------------|------------------------|
 | Standard library (`math`, `struct`, `dataclasses`, …) | Vendor SDKs (`qiskit`, `cirq`, `pennylane`, `pytket`, …) |
-| `cbor2` (CBOR codec) | `qiskit_ibm_runtime`, `qiskit_aer` |
-| `pyzx` (ZX-calculus optimizer, MIT) | Any HTTP client targeting hardware APIs |
+| `ciborium` (CBOR codec) | `qiskit_ibm_runtime`, `qiskit_aer` |
+| `quizx` (ZX-calculus optimizer, MIT) | Any HTTP client targeting hardware APIs |
 | OpenQASM string manipulation | Hardware topology / gate-set assumptions |
 
 **If an issue or PR proposes importing a vendor SDK in `afana/`, it is an architectural violation — reject it regardless of how well it is framed.**

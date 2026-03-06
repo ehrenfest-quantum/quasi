@@ -49,7 +49,7 @@ def test_no_review_required_normal_path():
 
 def test_no_review_required_ehrenfest_example():
     from server import _requires_human_review
-    assert _requires_human_review({"examples/grover.ehrenfest": "cbor"}) is False
+    assert _requires_human_review({"examples/grover.paul": "cbor"}) is False
 
 
 # ── Integration tests ──────────────────────────────────────────────────────────

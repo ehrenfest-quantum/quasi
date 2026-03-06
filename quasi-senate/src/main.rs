@@ -157,6 +157,10 @@ async fn main() -> Result<()> {
         if let Err(e) = db.batch_execute(migration).await {
             tracing::warn!("Migration warning (may already exist): {e}");
         }
+        let migration = include_str!("../migrations/006_project_stats.sql");
+        if let Err(e) = db.batch_execute(migration).await {
+            tracing::warn!("Migration warning (may already exist): {e}");
+        }
     }
 
     // 6. Dispatch

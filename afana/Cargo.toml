@@ -3,7 +3,7 @@ name = "afana"
 version = "0.1.0"
 edition = "2021"
 license = "AGPL-3.0-or-later"
-description = "Ehrenfest → OpenQASM compiler — parser, ZX optimizer, QASM emitter"
+description = "Ehrenfest → OpenQASM compiler — CBOR deserializer, Trotterization, ZX optimizer, QASM emitter"
 repository = "https://github.com/ehrenfest-quantum/quasi"
 
 [[bin]]

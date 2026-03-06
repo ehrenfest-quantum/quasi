@@ -4,7 +4,7 @@
 ; Validate: gem install cddl && cddl spec/ehrenfest-v0.1.cddl validate <example.cbor>
 ;
 ; Ehrenfest is the QUASI specification language: physics-native, CBOR binary,
-; AI-primary. There is no canonical text form. The canonical form is this.
+; AI-primary. There is no text form. There is no file extension. CBOR is the only form.
 ; Programs describe quantum expectation values and Hamiltonians — not gate sequences.
 ; The compiler (Afana) chooses gates. The program expresses physics.
 ;

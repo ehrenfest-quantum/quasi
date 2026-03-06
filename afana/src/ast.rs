@@ -2,9 +2,9 @@
 // Copyright 2026 QUASI Contributors
 //! Typed AST for Ehrenfest programs.
 //!
-//! Every node is produced by either the `.ef` text parser (`parser.rs`) or the
-//! CBOR deserializer (`cbor.rs`). The AST is the single source of truth
-//! consumed by the QASM emitter and the ZX optimizer.
+//! Produced by the Trotterization pass (`trotter.rs`) from the physics-level
+//! `EhrenfestProgram` (deserialized from CBOR by `cbor.rs`). The AST is the
+//! circuit-level representation consumed by the QASM emitter and ZX optimizer.
 
 use serde::{Deserialize, Serialize};
 

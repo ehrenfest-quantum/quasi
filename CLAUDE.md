@@ -25,7 +25,7 @@ it with an explanation rather than implementing it**.
 ### 1. Afana is a Rust compiler — no Python, no vendor SDKs
 
 ```
-Ehrenfest (.ef / CBOR) → Afana (Rust) → OpenQASM → HAL Contract → HAL driver → hardware
+Ehrenfest (CBOR) → Afana (Rust) → OpenQASM → HAL Contract → HAL driver → hardware
 ```
 
 Afana is written **exclusively in Rust**. There is no Python in the Afana
@@ -70,13 +70,15 @@ ActivityPub activities (`quasi:Propose`, `quasi:Claim`, `quasi:Complete`)
 are the only way work enters and exits the system. Do not invent parallel
 task submission paths.
 
-### 4. Ehrenfest programs are CBOR — no canonical text form
+### 4. Ehrenfest programs are CBOR — no text form, no file extension
 
-The `.ef` format is binary. The parser (`afana/src/cbor.rs`) accepts `.ef`
-files and produces a typed AST. A secondary text format exists for
-circuit-level programs (parsed by `afana/src/parser.rs`), but the
-physics-level representation is always CBOR. Do not invent alternative
-serialization formats.
+Ehrenfest programs are CBOR binary documents. There is no text form. There
+is no canonical file extension. The CBOR deserializer (`afana/src/cbor.rs`)
+produces a typed `EhrenfestProgram` (Hamiltonians, observables, noise
+constraints). The Trotterization pass (`afana/src/trotter.rs`) derives gate
+sequences for QASM emission. Do not invent text formats, file extensions,
+or human-readable serializations for Ehrenfest programs. This is a permanent
+architectural decision: the human never sees an Ehrenfest program.
 
 ---
 

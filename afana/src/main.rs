@@ -1,20 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2026 QUASI Contributors
 //! Afana CLI — compile Ehrenfest programs to OpenQASM.
+//!
+//! Ehrenfest programs are CBOR binary. There is no text form.
 
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 
+use afana::cbor;
 use afana::emit::{self, QasmVersion};
 use afana::optimize;
-use afana::parser;
+use afana::trotter::{self, TrotterOrder};
 
 #[derive(Parser)]
 #[command(name = "afana", version, about = "Ehrenfest → OpenQASM compiler")]
 struct Cli {
-    /// Input .ef file (text or CBOR binary).
+    /// Input Ehrenfest program (CBOR binary).
     input: PathBuf,
 
     /// QASM version to emit.
@@ -24,6 +27,10 @@ struct Cli {
     /// Run T-gate reduction pass.
     #[arg(long)]
     reduce_t: bool,
+
+    /// Trotter decomposition order (1 or 2).
+    #[arg(long, default_value = "1")]
+    trotter_order: u32,
 
     /// Run ZX-calculus optimization.
     #[arg(long)]
@@ -48,8 +55,15 @@ fn main() -> Result<()> {
         QasmVersionArg::V3 => QasmVersion::V3,
     };
 
-    // Parse the input file.
-    let ast = parser::parse_file(&cli.input).context("parse failed")?;
+    // Deserialize CBOR binary program.
+    let program = cbor::from_cbor_file(&cli.input).context("CBOR deserialization failed")?;
+
+    // Trotterize: Hamiltonian → gate sequence.
+    let order = match cli.trotter_order {
+        2 => TrotterOrder::Second,
+        _ => TrotterOrder::First,
+    };
+    let ast = trotter::trotterize(&program, order);
 
     // Emit QASM.
     let qasm = emit::emit_qasm(&ast, version).context("QASM emission failed")?;

@@ -2,21 +2,23 @@
 // Copyright 2026 QUASI Contributors
 //! CBOR deserialization for Ehrenfest binary programs.
 //!
-//! The physics-level `.ef` format is a CBOR document conforming to the schema
-//! in `spec/ehrenfest-v0.1.cddl`. This module deserializes it into typed Rust
+//! Ehrenfest programs are CBOR documents conforming to the schema in
+//! `spec/ehrenfest-v0.1.cddl`. This module deserializes them into typed Rust
 //! structs that represent the Hamiltonian, observables, and noise constraints.
 //!
 //! These structs are the input to Afana's Trotterization pass, which derives
 //! a gate sequence and produces an [`EhrenfestAst`] for QASM emission.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::error::CborError;
 
 // ── CBOR schema types ────────────────────────────────────────────────────────
 
-/// A Pauli operator: I, X, Y, or Z.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// A Pauli axis: I(0), X(1), Y(2), Z(3).
+///
+/// Serializes as an integer matching the CDDL PauliAxis definition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PauliOp {
     I,
     X,
@@ -24,50 +26,128 @@ pub enum PauliOp {
     Z,
 }
 
-/// A single Pauli term in a Hamiltonian: coefficient × tensor product of Pauli operators.
-///
-/// Example: `0.5 * Z ⊗ Z` on qubits 0 and 1 → `PauliTerm { coeff: 0.5, ops: [(0, Z), (1, Z)] }`
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PauliTerm {
-    /// Coefficient in GHz·rad units.
-    pub coeff: f64,
-    /// Qubit index → Pauli operator. Qubits not listed are implicitly I.
-    pub ops: Vec<(usize, PauliOp)>,
+impl PauliOp {
+    fn from_u64(v: u64) -> Option<Self> {
+        match v {
+            0 => Some(Self::I),
+            1 => Some(Self::X),
+            2 => Some(Self::Y),
+            3 => Some(Self::Z),
+            _ => None,
+        }
+    }
+
+    fn to_u64(self) -> u64 {
+        match self {
+            Self::I => 0,
+            Self::X => 1,
+            Self::Y => 2,
+            Self::Z => 3,
+        }
+    }
 }
 
-/// Hamiltonian expressed as a sum of Pauli terms.
+impl Serialize for PauliOp {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u64(self.to_u64())
+    }
+}
+
+impl<'de> Deserialize<'de> for PauliOp {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let v = u64::deserialize(deserializer)?;
+        Self::from_u64(v).ok_or_else(|| serde::de::Error::custom(format!("invalid PauliAxis: {v}")))
+    }
+}
+
+/// A single Pauli operator on a specific qubit.
+///
+/// CDDL: `PauliOp = { "qubit": uint, "axis": PauliAxis }`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PauliOpEntry {
+    pub qubit: usize,
+    pub axis: PauliOp,
+}
+
+/// A single Pauli term in a Hamiltonian: coefficient × tensor product of Pauli operators.
+///
+/// CDDL: `PauliTerm = { "coefficient": float, "paulis": [* PauliOp] }`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PauliTerm {
+    pub coefficient: f64,
+    pub paulis: Vec<PauliOpEntry>,
+}
+
+/// Hamiltonian expressed as a sum of Pauli terms plus a constant offset.
+///
+/// CDDL: `Hamiltonian = { "terms": [+ PauliTerm], "constant_offset": float }`
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Hamiltonian {
     pub terms: Vec<PauliTerm>,
+    pub constant_offset: f64,
 }
 
-/// Evolution time and Trotter decomposition parameters.
+/// Evolution time and Trotter step parameters.
+///
+/// CDDL: `EvolutionTime = { "total_us": float, "steps": uint, "dt_us": float }`
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EvolutionTime {
-    /// Total evolution time in natural units.
-    pub time: f64,
-    /// Number of Trotter steps.
-    pub trotter_steps: u32,
-    /// Trotter order (1 or 2).
-    pub trotter_order: u32,
+    pub total_us: f64,
+    pub steps: u32,
+    pub dt_us: f64,
 }
 
 /// Noise constraints — compile-time type check against hardware capabilities.
+///
+/// CDDL: t1_us and t2_us are required; gate_fidelity_min and readout_fidelity_min optional.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NoiseConstraint {
-    /// Minimum T1 relaxation time in microseconds.
-    pub t1_us: Option<f64>,
-    /// Minimum T2 dephasing time in microseconds.
-    pub t2_us: Option<f64>,
-    /// Minimum single-gate fidelity.
+    pub t1_us: f64,
+    pub t2_us: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub gate_fidelity_min: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub readout_fidelity_min: Option<f64>,
 }
 
 /// An observable to measure after time evolution.
+///
+/// CDDL: `Observable = SigmaZ / SigmaX / Energy / Density / Fidelity`
+/// Uses `"type"` field as discriminator.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Observable {
-    pub name: String,
-    pub terms: Vec<PauliTerm>,
+#[serde(tag = "type")]
+pub enum Observable {
+    /// σᶻ expectation on a single qubit.
+    SZ { qubit: usize },
+    /// σˣ expectation on a single qubit.
+    SX { qubit: usize },
+    /// Energy ⟨ψ|H|ψ⟩.
+    E,
+    /// Reduced density matrix on a subset of qubits.
+    #[serde(rename = "rho")]
+    Density { qubits: Vec<usize> },
+    /// State fidelity against a reference state.
+    F { target_state: Vec<u8> },
+}
+
+/// Hardware cooling requirements.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CoolingProfile {
+    pub target_temp_mk: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ramp_time_us: Option<f64>,
+}
+
+/// Physical system definition.
+///
+/// CDDL: `PhysicalContext = { "n_qubits": uint, ? "cooling_profile": ..., ? "backend_hint": tstr }`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SystemDef {
+    pub n_qubits: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cooling_profile: Option<CoolingProfile>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backend_hint: Option<String>,
 }
 
 /// Top-level Ehrenfest binary program.
@@ -78,13 +158,7 @@ pub struct EhrenfestProgram {
     pub hamiltonian: Hamiltonian,
     pub evolution: EvolutionTime,
     pub observables: Vec<Observable>,
-    pub noise: Option<NoiseConstraint>,
-}
-
-/// Physical system definition.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SystemDef {
-    pub n_qubits: usize,
+    pub noise: NoiseConstraint,
 }
 
 // ── Deserialization ──────────────────────────────────────────────────────────
@@ -104,17 +178,19 @@ pub fn from_cbor(bytes: &[u8]) -> Result<EhrenfestProgram, CborError> {
     if program.system.n_qubits == 0 {
         return Err(CborError::Schema("n_qubits must be >= 1".into()));
     }
-    if program.evolution.trotter_order != 1 && program.evolution.trotter_order != 2 {
+    // dt_us consistency check.
+    let expected_dt = program.evolution.total_us / program.evolution.steps as f64;
+    if (program.evolution.dt_us - expected_dt).abs() > 1e-9 {
         return Err(CborError::Schema(format!(
-            "trotter_order must be 1 or 2, got {}",
-            program.evolution.trotter_order
+            "dt_us ({}) != total_us / steps ({})",
+            program.evolution.dt_us, expected_dt
         )));
     }
 
     Ok(program)
 }
 
-/// Deserialize an Ehrenfest binary program from a `.ef` file.
+/// Deserialize an Ehrenfest binary program from a CBOR file.
 pub fn from_cbor_file(path: &std::path::Path) -> Result<EhrenfestProgram, CborError> {
     let bytes = std::fs::read(path)?;
     from_cbor(&bytes)
@@ -129,30 +205,33 @@ mod tests {
     fn make_test_program() -> EhrenfestProgram {
         EhrenfestProgram {
             version: 1,
-            system: SystemDef { n_qubits: 2 },
+            system: SystemDef {
+                n_qubits: 2,
+                cooling_profile: None,
+                backend_hint: None,
+            },
             hamiltonian: Hamiltonian {
                 terms: vec![PauliTerm {
-                    coeff: 0.5,
-                    ops: vec![(0, PauliOp::Z), (1, PauliOp::Z)],
+                    coefficient: 0.5,
+                    paulis: vec![
+                        PauliOpEntry { qubit: 0, axis: PauliOp::Z },
+                        PauliOpEntry { qubit: 1, axis: PauliOp::Z },
+                    ],
                 }],
+                constant_offset: 0.0,
             },
             evolution: EvolutionTime {
-                time: 1.0,
-                trotter_steps: 10,
-                trotter_order: 1,
+                total_us: 1.0,
+                steps: 10,
+                dt_us: 0.1,
             },
-            observables: vec![Observable {
-                name: "ZZ".into(),
-                terms: vec![PauliTerm {
-                    coeff: 1.0,
-                    ops: vec![(0, PauliOp::Z), (1, PauliOp::Z)],
-                }],
-            }],
-            noise: Some(NoiseConstraint {
-                t1_us: Some(100.0),
-                t2_us: Some(50.0),
+            observables: vec![Observable::SZ { qubit: 0 }],
+            noise: NoiseConstraint {
+                t1_us: 100.0,
+                t2_us: 50.0,
                 gate_fidelity_min: Some(0.99),
-            }),
+                readout_fidelity_min: None,
+            },
         }
     }
 
@@ -169,7 +248,11 @@ mod tests {
         assert_eq!(decoded.version, 1);
         assert_eq!(decoded.system.n_qubits, 2);
         assert_eq!(decoded.hamiltonian.terms.len(), 1);
-        assert_eq!(decoded.evolution.trotter_steps, 10);
+        assert_eq!(decoded.hamiltonian.terms[0].coefficient, 0.5);
+        assert_eq!(decoded.evolution.steps, 10);
+        assert_eq!(decoded.evolution.total_us, 1.0);
+        assert_eq!(decoded.evolution.dt_us, 0.1);
+        assert_eq!(decoded.hamiltonian.constant_offset, 0.0);
     }
 
     #[test]
@@ -182,5 +265,29 @@ mod tests {
 
         let err = from_cbor(&buf).unwrap_err();
         assert!(err.to_string().contains("unsupported Ehrenfest version"));
+    }
+
+    #[test]
+    fn pauli_op_serde_integers() {
+        // PauliOp should serialize as integers 0-3.
+        let entry = PauliOpEntry { qubit: 0, axis: PauliOp::X };
+        let mut buf = Vec::new();
+        ciborium::into_writer(&entry, &mut buf).unwrap();
+        let decoded: PauliOpEntry = ciborium::from_reader(&buf[..]).unwrap();
+        assert_eq!(decoded.axis, PauliOp::X);
+        assert_eq!(decoded.qubit, 0);
+    }
+
+    #[test]
+    fn observable_tagged_enum() {
+        let obs = vec![
+            Observable::SZ { qubit: 0 },
+            Observable::SX { qubit: 1 },
+            Observable::E,
+        ];
+        let mut buf = Vec::new();
+        ciborium::into_writer(&obs, &mut buf).unwrap();
+        let decoded: Vec<Observable> = ciborium::from_reader(&buf[..]).unwrap();
+        assert_eq!(decoded, obs);
     }
 }

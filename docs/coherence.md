@@ -25,7 +25,7 @@ This is not a metaphor chosen for documentation purposes. It is a structural con
 
 Ehrenfest programs are not human-readable. This is a design decision, not a limitation.
 
-The language is CBOR binary. There is no canonical text form. A `.ef` file is a machine-generated, machine-consumed artifact. The human describes a problem in natural language; the AI generates an Ehrenfest program; Afana compiles it to gate sequences; the QPU executes. The human never sees the program. This is the intended path.
+The language is CBOR binary. There is no text form. There is no file extension. An Ehrenfest program is a machine-generated, machine-consumed artifact. The human describes a problem in natural language; the AI generates an Ehrenfest program; Afana compiles it to gate sequences; the QPU executes. The human never sees the program. This is the intended path.
 
 This has a direct consequence for contributions.
 
@@ -33,7 +33,7 @@ A GitHub pull request is a human-readable text diff. A diff between two versions
 
 QUASI contributions are therefore not text diffs with human review. They are typed change-sets that either satisfy the formal specification or they do not. CI decides, not a reviewer reading a diff.
 
-This is the same relationship that exists between Ehrenfest programs and the Afana type checker. An `.ef` program is valid or it is not. The type system is the review process.
+This is the same relationship that exists between Ehrenfest programs and the Afana type checker. An Ehrenfest program is valid or it is not. The type system is the review process.
 
 The project is a meta-instance of what it builds.
 

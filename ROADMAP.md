@@ -11,14 +11,14 @@
 **What gets built**
 - `spec/ehrenfest-v0.1.cddl` — CDDL schema defining all top-level Ehrenfest constructs: `program`, `hamiltonian`, `observable`, `parameter`, `system`
 - `spec/FORMAT.md` — binary encoding rules: CBOR tag assignments, field ordering, canonical serialization
-- `examples/heisenberg.ehrenfest` — Heisenberg spin chain Hamiltonian in CBOR-encoded Ehrenfest format
-- `examples/rabi.ehrenfest` — Rabi oscillation model (two-level system, drive term)
-- `examples/ising.ehrenfest` — transverse-field Ising model with configurable chain length
+- `examples/heisenberg.paul` — Heisenberg spin chain Hamiltonian in CBOR-encoded Ehrenfest format
+- `examples/rabi.paul` — Rabi oscillation model (two-level system, drive term)
+- `examples/ising.paul` — transverse-field Ising model with configurable chain length
 - `spec/LANGUAGE.md` — prose description of the language semantics: what a `hamiltonian` means, what an `observable` means, what the compiler is expected to do with them
 
 **Success criteria**
 - `cddl validate spec/ehrenfest-v0.1.cddl` exits 0 (schema is self-consistent)
-- All three `.ehrenfest` example files decode without error using any conformant CBOR library
+- All three `.paul` example files decode without error using any conformant CBOR library
 - Each example file round-trips: encode → decode → re-encode produces identical bytes
 - `spec/LANGUAGE.md` states explicitly that programs express Hamiltonians and observables, not gate sequences
 - Schema covers at minimum: Pauli operators (X, Y, Z, I), tensor products, linear combinations with complex coefficients, parameterized terms, and observable definitions
@@ -36,9 +36,9 @@
 **What gets built**
 - `spec/ehrenfest-v0.2.cddl` — schema extended with: fermionic operators (creation/annihilation), bosonic operators (with truncation bound), time-dependent Hamiltonians (piecewise-constant schedules), composite systems (tensor product of subsystems), and sum-of-terms representation normalized to Pauli decomposition
 - `spec/CHANGELOG.md` — diff from v0.1 to v0.2, with rationale for each addition
-- `examples/vqe-h2.ehrenfest` — H2 molecule Hamiltonian in second quantization, Pauli-decomposed (Jordan-Wigner mapping result expressed directly as Pauli sum)
-- `examples/qaoa-maxcut.ehrenfest` — QAOA cost Hamiltonian for MaxCut on a 4-node graph
-- `examples/driven-qubit.ehrenfest` — time-dependent Rabi drive with piecewise-constant schedule
+- `examples/vqe-h2.paul` — H2 molecule Hamiltonian in second quantization, Pauli-decomposed (Jordan-Wigner mapping result expressed directly as Pauli sum)
+- `examples/qaoa-maxcut.paul` — QAOA cost Hamiltonian for MaxCut on a 4-node graph
+- `examples/driven-qubit.paul` — time-dependent Rabi drive with piecewise-constant schedule
 - `spec/OPERATORS.md` — full operator reference: every operator type in v0.2, its CBOR encoding, and its physical interpretation
 
 **Success criteria**
@@ -57,7 +57,7 @@
 ---
 
 ## Phase 3 — Johnny Ryall
-> Build the Ehrenfest parser: a CBOR deserializer that reads `.ehrenfest` files, validates them against the v0.2 schema, and produces a typed in-memory parse tree.
+> Build the Ehrenfest parser: a CBOR deserializer that reads `.paul` files, validates them against the v0.2 schema, and produces a typed in-memory parse tree.
 
 **What gets built**
 - `afana/src/parser/mod.rs` — top-level parser module
@@ -68,7 +68,7 @@
 - `afana/src/parser/error.rs` — structured parse error type with byte offset, expected vs. found, and schema path
 
 **Success criteria**
-- All five example `.ehrenfest` files from Phases 1 and 2 parse to `EhrenfestProgram` without error
+- All five example `.paul` files from Phases 1 and 2 parse to `EhrenfestProgram` without error
 - Malformed CBOR (truncated bytes, wrong major type) returns a structured error with byte offset, not a panic
 - Schema violations (missing required field, out-of-range value, unknown operator tag) return errors referencing the CDDL rule name
 - `cargo test afana::parser` passes with zero failures
@@ -76,7 +76,7 @@
 - Parser handles programs up to 1,000 Hamiltonian terms without stack overflow (iterative traversal, not recursive)
 
 **Dependencies**
-- Phase 1 (To All the Girls): `.ehrenfest` example files used as test fixtures
+- Phase 1 (To All the Girls): `.paul` example files used as test fixtures
 - Phase 2 (Shake Your Rump): v0.2 schema is the validation target; v0.2 operator types must be defined before the AST can represent them
 
 **Scope:** Medium
@@ -91,12 +91,12 @@
 - `afana/src/ir/mod.rs` — internal IR definition: `IrProgram`, `IrHamiltonian`, `IrTerm`, `IrQubitRef` — a flattened, index-based representation of the Ehrenfest parse tree, independent of CBOR encoding
 - `afana/src/lowering/ehrenfest_to_ir.rs` — lowering pass: `EhrenfestProgram` → `IrProgram`; resolves parameter references, expands tensor products, normalizes all terms to Pauli-sum form
 - `afana/src/backend/qasm3_stub.rs` — stub QASM3 emitter: for each qubit referenced in `IrProgram`, emits `qubit[n] q; h q[0]; // stub` and closes with `OPENQASM 3.0;` header — structurally valid QASM3, semantically meaningless
-- `afana/src/cli/main.rs` — CLI entry point: `afana compile <input.ehrenfest> --backend qasm3 --output <out.qasm>`
+- `afana/src/cli/main.rs` — CLI entry point: `afana compile <input.paul> --backend qasm3 --output <out.qasm>`
 - `afana/tests/integration/stub_compile.rs` — integration test: compile each Phase 1 and 2 example, assert output file exists, assert it begins with `OPENQASM 3.0;`, assert qubit count matches system size in Ehrenfest source
 
 **Success criteria**
 - `cargo build --release` produces a working `afana` binary
-- `afana compile examples/heisenberg.ehrenfest --backend qasm3 --output out.qasm` exits 0 and writes a file
+- `afana compile examples/heisenberg.paul --backend qasm3 --output out.qasm` exits 0 and writes a file
 - Output file begins with `OPENQASM 3.0;` and declares the correct number of qubits for each example
 - `cargo test` passes for all unit tests in `afana-parser` and `afana-ir`
 - Integration test suite (5 examples) passes: all produce structurally valid QASM3
@@ -173,7 +173,7 @@
 - `.github/workflows/gate-count.yml` — CI job that fails if gate count for any example regresses by more than 5%
 
 **Success criteria**
-- `afana compile heisenberg.ehrenfest` produces syntactically valid QASM3 accepted by the `openqasm` reference parser with zero errors
+- `afana compile heisenberg.paul` produces syntactically valid QASM3 accepted by the `openqasm` reference parser with zero errors
 - Output QASM3 for the Rabi example contains only gates from the universal gate set (RZ, SX, X, CX)
 - Gate count baseline committed to `ci/artifacts/gate-counts.json`; CI gate-count job passes on main branch
 - End-to-end test for all three Phase 1 example programs passes in CI
@@ -297,8 +297,8 @@
 
 **What gets built**
 - `spec/ehrenfest-v0.3.cddl` — extends v0.2 schema with `param` declarations: named floating-point symbols appearing inside Hamiltonian coefficients and rotation angles
-- `examples/vqe_h2.ehrenfest` — hydrogen VQE ansatz as parametric Ehrenfest program
-- `examples/qaoa_maxcut.ehrenfest` — QAOA MaxCut on a 6-node graph as parametric Ehrenfest program
+- `examples/vqe_h2.paul` — hydrogen VQE ansatz as parametric Ehrenfest program
+- `examples/qaoa_maxcut.paul` — QAOA MaxCut on a 6-node graph as parametric Ehrenfest program
 - `afana/frontend/param.rs` — parameter table: collects all declared params, assigns bind-time slots, validates no unbound symbols reach gate synthesis
 - `afana/codegen/qasm3_param.rs` — emits QASM3 `input` declarations and parametric gate calls (`rx(theta)`, `rz(phi)`)
 - `tests/parametric/` — round-trip tests: parse parametric Ehrenfest → compile → bind concrete values → simulate → compare expectation values against reference
@@ -327,11 +327,11 @@
 - `afana/frontend/control.rs` — parses and validates control flow nodes; enforces no-cloning constraint (a measured qubit's quantum type is consumed), detects unreachable branches
 - `afana/mid/cfg.rs` — control-flow graph (CFG) builder: converts Ehrenfest control flow into a basic-block CFG for downstream passes
 - `afana/codegen/qasm3_control.rs` — emits QASM3 `if`, `for`, and `reset` statements; mid-circuit measurement emits `measure q -> c` inline
-- `examples/teleportation.ehrenfest` — quantum teleportation using mid-circuit Bell measurement and classical feedforward
+- `examples/teleportation.paul` — quantum teleportation using mid-circuit Bell measurement and classical feedforward
 - `tests/control/` — test suite: branch taken vs. not taken, loop unrolling for static bounds, mid-circuit measurement invalidating qubit type in subsequent expressions
 
 **Success criteria**
-- `teleportation.ehrenfest` compiles to valid QASM3 containing mid-circuit measurement and classically conditioned corrections
+- `teleportation.paul` compiles to valid QASM3 containing mid-circuit measurement and classically conditioned corrections
 - Type checker rejects programs that use a qubit after measurement (consumed type)
 - Static loop bounds are unrolled at compile time; dynamic bounds emit QASM3 `for` loops
 - CFG pass does not regress Phase 11 optimization: gate reduction ratio on non-control-flow benchmarks unchanged
@@ -379,15 +379,15 @@
 > QUASI becomes a real quantum OS: Shor's algorithm compiles end-to-end through the full Ehrenfest + Afana stack, all CI levels pass, and the system is demonstrably Turing-complete.
 
 **What gets built**
-- `examples/shor_15.ehrenfest` — Shor's algorithm for N=15 as a native Ehrenfest program: modular exponentiation Hamiltonian, QFT subroutine, mid-circuit measurement, classical post-processing loop, parametric phase kickback — exercises every language feature from Phases 1–14
+- `examples/shor_15.paul` — Shor's algorithm for N=15 as a native Ehrenfest program: modular exponentiation Hamiltonian, QFT subroutine, mid-circuit measurement, classical post-processing loop, parametric phase kickback — exercises every language feature from Phases 1–14
 - `afana/passes/pipeline.rs` — unified compilation pipeline: single entry point sequencing all passes (parse → validate → type-check → CFG → lifetime → ZX-IR → ZX-optimize → backend → QASM3), with pass-level timing and gate-count reporting
 - `spec/turing-completeness.md` — formal argument that the Ehrenfest v1.0 + Afana pipeline is Turing-complete: classical control flow + unbounded memory model + universal gate set (H, T, CNOT) reachable from arbitrary Hamiltonians
 - `ci/levels.yaml` — defines all mandatory CI levels: `schema-validate`, `parse-roundtrip`, `qasm3-validate`, `optimize-bench`, `parametric-roundtrip`, `control-flow`, `memory-safety`, `conformance`, `shor-e2e`
-- `tests/e2e/shor.rs` — end-to-end test: compiles `shor_15.ehrenfest`, runs QASM3 against the `qasm-simulator` backend, verifies factors {3, 5} returned with probability ≥ 0.9 across 1024 shots
+- `tests/e2e/shor.rs` — end-to-end test: compiles `shor_15.paul`, runs QASM3 against the `qasm-simulator` backend, verifies factors {3, 5} returned with probability ≥ 0.9 across 1024 shots
 - `CHANGELOG.md` — documents every breaking schema change from v0.1 through v1.0 with migration notes
 
 **Success criteria**
-- `shor_15.ehrenfest` compiles without errors through the full Afana pipeline in under 60 seconds on a commodity laptop
+- `shor_15.paul` compiles without errors through the full Afana pipeline in under 60 seconds on a commodity laptop
 - End-to-end simulation returns correct factors (3 and 5) with probability ≥ 0.9 over 1024 shots
 - All 9 CI levels in `ci/levels.yaml` pass on main with zero suppressions
 - Gate reduction on the Shor circuit is ≥ 10% (Phase 11 criterion holds at scale)

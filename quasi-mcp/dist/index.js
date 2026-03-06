@@ -301,27 +301,27 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
         {
             name: "verify_compilation",
-            description: "Verify that Afana's optimization passes preserve circuit equivalence using QCEC (MQT). Compiles an Ehrenfest program (.ef) twice — once without optimization (reference) and once with --optimize --reduce-t (production) — then runs formal equivalence checking on both OpenQASM 3.0 outputs. Returns pass/fail and gate count comparison. Requires mqt.qcec Python package (pip install mqt.qcec).",
+            description: "Verify that Afana's optimization passes preserve circuit equivalence using QCEC (MQT). Compiles an Ehrenfest CBOR program twice — once without optimization (reference) and once with --optimize --reduce-t (production) — then runs formal equivalence checking on both OpenQASM 3.0 outputs. Returns pass/fail and gate count comparison. Requires mqt.qcec Python package (pip install mqt.qcec).",
             inputSchema: {
                 type: "object",
                 properties: {
-                    ef_path: {
+                    cbor_path: {
                         type: "string",
-                        description: "Path to the .ef Ehrenfest program file to verify",
+                        description: "Path to the Ehrenfest CBOR program file to verify",
                     },
                 },
-                required: ["ef_path"],
+                required: ["cbor_path"],
             },
         },
         {
             name: "simulate_noisy",
-            description: "Estimate circuit fidelity under realistic noise for an Ehrenfest program (.ef). Compiles via Afana to OpenQASM 3.0, then runs noise-aware simulation using MQT DDSIM (ideal vs noisy, TVD fidelity). Falls back to heuristic gate-fidelity estimate if DDSIM is not installed. Use this to check whether a circuit has a reasonable chance of producing useful results on a given backend before submitting to hardware.",
+            description: "Estimate circuit fidelity under realistic noise for an Ehrenfest CBOR program. Compiles via Afana to OpenQASM 3.0, then runs noise-aware simulation using MQT DDSIM (ideal vs noisy, TVD fidelity). Falls back to heuristic gate-fidelity estimate if DDSIM is not installed. Use this to check whether a circuit has a reasonable chance of producing useful results on a given backend before submitting to hardware.",
             inputSchema: {
                 type: "object",
                 properties: {
-                    ef_path: {
+                    cbor_path: {
                         type: "string",
-                        description: "Path to the .ef Ehrenfest program file",
+                        description: "Path to the Ehrenfest CBOR program file",
                     },
                     backend: {
                         type: "string",
@@ -340,7 +340,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
                         description: "Override two-qubit gate error rate (0.0-1.0)",
                     },
                 },
-                required: ["ef_path"],
+                required: ["cbor_path"],
             },
         },
     ],
@@ -487,19 +487,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
         // ── verify_compilation ─────────────────────────────────────────────────
         if (name === "verify_compilation") {
-            const { ef_path } = args;
+            const { cbor_path } = args;
             const tmpDir = mkdtempSync(join(tmpdir(), "qcec-"));
             try {
                 const refQasm = join(tmpDir, "ref.qasm");
                 const optQasm = join(tmpDir, "opt.qasm");
                 // Compile without optimization (reference)
-                const refOutput = execSync(`afana "${ef_path}" --qasm v3`, {
+                const refOutput = execSync(`afana "${cbor_path}" --qasm v3`, {
                     encoding: "utf-8",
                     timeout: 30_000,
                 });
                 writeFileSync(refQasm, refOutput);
                 // Compile with optimization (production) — use spawnSync to capture stderr stats
-                const optProc = spawnSync("afana", [ef_path, "--qasm", "v3", "--optimize", "--reduce-t", "--stats"], {
+                const optProc = spawnSync("afana", [cbor_path, "--qasm", "v3", "--optimize", "--reduce-t", "--stats"], {
                     encoding: "utf-8",
                     timeout: 30_000,
                 });
@@ -528,7 +528,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 const ratio = (refGates != null && refGates > 0 && optGates != null)
                     ? ((1 - optGates / refGates) * 100).toFixed(1) : "N/A";
                 const parts = [
-                    `Compilation verification for: ${ef_path}`,
+                    `Compilation verification for: ${cbor_path}`,
                     "",
                     `Equivalent: ${qcecResult.equivalent ? "YES" : "NO"}`,
                     `QCEC result: ${qcecResult.equivalence}`,
@@ -553,12 +553,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
         // ── simulate_noisy ──────────────────────────────────────────────────────
         if (name === "simulate_noisy") {
-            const { ef_path, backend, shots, sq_err, tq_err } = args;
+            const { cbor_path, backend, shots, sq_err, tq_err } = args;
             const tmpDir = mkdtempSync(join(tmpdir(), "ddsim-"));
             try {
                 const qasmFile = join(tmpDir, "circuit.qasm");
                 // Compile with optimization (production config)
-                const optProc = spawnSync("afana", [ef_path, "--qasm", "v3", "--optimize", "--reduce-t", "--stats"], {
+                const optProc = spawnSync("afana", [cbor_path, "--qasm", "v3", "--optimize", "--reduce-t", "--stats"], {
                     encoding: "utf-8",
                     timeout: 30_000,
                 });
@@ -601,7 +601,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 const threshold = 0.5;
                 const belowThreshold = simResult.fidelity < threshold;
                 const parts = [
-                    `Noise simulation for: ${ef_path}`,
+                    `Noise simulation for: ${cbor_path}`,
                     `Target backend: ${backendName}`,
                     "",
                     `Estimated fidelity: ${fidelityPct}% ${belowThreshold ? "(BELOW 50% THRESHOLD)" : ""}`,

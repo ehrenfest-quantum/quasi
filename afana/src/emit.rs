@@ -224,19 +224,31 @@ fn format_float(val: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser;
+
+    /// Helper: build a Bell-state AST directly (no text parsing).
+    fn bell_ast() -> EhrenfestAst {
+        EhrenfestAst {
+            name: "bell".into(),
+            n_qubits: 2,
+            prepare: None,
+            gates: vec![
+                Gate { name: GateName::H, qubits: vec![0], params: vec![] },
+                Gate { name: GateName::Cx, qubits: vec![0, 1], params: vec![] },
+            ],
+            measures: vec![
+                Measure { qubit: 0, cbit: 0 },
+                Measure { qubit: 1, cbit: 1 },
+            ],
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: Vec::new(),
+        }
+    }
 
     #[test]
     fn emit_bell_v2() {
-        let source = r#"
-program "bell"
-qubits 2
-h q0
-cnot q0 q1
-measure q0 -> c0
-measure q1 -> c1
-"#;
-        let ast = parser::parse(source).unwrap();
+        let ast = bell_ast();
         let qasm = emit_qasm(&ast, QasmVersion::V2).unwrap();
         assert!(qasm.contains("OPENQASM 2.0;"));
         assert!(qasm.contains("include \"qelib1.inc\";"));
@@ -247,15 +259,7 @@ measure q1 -> c1
 
     #[test]
     fn emit_bell_v3() {
-        let source = r#"
-program "bell"
-qubits 2
-h q0
-cnot q0 q1
-measure q0 -> c0
-measure q1 -> c1
-"#;
-        let ast = parser::parse(source).unwrap();
+        let ast = bell_ast();
         let qasm = emit_qasm(&ast, QasmVersion::V3).unwrap();
         assert!(qasm.contains("OPENQASM 3.0;"));
         assert!(qasm.contains("include \"stdgates.inc\";"));
@@ -265,26 +269,50 @@ measure q1 -> c1
 
     #[test]
     fn emit_conditional_v2() {
-        let source = r#"
-program "cond"
-qubits 2
-h q0
-measure q0 -> c0
-if c0 == 1: x q1
-"#;
-        let ast = parser::parse(source).unwrap();
+        let ast = EhrenfestAst {
+            name: "cond".into(),
+            n_qubits: 2,
+            prepare: None,
+            gates: vec![
+                Gate { name: GateName::H, qubits: vec![0], params: vec![] },
+            ],
+            measures: vec![
+                Measure { qubit: 0, cbit: 0 },
+            ],
+            conditionals: vec![
+                ConditionalGate {
+                    cbit: 0,
+                    cbit_value: 1,
+                    gate: Gate { name: GateName::X, qubits: vec![1], params: vec![] },
+                },
+            ],
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: Vec::new(),
+        };
         let qasm = emit_qasm(&ast, QasmVersion::V2).unwrap();
         assert!(qasm.contains("if(c[0]==1) x q[1];"));
     }
 
     #[test]
     fn emit_rotation_pi_fraction() {
-        let source = r#"
-program "rot"
-qubits 1
-rx 1.5707963267948966 q0
-"#;
-        let ast = parser::parse(source).unwrap();
+        let ast = EhrenfestAst {
+            name: "rot".into(),
+            n_qubits: 1,
+            prepare: None,
+            gates: vec![
+                Gate {
+                    name: GateName::Rx,
+                    qubits: vec![0],
+                    params: vec![std::f64::consts::FRAC_PI_2],
+                },
+            ],
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: Vec::new(),
+        };
         let qasm = emit_qasm(&ast, QasmVersion::V2).unwrap();
         assert!(qasm.contains("rx(pi/2) q[0];"));
     }

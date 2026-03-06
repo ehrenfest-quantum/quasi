@@ -120,7 +120,19 @@ The A1 council runs daily and sets the `frontier_level` (L0–L4) for the upcomi
 
 ### Rotation and Provider Diversity
 
-At each role, the Senate Loop selects a model from a multi-provider rotation pool, excluding models already used in the same cycle and enforcing provider diversity. Providers include Groq, Cerebras, Fireworks, HuggingFace, SwissAI, Mistral, and OpenRouter. Rotation counts and last-used provider are tracked to prevent monopolisation of any single model or provider.
+At each role, the Senate Loop selects a model from a multi-provider rotation pool, excluding models already used in the same cycle and enforcing provider diversity. Providers include Groq, Cerebras, Fireworks, HuggingFace, Sarvam, Mistral, Together, and OpenRouter. Rotation counts and last-used provider are tracked to prevent monopolisation of any single model or provider.
+
+### Auto-Roster Management (quasi-roster)
+
+The rotation pool is maintained by **quasi-roster**, a Python tool that runs daily at 04:00 UTC via systemd timer. It performs three autonomous operations on the TOML roster file:
+
+1. **Discover** — queries each provider's `/v1/models` endpoint, applies a relevance filter (chat/instruct models ≥7B, open-weight families, excluding embeddings/vision/audio/quantized variants), deduplicates across providers by normalized base model name, and appends new candidates as `quarantined = true` with empty roles.
+
+2. **Prune** — cross-references the roster against the `model_health` and `senate_telemetry` tables. Models with ≥3 consecutive health-check failures and zero successes are quarantined. Models delisted from their provider's model listing are quarantined. A cold-start guard (minimum 5 data points) prevents premature quarantine of newly added models. Models with >50% error rate but some successes receive a warning but are not quarantined.
+
+3. **Profile** — runs five trial prompts against each quarantined model with empty roles, one per Senate role. Each trial tests the specific capability required (JSON-structured council goals, issue drafting, gate review, Rust code generation, code review with bug detection). Models that pass at least one trial are assigned the corresponding roles and unquarantined; models that fail all trials remain quarantined until the next daily run.
+
+All roster mutations are recorded to the `roster_events` Postgres table with event type, model ID, provider, details JSON, and timestamp. The Rust Senate binary filters quarantined models at selection time via `eligible_for_role()` — the TOML file is the sole interface between the two systems.
 
 ---
 
@@ -172,6 +184,20 @@ Every LLM call made by the Senate Loop is recorded to the `senate_telemetry` Pos
 
 The `pr_outcomes` table is populated by `record_pr_outcome()` immediately when a PR is opened, and subsequently updated every 10 minutes by the **PR outcome poller** — a systemd-timer service on the production server that polls the GitHub check-runs API and writes back CI and merge status.
 
+### roster_events columns
+
+| Column | Type | What it measures |
+|--------|------|-----------------|
+| `id` | bigserial | Unique event ID |
+| `timestamp` | timestamptz | When the event occurred |
+| `event_type` | text | `discovered`, `quarantined`, `restored`, `profiled`, `delisted` |
+| `model_id` | text | Rotation entry ID |
+| `provider` | text | Provider name |
+| `details` | jsonb | Event-specific payload (discovery source, quarantine reason, assigned roles) |
+| `applied` | boolean | Whether the change was written to the TOML file |
+
+The `roster_events` table provides a complete audit trail of roster mutations performed by quasi-roster. It enables trend analysis of model churn (discovery rate, quarantine rate, profile pass rate) and provider reliability over time.
+
 ### The cycle_id chain
 
 The `cycle_id` UUID is the primary join key between pipeline roles. On the A-track, the A2 drafter and A3 gate share a `cycle_id`, and both are linked to the opened issue via `issue_number` (written after issue creation, so rejected rows carry `issue_number = NULL`). On the B-track, B1 and B2 share a `cycle_id`, and the opened PR is linked via `pr_outcomes.b1_cycle_id`. This chain — issue → cycle_id → PR → CI — constitutes the full audit trail required for traceability verification.
@@ -206,6 +232,18 @@ Weights are task-class-specific; the table above gives the code-generation profi
 
 The Encefalos index implements a key insight: two providers may offer the same model at different prices, but the cheaper one can still deliver inferior ϶/€ value if quality dimensions diverge. Provider fidelity (q₄) in particular captures a failure mode — silent model substitution — that no public benchmark measures, because it requires live API telemetry to detect.
 
+### Role-Specific Rankings
+
+In addition to the overall ϶ ranking, the Encefalos dashboard reports role-specific best models:
+
+| Ranking | Roles included | What it measures |
+|---------|---------------|-----------------|
+| **Best ϶ Model** (overall) | All five roles | Best quality-per-cost across the full pipeline |
+| **Best Coder** | B1 solver + B2 reviewer | Best at code generation and code review |
+| **Best Reasoner** | A1 council + A2 drafter + A3 gate | Best at strategic planning, issue drafting, and quality gating |
+
+A model must have ≥2 telemetry entries in the relevant roles (within the dashboard time range) to qualify for a role-specific ranking. This prevents single-sample outliers from appearing on the leaderboard.
+
 The full economic specification of the Encefalos pricing model is maintained in `docs/Encefalos_Oekonomische_Bewertung.md`.
 
 ---
@@ -233,12 +271,14 @@ The Pauli-Test operates a **rotation pool** of frontier AI models that are activ
 
 ### Pool Composition
 
-The rotation pool currently contains **29 models** drawn from two categories:
+The rotation pool currently contains **209 models** (162 active, 47 quarantined) across **8 providers**, drawn from two categories:
 
 | Category | Criteria | Examples |
 |----------|----------|---------|
 | **Commercial** | Closed-weights, API-only | Claude (Anthropic), GPT-4o (OpenAI), Gemini (Google), Command (Cohere), Ernie (Baidu) |
-| **Open-weight** | Weights publicly available | LLaMA, Mistral, DeepSeek, Qwen, Phi, OLMo, Apertus |
+| **Open-weight** | Weights publicly available | LLaMA, Mistral, DeepSeek, Qwen, Phi, OLMo, Gemma, Cogito, Nemotron, Devstral |
+
+The pool is self-maintaining: **quasi-roster** (see [Auto-Roster Management](#auto-roster-management-quasi-roster) below) discovers new models daily, profiles them via trial prompts, and quarantines failing or delisted models — all without human intervention. The roster has grown from 44 manually curated entries to 209 auto-managed entries.
 
 Human contributors are not part of the rotation pool. They appear on the project's contributor board for social and community recognition, but their activity is not benchmark data. See [Human Contributors](#human-contributors) below.
 
@@ -248,13 +288,19 @@ Issue generation is automated by the **QUASI Senate Loop** (see [QUASI Senate Lo
 
 This replaces a previous approach based on a standalone `quasi-agent/generate_issue.py` script. The Senate Loop provides richer quality control (multi-role review, charter alignment, deduplication against open issues), full telemetry traceability, and continuous operation without manual invocation.
 
+### PR Deduplication
+
+Both the Rust Senate Loop and the Python rotation agent enforce PR deduplication: before selecting an issue to solve, the system queries open PRs for titles matching `(closes #NNN)` and excludes issues that already have an open PR. This prevents wasted cycles on issues already under active solution and eliminates duplicate PRs targeting the same issue.
+
 ### Issue Solving — Senate Loop
 
 The B-track pipeline (B1 solver → B2 reviewer) autonomously attempts open issues from the tracker. Model selection at B1 excludes the model that drafted the issue (identified from the issue body footer) and enforces rotation across providers. On approval, the Senate Loop applies file edits to a branch via the GitHub API and opens a PR with `Closes #N` in the body.
 
 ### Activation Status
 
-A model is **activated** when it has at least one ledger entry. Activation is the prerequisite for appearing on the scoreboard. Models remain in the rotation until they reach the Planck Quota (6 completions) and are assessed for Capability Ladder advancement, or until they are replaced by a successor model in the same family.
+A model is **activated** when it has at least one ledger entry. Activation is the prerequisite for appearing on the scoreboard. Models remain in the rotation until they reach the Planck Quota (6 completions) and are assessed for Capability Ladder advancement, or until they are quarantined by the auto-roster prune cycle.
+
+**Quarantine** is a reversible state: a quarantined model is excluded from role selection but remains in the roster. If the underlying issue is resolved (provider restores the model, health checks start passing), the next daily profile cycle will detect the improvement, assign roles, and unquarantine the model automatically.
 
 Models accessible only via the HuggingFace Inference API (and not available on OpenRouter or via direct API) may be temporarily blocked when HuggingFace free-tier credits are exhausted. These models remain in the pool; their cycle is deferred until credits are replenished or a HuggingFace partnership provides direct access.
 
@@ -337,7 +383,7 @@ Continuous telemetry from the Senate Loop is visualised at **[quasi.hal-contract
 | **QUASI Pauli-Test — Live Activity** | Real-time ledger entries, completions, active models, activity timeseries |
 | **QUASI Pauli-Test — Model Performance** | 7-day rolling view: approval rates, latency, JSON compliance, retry analysis, gate reasoning quality, PR outcomes |
 | **QUASI Senate — Provider Benchmark** | Provider × model pass rates, latency distributions, retry/error rates, OpenRouter substitution log |
-| **QUASI Encefalos — AI Compute Value (϶/€)** | Full ϶ ranking table with all seven quality dimensions; individual q₁–q₇ bar gauges; correctness and reliability trend timeseries; PR CI outcomes |
+| **QUASI Encefalos — AI Compute Value (϶/€)** | Full ϶ ranking table with all seven quality dimensions; individual q₁–q₇ bar gauges; best model overall, best coder (B1+B2 roles), best reasoner (A1+A2+A3 roles); correctness and reliability trend timeseries; PR CI outcomes |
 | **QUASI Leaderboard** | Ledger-based model standings |
 
 All dashboards query the live `quasi_senate` Postgres database on the production server. Time range is selectable; default is rolling 7 days.
@@ -385,15 +431,18 @@ Current contributor board: [view live list](https://gawain.valiant-quantum.com/q
 
 ```
 quasi/
-├── afana/              # Ehrenfest compiler (Python): parser, ZX-IR, optimizer, backends
-├── spec/               # Ehrenfest language spec (CDDL schemas, README, error codes)
-├── examples/           # Sample .ef programs (bell, ghz, grover, teleport, vqe)
+├── afana/              # Ehrenfest compiler (Rust): CBOR deserializer, Trotterization, ZX optimizer, QASM emitter
+├── spec/               # Ehrenfest language spec (CDDL schemas, CBOR examples)
+├── examples/           # Points to CBOR examples in spec/examples/
 ├── quasi-agent/        # External participation CLI (claim, complete, task listing)
 ├── quasi-board/        # ActivityPub task board server (FastAPI)
 ├── quasi-senate/       # Autonomous Senate Loop (Rust) + Grafana dashboard JSON
-│   └── grafana/        # Dashboard definitions (model-performance, encefalos)
+│   ├── grafana/        # Dashboard definitions (model-performance, encefalos, provider-bench)
+│   └── migrations/     # Postgres schema (telemetry, model_health, roster_events)
+├── quasi-roster/       # Auto-roster management (Python): discover, prune, profile
 ├── quasi-mcp/          # MCP server for IDE integration
 ├── urnery/             # Urn package registry
+├── deploy/             # Systemd service/timer definitions
 ├── docs/
 │   ├── BENCHMARK.md    # This document
 │   └── ISSUE-GENERATION.md
