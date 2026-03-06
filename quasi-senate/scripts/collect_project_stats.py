@@ -42,9 +42,9 @@ EXCLUDE_FILES = {
 # ---------------------------------------------------------------------------
 
 ROADMAP = [
-    (1, "To All the Girls", "Ehrenfest v0.1 schema + examples", 85,
-     "CBOR schema, example programs, spec docs",
-     "Final schema review"),
+    (1, "To All the Girls", "Ehrenfest v0.1 schema + examples", 100,
+     "CDDL schema, CBOR examples (.paul), FORMAT.md, LANGUAGE.md, serde/CDDL alignment, integration tests",
+     ""),
     (2, "Shake Your Rump", "Ehrenfest v0.2 operator algebra", 70,
      "Fermionic/bosonic ops, time-dependent H, Pauli decomposition",
      "v0.2 schema finalization, forward-compat validation"),
