@@ -1,0 +1,121 @@
+name: QASM3 Validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate-qasm3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install QASM3 parser
+        run: pip install openqasm3
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Build Afana compiler
+        run: cargo build --manifest-path afana/Cargo.toml
+
+      - name: Run QASM3 validation tests
+        run: |
+          python3 - <<'EOF'
+import openqasm3
+import subprocess
+import sys
+import os
+
+# Test cases for QASM3 edge cases
+test_cases = [
+    # Variational parameter declarations
+    '''OPENQASM 3.0;
+include "stdgates.inc";
+qubit[2] q;
+mutable float[64] theta;
+mutable float[64] phi;
+for int i in [0:100-1] {
+    rx(theta) q[0];
+    ry(phi) q[1];
+    cx q[0], q[1];
+}
+''',
+    # Custom gate-like structure with parameters
+    '''OPENQASM 3.0;
+include "stdgates.inc";
+qubit[3] q;
+bit[1] c;
+rx(pi/2) q[0];
+ry(pi) q[1];
+rz(pi/4) q[0];
+cx q[0], q[1];
+cx q[1], q[2];
+c[0] = measure q[0];
+''',
+    # Complex gate definitions with multiple parameters
+    '''OPENQASM 3.0;
+include "stdgates.inc";
+qubit[2] q;
+rx(0.5) q[0];
+ry(1.0) q[1];
+rz(1.5) q[0];
+cx q[0], q[1];
+''',
+    # Conditional gates in variational context
+    '''OPENQASM 3.0;
+include "stdgates.inc";
+qubit[3] q;
+bit[1] c;
+mutable float[64] alpha;
+for int i in [0:50-1] {
+    h q[0];
+    rx(alpha) q[1];
+    cx q[0], q[1];
+    c[0] = measure q[0];
+    if (c[0] == 1) {
+        x q[2];
+    }
+}
+''',
+    # Nested loops with parameterized gates
+    '''OPENQASM 3.0;
+include "stdgates.inc";
+qubit[4] q;
+mutable float[64] beta;
+mutable float[64] gamma;
+for int i in [0:20-1] {
+    for int j in [0:10-1] {
+        rx(beta) q[0];
+        ry(gamma) q[1];
+        cx q[0], q[1];
+        cx q[1], q[2];
+        cx q[2], q[3];
+    }
+}
+''',
+]
+
+errors = []
+for idx, qasm in enumerate(test_cases):
+    try:
+        openqasm3.parse(qasm)
+        print(f"Test case {idx + 1}: PASSED")
+    except Exception as e:
+        errors.append(f"Test case {idx + 1}: FAILED - {e}")
+        print(f"Test case {idx + 1}: FAILED - {e}")
+
+if errors:
+    print(f"\n{len(errors)} test case(s) failed")
+    sys.exit(1)
+else:
+    print(f"\nAll {len(test_cases)} test cases passed")
+    sys.exit(0)
+EOF
