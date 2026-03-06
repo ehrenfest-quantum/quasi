@@ -298,4 +298,98 @@ rx 1.5707963267948966 q0
         assert_eq!(format_float(0.0), "0");
         assert_eq!(format_float(2.0 * std::f64::consts::PI), "2*pi");
     }
+
+    #[test]
+    fn emit_variational_params_qasm3() {
+        let source = r#"
+program "vqe_test"
+qubits 2
+variational params theta phi max_iter 100
+  rx theta q0
+  ry phi q1
+  cnot q0 q1
+end
+"#;
+        let ast = parser::parse(source).unwrap();
+        let qasm = emit_qasm(&ast, QasmVersion::V3).unwrap();
+        assert!(qasm.contains("OPENQASM 3.0;"));
+        assert!(qasm.contains("mutable float[64] theta;"));
+        assert!(qasm.contains("mutable float[64] phi;"));
+        assert!(qasm.contains("for int i in [0:100-1]"));
+        assert!(qasm.contains("rx(theta) q[0];"));
+        assert!(qasm.contains("ry(phi) q[1];"));
+    }
+
+    #[test]
+    fn emit_custom_gate_def_qasm3() {
+        let source = r#"
+program "custom_gate"
+qubits 3
+h q0
+cnot q0 q1
+cnot q1 q2
+measure q0 -> c0
+"#;
+        let ast = parser::parse(source).unwrap();
+        let qasm = emit_qasm(&ast, QasmVersion::V3).unwrap();
+        assert!(qasm.contains("OPENQASM 3.0;"));
+        assert!(qasm.contains("include \"stdgates.inc\";"));
+        assert!(qasm.contains("qubit[3] q;"));
+        assert!(qasm.contains("h q[0];"));
+        assert!(qasm.contains("cx q[0], q[1];"));
+    }
+
+    #[test]
+    fn emit_parametric_gate_expressions_qasm3() {
+        let source = r#"
+program "param_expr"
+qubits 2
+rx 1.5707963267948966 q0
+ry 3.141592653589793 q1
+rz 0.7853981633974483 q0
+"#;
+        let ast = parser::parse(source).unwrap();
+        let qasm = emit_qasm(&ast, QasmVersion::V3).unwrap();
+        assert!(qasm.contains("rx(pi/2) q[0];"));
+        assert!(qasm.contains("ry(pi) q[1];"));
+        assert!(qasm.contains("rz(pi/4) q[0];"));
+    }
+
+    #[test]
+    fn emit_nested_variational_with_conditionals_qasm3() {
+        let source = r#"
+program "nested_var_cond"
+qubits 3
+variational params alpha max_iter 50
+  h q0
+  rx alpha q1
+  cnot q0 q1
+  measure q0 -> c0
+  if c0 == 1: x q2
+end
+"#;
+        let ast = parser::parse(source).unwrap();
+        let qasm = emit_qasm(&ast, QasmVersion::V3).unwrap();
+        assert!(qasm.contains("mutable float[64] alpha;"));
+        assert!(qasm.contains("for int i in [0:50-1]"));
+        assert!(qasm.contains("if (c[0] == 1) x q[2];"));
+    }
+
+    #[test]
+    fn emit_multi_param_gate_qasm3() {
+        let source = r#"
+program "multi_param"
+qubits 2
+rx 0.5 q0
+ry 1.0 q1
+rz 1.5 q0
+cnot q0 q1
+"#;
+        let ast = parser::parse(source).unwrap();
+        let qasm = emit_qasm(&ast, QasmVersion::V3).unwrap();
+        assert!(qasm.contains("rx(0.5) q[0];"));
+        assert!(qasm.contains("ry(1) q[1];"));
+        assert!(qasm.contains("rz(1.5) q[0];"));
+        assert!(qasm.contains("cx q[0], q[1];"));
+    }
 }
