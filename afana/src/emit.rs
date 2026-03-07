@@ -87,6 +87,135 @@ pub fn emit_qasm(ast: &EhrenfestAst, version: QasmVersion) -> Result<String, Emi
         if version == QasmVersion::V3 {
             // Declare variational parameters as mutable floats.
             for p in &vloop.params {
+                lines.push(format!("mutable float[64] {};", p));
+            }
+            // Emit the for loop with classical control.
+            lines.push(format!("for int i in [0:{}-1] {{", vloop.max_iter));
+            for vg in &vloop.body {
+                let qubit_args: String = vg
+                    .qubits
+                    .iter()
+                    .map(|idx| format!("q[{idx}]"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                if vg.param_refs.is_empty() {
+                    lines.push(format!("    {} {};", vg.name.as_str(), qubit_args));
+                } else {
+                    let param_args = vg.param_refs.join(", ");
+                    lines.push(format!(
+                        "    {}({}) {};",
+                        vg.name.as_str(),
+                        param_args,
+                        qubit_args
+                    ));
+                }
+            }
+            lines.push("    // Classical parameter update would occur here".into());
+            lines.push("}".into());
+        } else {
+            // QASM 2.0 fallback: emit parameters as comments.
+            lines.push("// QASM 2.0 does not support variational loops".into());
+            for p in &vloop.params {
+                lines.push(format!("// parameter: {}", p));
+            }
+            for vg in &vloop.body {
+                let qubit_args: String = vg
+                    .qubits
+                    .iter()
+                    .map(|idx| format!("q[{idx}]"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                if vg.param_refs.is_empty() {
+                    lines.push(format!("{}{};", vg.name.as_str(), qubit_args));
+                } else {
+                    let param_args = vg.param_refs.join(", ");
+                    lines.push(format!(
+                        "{}({}) {};",
+                        vg.name.as_str(),
+                        param_args,
+                        qubit_args
+                    ));
+                }
+            }
+        }
+    }
+
+    Ok(lines.join("\n"))
+    let mut lines: Vec<String> = Vec::new();
+
+    match version {
+        QasmVersion::V2 => {
+            lines.push("OPENQASM 2.0;".into());
+            lines.push("include \"qelib1.inc\";".into());
+            lines.push(String::new());
+            lines.push(format!("qreg q[{}];", ast.n_qubits));
+            // Count max cbit index from measures + conditionals.
+            let max_cbit = max_cbit_index(ast);
+            if max_cbit > 0 {
+                lines.push(format!("creg c[{}];", max_cbit));
+            }
+        }
+        QasmVersion::V3 => {
+            lines.push("OPENQASM 3.0;".into());
+            lines.push("include \"stdgates.inc\";".into());
+            lines.push(String::new());
+            lines.push(format!("qubit[{}] q;", ast.n_qubits));
+            let max_cbit = max_cbit_index(ast);
+            if max_cbit > 0 {
+                lines.push(format!("bit[{}] c;", max_cbit));
+            }
+        }
+    }
+    lines.push(String::new());
+
+    // Gates.
+    for gate in &ast.gates {
+        lines.push(format_gate(gate, version)?);
+    }
+
+    // Conditionals.
+    for cond in &ast.conditionals {
+        let gate_str = format_gate(&cond.gate, version)?;
+        match version {
+            QasmVersion::V2 => {
+                lines.push(format!(
+                    "if(c[{}]=={}) {}",
+                    cond.cbit, cond.cbit_value, gate_str
+                ));
+            }
+            QasmVersion::V3 => {
+                lines.push(format!(
+                    "if (c[{}] == {}) {}",
+                    cond.cbit, cond.cbit_value, gate_str
+                ));
+            }
+        }
+    }
+
+    // Measurements.
+    for m in &ast.measures {
+        match version {
+            QasmVersion::V2 => {
+                lines.push(format!("measure q[{}] -> c[{}];", m.qubit, m.cbit));
+            }
+            QasmVersion::V3 => {
+                lines.push(format!("c[{}] = measure q[{}];", m.cbit, m.qubit));
+            }
+        }
+    }
+
+    // Variational loops → QASM 3.0 with classical control flow.
+    for vloop in &ast.variational_loops {
+        lines.push(String::new());
+        lines.push(format!(
+            "// Variational ansatz — max_iter={}",
+            vloop.max_iter
+        ));
+        if version == QasmVersion::V3 {
+            // Declare variational parameters as mutable floats.
+            for p in &vloop.params {
                 lines.push(format!("mutable float[64] {p};"));
             }
             // Emit the for loop with classical control.
