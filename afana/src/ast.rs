@@ -126,6 +126,25 @@ pub struct ConditionalGate {
     pub cbit_value: u32,
     pub gate: Gate,
 }
+    pub name: GateName,
+    pub qubits: Vec<usize>,
+    pub params: Vec<f64>,
+}
+
+/// A measurement directive: `measure qN -> cN`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Measure {
+    pub qubit: usize,
+    pub cbit: usize,
+}
+
+/// A classically-conditioned gate: `if cN == M: gate qN`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConditionalGate {
+    pub cbit: usize,
+    pub cbit_value: u32,
+    pub gate: Gate,
+}
 
 /// An assertion hint (non-executable): `expect state "..."`.
 #[derive(Debug, Clone, PartialEq)]
