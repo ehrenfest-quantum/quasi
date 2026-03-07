@@ -20,3 +20,4 @@ pub mod emit;
 pub mod error;
 pub mod optimize;
 pub mod trotter;
+pub mod backend;
