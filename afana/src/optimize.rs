@@ -2,10 +2,11 @@
 // Copyright 2026 QUASI Contributors
 //! Circuit optimization passes.
 //!
-//! Two passes available:
+//! Three passes available:
 //! 1. **T-gate reduction** — algebraic cancellation of adjacent T/Tdg gates
 //!    using the relation T^8 = I (mod 8 arithmetic on phase exponents).
-//! 2. **ZX-calculus simplification** — via the `quizx` crate's `full_reduce`.
+//! 2. **Spider fusion** — merge adjacent Z-spiders by summing their phases.
+//! 3. **ZX-calculus simplification** — via the `quizx` crate's `full_reduce`.
 
 use regex::Regex;
 use std::collections::BTreeMap;
