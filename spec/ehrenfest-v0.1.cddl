@@ -194,6 +194,44 @@ NoiseConstraint = {
 
 NoiseChannel = DepolarizingChannel / AmplitudeDampingChannel / PhaseDampingChannel
 
+; ─── Classical Control Flow ────────────────────────────────────────────
+;
+; Classical if-else statements and loops for Turing completeness.
+; These operate on classical bits (measurement outcomes) and enable
+; conditional quantum operations based on prior measurements.
+
+IfElse = {
+  "type": "if",
+  "condition": Condition,
+  "then": [+ QuantumOperation],
+  ? "else": [+ QuantumOperation],
+}
+
+Loop = {
+  "type": "loop",
+  "condition": Condition,
+  "body": [+ QuantumOperation],
+}
+
+Condition = {
+  "left": ObservableRef,
+  "op": ComparisonOp,
+  "right": ObservableRef / float,
+}
+
+ComparisonOp = &(
+  "<": 0,
+  "<=": 1,
+  ">": 2,
+  ">=": 3,
+  "==": 4,
+  "!=": 5,
+)
+
+ObservableRef = {
+  "observable_index": uint,  ; index into EhrenfestProgram.observables
+}
+
 ; ─── Variational Loop Support ────────────────────────────────────────────────
 ;
 ; Parametric quantum programs with classical optimization loops.
