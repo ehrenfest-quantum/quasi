@@ -1,0 +1,6 @@
+{
+  "spiders": [
+    {"type": "Z", "phase": 1.57079632679, "qubits": [0]},
+    {"type": "X", "phase": 0, "qubits": [1]}
+  ]
+}
