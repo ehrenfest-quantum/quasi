@@ -17,16 +17,11 @@ use crate::ast::*;
 use crate::cbor::{EhrenfestProgram, PauliOp, PauliOpEntry};
 
 /// Trotter decomposition order.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TrotterOrder {
+    #[default]
     First,
     Second,
-}
-
-impl Default for TrotterOrder {
-    fn default() -> Self {
-        Self::First
-    }
 }
 
 /// Derive a gate-level AST from an Ehrenfest physics program via Trotterization.
