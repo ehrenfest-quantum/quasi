@@ -63,8 +63,6 @@ impl std::error::Error for TypeError {}
 #[derive(Debug, Clone)]
 struct SymbolEntry {
     ty: EhrenfestType,
-    is_mutable: bool,
-    defined_at: String,
 }
 
 /// Type checker state.
@@ -72,6 +70,12 @@ pub struct TypeChecker {
     symbols: HashMap<String, SymbolEntry>,
     current_scope: Vec<String>,
     errors: Vec<TypeError>,
+}
+
+impl Default for TypeChecker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TypeChecker {
@@ -94,7 +98,7 @@ impl TypeChecker {
     }
 
     /// Declare a new symbol.
-    pub fn declare(&mut self, name: &str, ty: EhrenfestType, is_mutable: bool) {
+    pub fn declare(&mut self, name: &str, ty: EhrenfestType) {
         let full_name = if self.current_scope.is_empty() {
             name.to_string()
         } else {
@@ -109,14 +113,7 @@ impl TypeChecker {
             return;
         }
 
-        self.symbols.insert(
-            full_name.clone(),
-            SymbolEntry {
-                ty,
-                is_mutable,
-                defined_at: full_name,
-            },
-        );
+        self.symbols.insert(full_name, SymbolEntry { ty });
     }
 
     /// Look up a symbol's type.
@@ -152,26 +149,6 @@ impl TypeChecker {
     /// Get all errors.
     pub fn errors(&self) -> &[TypeError] {
         &self.errors
-    }
-
-    /// Validate assignment compatibility.
-    pub fn check_assignment(&mut self, target: &str, value_type: EhrenfestType) {
-        if let Some(target_type) = self.lookup(target) {
-            if target_type != value_type {
-                self.error(
-                    &format!(
-                        "type mismatch: cannot assign {} to {} (expected {})",
-                        value_type, target, target_type
-                    ),
-                    Some(target.to_string()),
-                );
-            }
-        } else {
-            self.error(
-                &format!("undefined variable: {}", target),
-                Some(target.to_string()),
-            );
-        }
     }
 
     /// Validate gate application.
@@ -223,7 +200,7 @@ impl TypeChecker {
     pub fn check_ast(&mut self, ast: &EhrenfestAst) {
         // Declare qubits
         for i in 0..ast.n_qubits {
-            self.declare(&format!("q{}", i), EhrenfestType::Qubit, false);
+            self.declare(&format!("q{}", i), EhrenfestType::Qubit);
         }
 
         // Check gates
@@ -245,14 +222,19 @@ impl TypeChecker {
         for vloop in &ast.variational_loops {
             self.enter_scope("variational");
             for param in &vloop.params {
-                self.declare(param, EhrenfestType::VariationalParameter, true);
+                self.declare(param, EhrenfestType::VariationalParameter);
             }
             for vgate in &vloop.body {
-                self.check_gate(&Gate {
-                    name: vgate.name.clone(),
-                    qubits: vgate.qubits.clone(),
-                    params: vec![], // Parameters are symbolic, checked elsewhere
-                });
+                // Only check qubit validity — params are symbolic refs,
+                // not numeric values, so skip the parametric gate check.
+                for &qubit in &vgate.qubits {
+                    if self.lookup(&format!("q{}", qubit)).is_none() {
+                        self.error(
+                            &format!("undefined qubit: q{}", qubit),
+                            Some(format!("q{}", qubit)),
+                        );
+                    }
+                }
             }
             self.exit_scope();
         }
@@ -278,7 +260,7 @@ mod tests {
 
     #[test]
     fn test_valid_bell_state() {
-        let mut ast = EhrenfestAst {
+        let ast = EhrenfestAst {
             name: "bell".into(),
             n_qubits: 2,
             prepare: None,
@@ -310,7 +292,7 @@ mod tests {
 
     #[test]
     fn test_invalid_qubit_index() {
-        let mut ast = EhrenfestAst {
+        let ast = EhrenfestAst {
             name: "invalid".into(),
             n_qubits: 2,
             prepare: None,
@@ -337,7 +319,7 @@ mod tests {
 
     #[test]
     fn test_parametric_gate_missing_params() {
-        let mut ast = EhrenfestAst {
+        let ast = EhrenfestAst {
             name: "param".into(),
             n_qubits: 1,
             prepare: None,
@@ -366,7 +348,7 @@ mod tests {
 
     #[test]
     fn test_variational_loop() {
-        let mut ast = EhrenfestAst {
+        let ast = EhrenfestAst {
             name: "vqe".into(),
             n_qubits: 1,
             prepare: None,
