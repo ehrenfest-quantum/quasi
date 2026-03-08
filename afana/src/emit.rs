@@ -271,6 +271,30 @@ mod tests {
     }
 
     #[test]
+    fn verify_param_binding_unbound_v3_emission() {
+        let ast = EhrenfestAst {
+            name: "bad_vqe".into(),
+            n_qubits: 1,
+            prepare: None,
+            gates: Vec::new(),
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: vec![VariationalLoop {
+                params: vec!["theta".into()],
+                max_iter: 50,
+                body: vec![VariationalGate {
+                    name: GateName::Ry,
+                    qubits: vec![0],
+                    param_refs: vec!["gamma".into()],
+                }],
+            }],
+        };
+        assert!(emit_qasm(&ast, QasmVersion::V3).is_err());
+    }
+
+    #[test]
     fn emit_bell_v2() {
         let ast = bell_ast();
         let qasm = emit_qasm(&ast, QasmVersion::V2).unwrap();
