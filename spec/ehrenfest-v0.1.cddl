@@ -211,6 +211,7 @@ Loop = {
   "type": "loop",
   "condition": Condition,
   "body": [+ QuantumOperation],
+  "max_iterations": uint,         ; upper bound — prevents non-termination
 }
 
 Condition = {
@@ -264,7 +265,7 @@ ConvergenceCriteria = {
   ? "min_iterations": uint,             ; minimum steps before convergence
 }
 
-QuantumOperation = ParametricGate / Measurement / ClassicalUpdate
+QuantumOperation = ParametricGate / Measurement / ClassicalUpdate / IfElse / Loop
 
 ParametricGate = {
   "type":            "parametric",
