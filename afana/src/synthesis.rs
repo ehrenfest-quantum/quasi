@@ -30,6 +30,7 @@ pub struct SynthesisResult {
 ///
 /// Returns a [`SynthesisResult`] summarizing the entangling structure.
 pub fn synthesize_entangling_gates(gates: &[Gate]) -> SynthesisResult {
+    let mut swap_count = 0;
     let mut entangling_gates = Vec::new();
     let mut cx_count = 0;
     let mut cz_count = 0;
