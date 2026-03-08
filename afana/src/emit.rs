@@ -12,8 +12,32 @@ pub enum QasmVersion {
     V3,
 }
 
+/// Verify that all `VariationalGate.param_refs` resolve to declared
+/// `VariationalLoop.params`. Must be called before QASM emission.
+pub fn verify_parameter_bindings(ast: &EhrenfestAst) -> Result<(), EmitError> {
+    for vloop in &ast.variational_loops {
+        let declared: std::collections::HashSet<&str> =
+            vloop.params.iter().map(|s| s.as_str()).collect();
+        for vg in &vloop.body {
+            for pref in &vg.param_refs {
+                if !declared.contains(pref.as_str()) {
+                    return Err(EmitError::UnboundParameter {
+                        param: pref.clone(),
+                        gate: vg.name.as_str().to_string(),
+                        declared: vloop.params.clone(),
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Emit an [`EhrenfestAst`] as OpenQASM source.
 pub fn emit_qasm(ast: &EhrenfestAst, version: QasmVersion) -> Result<String, EmitError> {
+    // Verify parameter bindings before emission.
+    verify_parameter_bindings(ast)?;
+
     let mut lines: Vec<String> = Vec::new();
 
     match version {
@@ -315,6 +339,76 @@ mod tests {
         };
         let qasm = emit_qasm(&ast, QasmVersion::V2).unwrap();
         assert!(qasm.contains("rx(pi/2) q[0];"));
+    }
+
+    #[test]
+    fn verify_param_binding_ok() {
+        let ast = EhrenfestAst {
+            name: "vqe".into(),
+            n_qubits: 2,
+            prepare: None,
+            gates: Vec::new(),
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: vec![VariationalLoop {
+                params: vec!["theta".into(), "phi".into()],
+                max_iter: 100,
+                body: vec![
+                    VariationalGate {
+                        name: GateName::Ry,
+                        qubits: vec![0],
+                        param_refs: vec!["theta".into()],
+                    },
+                    VariationalGate {
+                        name: GateName::Rz,
+                        qubits: vec![1],
+                        param_refs: vec!["phi".into()],
+                    },
+                ],
+            }],
+        };
+        assert!(verify_parameter_bindings(&ast).is_ok());
+        // Should also emit successfully.
+        assert!(emit_qasm(&ast, QasmVersion::V3).is_ok());
+    }
+
+    #[test]
+    fn verify_param_binding_unbound() {
+        let ast = EhrenfestAst {
+            name: "bad_vqe".into(),
+            n_qubits: 1,
+            prepare: None,
+            gates: Vec::new(),
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: vec![VariationalLoop {
+                params: vec!["theta".into()],
+                max_iter: 50,
+                body: vec![VariationalGate {
+                    name: GateName::Ry,
+                    qubits: vec![0],
+                    param_refs: vec!["gamma".into()],
+                }],
+            }],
+        };
+        let err = verify_parameter_bindings(&ast).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("gamma"), "error should name the unbound param");
+        assert!(msg.contains("theta"), "error should list declared params");
+
+        // emit_qasm should also fail.
+        assert!(emit_qasm(&ast, QasmVersion::V3).is_err());
+    }
+
+    #[test]
+    fn verify_param_binding_no_loops_ok() {
+        // AST with no variational loops should pass.
+        let ast = bell_ast();
+        assert!(verify_parameter_bindings(&ast).is_ok());
     }
 
     #[test]
