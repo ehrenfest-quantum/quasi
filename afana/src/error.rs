@@ -25,4 +25,11 @@ pub enum EmitError {
 
     #[error("qubit index {index} out of range (n_qubits={n_qubits})")]
     QubitOutOfRange { index: usize, n_qubits: usize },
+
+    #[error("unbound parameter `{param}` in variational gate `{gate}` (declared params: {declared:?})")]
+    UnboundParameter {
+        param: String,
+        gate: String,
+        declared: Vec<String>,
+    },
 }
