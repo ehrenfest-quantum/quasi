@@ -57,6 +57,12 @@ pub fn emit_qasm(ast: &EhrenfestAst, version: QasmVersion) -> Result<String, Emi
             lines.push("include \"stdgates.inc\";".into());
             lines.push(String::new());
             lines.push(format!("qubit[{}] q;", ast.n_qubits));
+        for param in &ast.variational_loops {
+            for p in &param.params {
+                lines.push(format!("input float<32> {};", p));
+            }
+        }
+
             let max_cbit = max_cbit_index(ast);
             if max_cbit > 0 {
                 lines.push(format!("bit[{}] c;", max_cbit));
