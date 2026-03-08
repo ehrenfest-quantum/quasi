@@ -67,6 +67,14 @@ pub fn emit_qasm(ast: &EhrenfestAst, version: QasmVersion) -> Result<String, Emi
 
     // Gates.
     for gate in &ast.gates {
+        match gate.name {
+            GateName::Swap => {
+                lines.push(format!("swap {};", qubit_args));
+                continue;
+            }
+            _ => (),
+        }
+        
         lines.push(format_gate(gate, version)?);
     }
 
