@@ -19,4 +19,5 @@ pub mod cbor;
 pub mod emit;
 pub mod error;
 pub mod optimize;
+pub mod synthesis;
 pub mod trotter;
