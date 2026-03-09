@@ -37,7 +37,7 @@ pub fn trotterize(program: &EhrenfestProgram, order: TrotterOrder) -> EhrenfestA
         match order {
             TrotterOrder::First => {
                 for term in &program.hamiltonian.terms {
-                    let theta = term.coefficient * dt;
+                    let theta = term.coefficient * dt; // theta is in radians
                     gates.extend(pauli_rotation_gates(&term.paulis, theta));
                 }
             }
