@@ -45,6 +45,11 @@ pub fn synthesize_entangling_gates(gates: &[Gate]) -> SynthesisResult {
                 entangling_gates.push(gate.clone());
                 cz_count += 1;
             }
+            GateName::Ccx => {
+                // Explicit Toffoli gate; treat as entangling.
+                entangling_gates.push(gate.clone());
+                // No separate counter; could be added if needed.
+            }
             _ => {}
         }
     }
