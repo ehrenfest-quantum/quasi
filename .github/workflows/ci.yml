@@ -27,6 +27,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  qasm3-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install QASM3 reference parser
+        run: pip install qasm3-reference-parser
+      - name: Run QASM3 validation tests
+        run: pytest afana/tests/qasm3_validation
   # ── Layer 0: Ehrenfest Spec / CBOR Schema ──────────────────────────────────
   python:
     name: "Layer 0 · Ehrenfest spec"
