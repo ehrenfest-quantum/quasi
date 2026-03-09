@@ -87,6 +87,32 @@ pub fn synthesize_entangling_gates(gates: &[Gate]) -> SynthesisResult {
     }
 }
 
+/// Synthesize S-gate from ZX-IR phase spiders.
+/// 
+/// For a phase spider with phase π/2, emits an S gate.
+/// For phase -π/2, emits Sdg gate.
+/// Other phases are not supported in this basic implementation.
+pub fn synthesize_s_gate(phase: f64) -> Option<Gate> {
+    const PI_OVER_2: f64 = std::f64::consts::FRAC_PI_2;
+    const TOLERANCE: f64 = 1e-10;
+
+    if (phase - PI_OVER_2).abs() < TOLERANCE {
+        Some(Gate {
+            name: GateName::S,
+            qubits: vec![0],  // Target qubit will be set by caller
+            params: vec![],
+        })
+    } else if (phase + PI_OVER_2).abs() < TOLERANCE {
+        Some(Gate {
+            name: GateName::Sdg,
+            qubits: vec![0],  // Target qubit will be set by caller
+            params: vec![],
+        })
+    } else {
+        None
+    }
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
