@@ -57,6 +57,25 @@ impl GateName {
             _ => None,
         }
     }
+        match tok {
+            "h" => Some(Self::H),
+            "x" => Some(Self::X),
+            "y" => Some(Self::Y),
+            "z" => Some(Self::Z),
+            "s" => Some(Self::S),
+            "t" => Some(Self::T),
+            "sdg" => Some(Self::Sdg),
+            "tdg" => Some(Self::Tdg),
+            "cx" | "cnot" => Some(Self::Cx),
+            "cz" => Some(Self::Cz),
+            "swap" => Some(Self::Swap),
+            "ccx" | "toffoli" => Some(Self::Ccx),
+            "rx" => Some(Self::Rx),
+            "ry" => Some(Self::Ry),
+            "rz" => Some(Self::Rz),
+            _ => None,
+        }
+    }
 
     /// Canonical lower-case QASM name.
     pub fn as_str(&self) -> &'static str {
