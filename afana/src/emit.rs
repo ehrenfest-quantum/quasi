@@ -213,6 +213,14 @@ fn format_gate(gate: &Gate, version: QasmVersion) -> Result<String, EmitError> {
 /// Uses pi-fraction notation when the value is a clean multiple of pi.
 fn format_float(val: f64) -> String {
     let pi = std::f64::consts::PI;
+    
+    // Special case for π/3
+    if (val - pi/3.0).abs() < 1e-10 {
+        return "pi/3".to_string();
+    }
+    
+    let ratio = val / pi;
+    let pi = std::f64::consts::PI;
     let ratio = val / pi;
 
     // Check if it's a clean multiple of pi (within floating-point tolerance).
