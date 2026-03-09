@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 /// `toffoli` → `ccx`) are resolved at parse time.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum GateName {
+    Rz,
     H,
     X,
     Y,
