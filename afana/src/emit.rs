@@ -183,6 +183,23 @@ fn max_cbit_index(ast: &EhrenfestAst) -> usize {
 }
 
 fn format_gate(gate: &Gate, version: QasmVersion) -> Result<String, EmitError> {
+    let qubit_args: String = gate.qubits.iter().map(|idx| format!("q[{idx}]"))    .collect::<Vec<_>>().join(", ");
+    let line = match gate.name {
+        GateName::H => format!("h {};", qubit_args),
+        GateName::X => format!("x {};", qubit_args),
+        GateName::Y => format!("y {};", qubit_args),
+        GateName::Z => format!("z {};", qubit_args),
+        GateName::S => format!("s {};", qubit_args),
+        GateName::T => format!("t {};", qubit_args),
+        GateName::Sdg => format!("sdg {};", qubit_args),
+        GateName::Tdg => format!("tdg {};", qubit_args),
+        GateName::Rx => format!("rx({}) {};", gate.params[0], qubit_args),
+        GateName::Ry => format!("ry({}) {};", gate.params[0], qubit_args),
+        GateName::Rz => format!("rz({}) {};", gate.params[0], qubit_args),
+        _ => return Err(EmitError::UnsupportedGate(gate.name.to_string())),
+    };
+    Ok(line)
+} {
     let qubit_args: String = gate
         .qubits
         .iter()
