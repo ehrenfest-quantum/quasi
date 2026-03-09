@@ -211,7 +211,7 @@ fn format_gate(gate: &Gate, version: QasmVersion) -> Result<String, EmitError> {
 /// Format a float parameter for QASM output.
 ///
 /// Uses pi-fraction notation when the value is a clean multiple of pi.
-fn format_float(val: f64) -> String {
+fn format_float(val: f64) -> String { let pi = std::f64::consts::PI; let ratio = val / pi; if (ratio - ratio.round()).abs() < 1e-10 { let r = ratio.round() as i64; match r { 0 => "0".into(), 1 => "pi".into(), -1 => "-pi".into(), _ => format!("{r}*pi"), } } else { for denom in [2, 4, 8, 12, 16, 24, 32] { let numer = ratio * denom as f64; if (numer - numer.round()).abs() < 1e-10 { let n = numer.round() as i64; return match n { 1 => format!("pi/{denom}"), -1 => format!("-pi/{denom}"), _ => format!("{n}*pi/{denom}"), }; } } format!("{val}") } } {
     let pi = std::f64::consts::PI;
     let ratio = val / pi;
 
