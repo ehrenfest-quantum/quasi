@@ -50,6 +50,40 @@ pub fn synthesize_entangling_gates(gates: &[Gate]) -> SynthesisResult {
     }
 
     // Pass 2: Detect H-CX-H → CZ patterns.
+    // (existing code unchanged)
+    // Pass 3: Detect simple Toffoli pattern: Cx c1,t; Cx c2,t; Cx c1,t → synthesize Ccx.
+    // This pattern assumes the first and third Cx share the same control and target,
+    // and the middle Cx shares the same target with a different control.
+    // When detected, we emit a three‑qubit CCX (Toffoli) gate.
+    i = 0;
+    while i + 2 < gates.len() {
+        let g0 = &gates[i];
+        let g1 = &gates[i + 1];
+        let g2 = &gates[i + 2];
+        if g0.name == GateName::Cx && g2.name == GateName::Cx && g1.name == GateName::Cx {
+            // Ensure g0 and g2 are identical (same control and target)
+            if g0.qubits == g2.qubits {
+                let target = g0.qubits[1];
+                let ctrl1 = g0.qubits[0];
+                let ctrl2 = g1.qubits[0];
+                // g1 must target the same qubit
+                if g1.qubits[1] == target && ctrl2 != ctrl1 {
+                    // Synthesize CCX gate
+                    let ccx = Gate {
+                        name: GateName::Ccx,
+                        qubits: vec![ctrl1, ctrl2, target],
+                        params: vec![],
+                    };
+                    entangling_gates.push(ccx);
+                    // Skip the three Cx gates we just consumed
+                    i += 3;
+                    continue;
+                }
+            }
+        }
+        i += 1;
+    }
+
     // Pattern: H on target, then CX(control, target), then H on target.
     let mut i = 0;
     while i + 2 < gates.len() {
