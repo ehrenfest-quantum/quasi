@@ -34,7 +34,11 @@ pub fn verify_parameter_bindings(ast: &EhrenfestAst) -> Result<(), EmitError> {
 }
 
 /// Emit an [`EhrenfestAst`] as OpenQASM source.
-pub fn emit_qasm(ast: &EhrenfestAst, version: QasmVersion) -> Result<String, EmitError> {
+pub fn emit_qasm3(ast: &EhrenfestAst) -> Result<String, EmitError> {
+        emit_qasm(ast, QasmVersion::V3)
+    }
+
+    pub fn emit_qasm(ast: &EhrenfestAst, version: QasmVersion) -> Result<String, EmitError> {
     // Verify parameter bindings before emission.
     verify_parameter_bindings(ast)?;
 
