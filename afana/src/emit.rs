@@ -420,4 +420,26 @@ mod tests {
         assert_eq!(format_float(0.0), "0");
         assert_eq!(format_float(2.0 * std::f64::consts::PI), "2*pi");
     }
-}
+
+    #[test]
+    fn emit_rz_gate_pi_third() {
+        let ast = EhrenfestAst {
+            name: "rz_test".into(),
+            n_qubits: 1,
+            prepare: None,
+            gates: vec![
+                Gate {
+                    name: GateName::Rz,
+                    qubits: vec![0],
+                    params: vec![std::f64::consts::FRAC_PI_3],
+                },
+            ],
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: Vec::new(),
+        };
+        let qasm = emit_qasm(&ast, QasmVersion::V3).unwrap();
+        assert!(qasm.contains("rz(pi/3) q[0];"), "Expected rz(pi/3) q[0]; in output");
+    }
