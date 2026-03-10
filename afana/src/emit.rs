@@ -190,21 +190,23 @@ fn format_gate(gate: &Gate, version: QasmVersion) -> Result<String, EmitError> {
         .collect::<Vec<_>>()
         .join(", ");
 
-    let line = if gate.params.is_empty() {
-        format!("{} {};", gate.name.as_str(), qubit_args)
-    } else {
-        let param_str = gate
-            .params
-            .iter()
-            .map(|p| format_float(*p))
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!("{}({}) {};", gate.name.as_str(), param_str, qubit_args)
+    let line = match gate.name {
+        GateName::H | GateName::X | GateName::Y | GateName::Z | GateName::S | GateName::T | GateName::Sdg | GateName::Tdg => {
+            if !gate.params.is_empty() {
+                return Err(EmitError::UnsupportedGate(format!("{:?}", gate.name)));
+            }
+            format!("{} {};", gate.name.as_str().to_lowercase(), qubit_args)
+        }
+        GateName::Rx | GateName::Ry | GateName::Rz => {
+            if gate.params.len() != 1 {
+                return Err(EmitError::UnsupportedGate(format!("{:?}", gate.name)));
+            }
+            let param_str = format_float(gate.params[0]);
+            format!("{}({}) {};", gate.name.as_str().to_lowercase(), param_str, qubit_args)
+        }
+        _ => return Err(EmitError::UnsupportedGate(format!("{:?}", gate.name))),
     };
 
-    // Validate qubit range is left to the caller (parser already does this),
-    // but we validate the gate name is emittable.
-    let _ = version; // Both versions use the same gate names for now.
     Ok(line)
 }
 
