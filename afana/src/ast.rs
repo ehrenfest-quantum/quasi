@@ -31,6 +31,7 @@ pub enum GateName {
     Rx,
     Ry,
     Rz,
+    Y,
 }
 
 impl GateName {
