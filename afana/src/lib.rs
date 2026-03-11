@@ -19,6 +19,7 @@ pub mod cbor;
 pub mod emit;
 pub mod error;
 pub mod optimize;
+pub mod qasm3;
 pub mod synthesis;
 pub mod trotter;
 pub mod type_check;
