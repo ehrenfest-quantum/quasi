@@ -2,8 +2,11 @@
 // Copyright 2026 QUASI Contributors
 //! Entangling gate synthesis from gate sequences.
 //!
-//! Detects patterns in gate sequences that correspond to entangling operations
-//! (CNOT/CX and CZ) and synthesizes them into explicit two-qubit gates.
+//! Entangling gate synthesis from gate sequences and core gate decompositions.
+//!
+//! 1. Detects patterns in gate sequences that correspond to entangling operations
+//!    (CNOT/CX and CZ) and synthesizes them into explicit two-qubit gates.
+//! 2. Implements synthesis of core gates (T, T†, S, S†, etc.) from ZX-IR phase angles.
 //!
 //! This module bridges the gap between Trotterized gate sequences (which use
 //! CNOT ladders implicitly) and explicit entangling gate representation needed
