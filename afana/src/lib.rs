@@ -22,3 +22,4 @@ pub mod optimize;
 pub mod synthesis;
 pub mod trotter;
 pub mod type_check;
+pub mod zx_to_qasm;
