@@ -9,6 +9,8 @@
 //! CNOT ladders implicitly) and explicit entangling gate representation needed
 //! for ZX-IR analysis in future phases.
 
+pub mod zx_to_qasm;
+
 use crate::ast::{Gate, GateName};
 
 /// Result of entangling gate synthesis analysis.
