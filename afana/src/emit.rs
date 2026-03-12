@@ -4,12 +4,19 @@
 
 use crate::ast::*;
 use crate::error::EmitError;
+use quizx::circuit::Circuit;
 
 /// QASM dialect to emit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QasmVersion {
     V2,
     V3,
+}
+
+/// Validate QASM3 output using the quizx parser.
+pub fn validate_qasm3(qasm: &str) -> Result<(), String> {
+    Circuit::from_qasm_str(qasm).map_err(|e| format!("QASM3 validation failed: {}", e))?;
+    Ok(())
 }
 
 /// Verify that all `VariationalGate.param_refs` resolve to declared
