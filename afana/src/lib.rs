@@ -18,6 +18,7 @@ pub mod ast;
 pub mod cbor;
 pub mod emit;
 pub mod error;
+pub mod gate_synthesis;
 pub mod optimize;
 pub mod synthesis;
 pub mod trotter;
