@@ -342,6 +342,29 @@ mod tests {
     }
 
     #[test]
+    fn emit_sdg_gate() {
+        let ast = EhrenfestAst {
+            name: "sdg".into(),
+            n_qubits: 1,
+            prepare: None,
+            gates: vec![
+                Gate {
+                    name: GateName::Sdg,
+                    qubits: vec![0],
+                    params: vec![],
+                },
+            ],
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: Vec::new(),
+        };
+        let qasm = emit_qasm(&ast, QasmVersion::V3).unwrap();
+        assert!(qasm.contains("sdg q[0];"));
+    }
+
+    #[test]
     fn verify_param_binding_ok() {
         let ast = EhrenfestAst {
             name: "vqe".into(),
