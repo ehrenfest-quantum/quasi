@@ -342,6 +342,29 @@ mod tests {
     }
 
     #[test]
+    fn emit_ry_gate() {
+        let ast = EhrenfestAst {
+            name: "ry_test".into(),
+            n_qubits: 1,
+            prepare: None,
+            gates: vec![
+                Gate {
+                    name: GateName::Ry,
+                    qubits: vec![0],
+                    params: vec![1.234],
+                },
+            ],
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: Vec::new(),
+        };
+        let qasm = emit_qasm(&ast, QasmVersion::V3).unwrap();
+        assert!(qasm.contains("ry(1.234) q[0];"));
+    }
+
+    #[test]
     fn verify_param_binding_ok() {
         let ast = EhrenfestAst {
             name: "vqe".into(),
