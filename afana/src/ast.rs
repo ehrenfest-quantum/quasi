@@ -24,6 +24,7 @@ pub enum GateName {
     T,
     Sdg,
     Tdg,
+    Sx,
     Cx,
     Cz,
     Swap,
