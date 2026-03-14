@@ -163,7 +163,18 @@ Output ONLY valid JSON in this exact structure — no prose before or after:
 - The issue must NOT cover a blocked topic from the charter.
 - The issue must be meaningfully different from every already-open issue.
 - Acceptance criteria must be CI-verifiable — not "code is readable" or "docs exist".
-- Do not propose CI workflow changes, README edits, or documentation-only issues."#
+- Do not propose CI workflow changes, README edits, or documentation-only issues.
+
+## Anti-patterns — DO NOT generate these issues
+
+- "Implement X gate synthesis/emission" when GateName::X already exists in ast.rs
+  — the emitter handles ALL gates generically. These issues waste solver time.
+- "Add QASM3 syntax validation test for X gate" — trivial tests that just check
+  `qasm.contains("x q[0];")` add no value. Only propose tests that verify
+  non-trivial behavior (parameter formatting, multi-qubit gates, error cases).
+- "Implement type system for X" when type_check.rs already exists — do not
+  propose parallel type systems.
+- Any issue whose solution is ONLY adding an enum variant — this is too trivial."#
 }
 
 pub fn drafter_user_prompt(
@@ -269,6 +280,10 @@ Your task: decide whether this issue should be opened on GitHub.
 - The acceptance criteria are not CI-verifiable
 - The issue is vague ("improve X", "refactor Y") without a specific deliverable
 - The phase quota for this priority area is already reached
+- The issue asks to "implement X gate synthesis/emission" when the gate already
+  exists in GateName enum — the emitter handles all gates generically
+- The issue's only deliverable is a trivial test (e.g. checking a string contains
+  a gate name) that adds no meaningful coverage beyond what existing tests provide
 
 ## Output
 
@@ -350,15 +365,54 @@ Rules:
 - Do not modify lines unrelated to the issue.
 - Keep changes minimal — only what satisfies the acceptance criteria.
 
-CI / GitHub Actions rules (IMPORTANT — violations break the project for everyone):
-- The project already has a complete CI pipeline at .github/workflows/ci.yml covering all four
-  layers (spec/python, board, mcp, agent). Check it before adding anything CI-related.
-- Do NOT create a new workflow file if the issue can be solved by editing ci.yml.
-- Do NOT create duplicate workflow files — one workflow per concern.
-- If you create a new workflow, ensure all commands actually exist. For Python tests use:
-    pip install pytest pytest-anyio anyio[asyncio]  (pytest is NOT in requirements.txt)
-- Never rename a job ID in ci.yml without updating every "needs:" reference to that job.
-- Prefer editing the existing ci.yml job steps over creating a new .github/workflows/*.yml file."#
+## CRITICAL: Check existing implementation BEFORE writing new code
+
+Before writing new modules or functions, READ the repo context carefully to check
+if the functionality already exists through the existing pipeline:
+
+1. **Gates:** `GateName` enum in `ast.rs` already includes H, X, Y, Z, S, T, Sdg,
+   Tdg, Cx, Cz, Swap, Ccx, Rx, Ry, Rz. The `format_gate()` function in `emit.rs`
+   emits ALL gates generically — if a gate is in the enum, it already emits correctly
+   in both QASM2 and QASM3. Do NOT create parallel emission/synthesis modules.
+2. **Synthesis:** `synthesis.rs` has `synthesize_entangling_gates()` which detects
+   CX, CZ, CCX patterns. Extend THIS function — do not create new modules like
+   `gates.rs`, `qasm3/synthesis.rs`, or `gate_synthesis.rs`.
+3. **Types:** `ast.rs` defines Gate, GateName, EhrenfestAst. `type_check.rs` handles
+   type checking. Do NOT create parallel type systems (`types.rs`, `type_checker.rs`).
+
+If the issue asks to "implement X gate synthesis" and GateName::X already exists
+with working emission, the issue may only need a **test** proving it works.
+
+## Architectural rules — violations get the PR rejected
+
+1. **Afana is a Rust-only compiler.** Never create .py files inside `afana/`.
+   Never create Python test files for Rust code. Afana tests are `#[test]` functions
+   in Rust, either inline `#[cfg(test)] mod tests` or in `afana/tests/*.rs`.
+2. **No Python in afana/.** No `__init__.py`, no `test_*.py`, no `.py` files at all.
+   If the issue is about the Afana compiler, ALL code must be Rust.
+3. **Integration tests** in `afana/tests/*.rs` use `use afana::module_name` (not `use crate::`).
+4. **Do not create CI workflow files** — the project has a complete CI pipeline already.
+5. **Do not create new modules** unless the issue explicitly requires it.
+   Prefer adding functions/variants to existing modules.
+6. **Do not create parallel/duplicate modules.** If `synthesis.rs` exists, do not
+   create `gate_synthesis.rs`. If `emit.rs` exists, do not create `qasm3_emitter.rs`.
+   If `type_check.rs` exists, do not create `type_checker.rs` or `types.rs`.
+
+## Rules for new_files
+
+- Use "new_files" ONLY for files that do not exist yet.
+- For Rust test files, place them in `afana/tests/test_name.rs` and use `use afana::...` imports.
+- NEVER create .py files inside `afana/` — this is an architectural violation.
+- If you create a new `.rs` file inside `afana/src/`, you MUST also add a
+  `pub mod <name>;` line to `afana/src/lib.rs` — otherwise it won't compile.
+
+## General rules
+
+- Keep changes minimal — only what satisfies the acceptance criteria.
+- Do not modify lines unrelated to the issue.
+- If the issue is already satisfied, set "edits" to [] and explain in "reasoning".
+- Your solution MUST compile. Run a mental `cargo check` before emitting.
+  If you reference types or functions, verify they exist in the context provided."#
 }
 
 pub fn solver_user_prompt(issue_title: &str, issue_body: &str, repo_context: &str) -> String {
@@ -398,6 +452,14 @@ and does not introduce architectural violations.
 - The solution modifies CI workflows without clear justification
 - The solution introduces code unrelated to the issue
 - The edits reference strings that don't exist in the target files (broken find/replace)
+- The solution creates new source modules that duplicate existing functionality:
+  e.g. creating `gate_synthesis.rs` when `synthesis.rs` exists, or `types.rs`
+  when `type_check.rs` exists, or `qasm3/synthesis.rs` when `emit.rs` already
+  handles emission. Reject with: "Duplicate module — extend existing code instead."
+- The solution contains only stub/placeholder functions (e.g. `return Vec::new()`,
+  `return 0.0`, `todo!()`) without real implementation logic
+- The solution creates new `.rs` files in `afana/src/` without adding the
+  corresponding `pub mod` declaration in `lib.rs` (won't compile)
 
 ## Output
 

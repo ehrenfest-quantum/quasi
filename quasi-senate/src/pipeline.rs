@@ -658,6 +658,40 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
             }
         };
 
+        // Pre-review compilation gate — check if the solver's edits compile
+        // before wasting a reviewer API call on non-compiling code.
+        let has_rust_edits = solve_result
+            .edits
+            .iter()
+            .any(|e| e.file.ends_with(".rs"))
+            || solve_result
+                .new_files
+                .keys()
+                .any(|p| p.ends_with(".rs"));
+
+        if has_rust_edits && !ctx.dry_run {
+            info!("pipeline: pre-review cargo check for #{issue_number}");
+            match pre_review_cargo_check(&solve_result).await {
+                Ok(()) => {
+                    info!("pipeline: pre-review cargo check passed for #{issue_number}");
+                }
+                Err(compiler_output) => {
+                    warn!(
+                        "pipeline: pre-review cargo check FAILED for #{issue_number} (model={}) — skipping reviewer",
+                        b1_entry.id
+                    );
+                    solver_exclude.push(b1_entry.id.to_string());
+                    retry_feedback = Some(format!(
+                        "Your solution does not compile. Compiler output:\n{compiler_output}\n\n\
+                         Fix the compilation errors. If you create new `.rs` files in `afana/src/`, \
+                         add `pub mod <name>;` to `afana/src/lib.rs`. Do not reference types or \
+                         functions that don't exist."
+                    ));
+                    continue;
+                }
+            }
+        }
+
         // Post solution to Matrix #senate-solutions
         if let Some(bot) = &ctx.matrix {
             let (plain, html) =
@@ -1130,4 +1164,91 @@ async fn apply_and_pr(
         .await?;
 
     Ok((pr.html_url, pr.number))
+}
+
+/// Pre-review compilation gate: clone main, apply solver's edits locally,
+/// run `cargo check`. Returns Ok(()) if it compiles, Err(compiler_output)
+/// otherwise. This runs BEFORE the reviewer to avoid wasting reviewer API
+/// calls on non-compiling solutions.
+async fn pre_review_cargo_check(
+    solve_result: &crate::types::SolveResult,
+) -> std::result::Result<(), String> {
+    use std::process::Command;
+
+    let repo_url = "https://github.com/ehrenfest-quantum/quasi.git";
+    let tmp_dir = format!("/tmp/senate-precheck-{}", &Uuid::new_v4().to_string()[..8]);
+
+    // 1. Shallow clone of main
+    let clone = Command::new("git")
+        .args(["clone", "--depth", "1", repo_url, &tmp_dir])
+        .output();
+
+    let clone_output = clone.map_err(|e| format!("git clone failed: {e}"))?;
+    if !clone_output.status.success() {
+        let stderr = String::from_utf8_lossy(&clone_output.stderr);
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+        return Err(format!("git clone failed: {stderr}"));
+    }
+
+    // 2. Apply edits locally
+    for edit in &solve_result.edits {
+        let file_path = format!("{}/{}", tmp_dir, edit.file);
+        match std::fs::read_to_string(&file_path) {
+            Ok(content) => {
+                if !content.contains(&edit.find) {
+                    let _ = std::fs::remove_dir_all(&tmp_dir);
+                    let snippet: String = edit.find.chars().take(80).collect();
+                    return Err(format!(
+                        "Edit find string not found in '{}': {:?}",
+                        edit.file, snippet
+                    ));
+                }
+                let new_content = content.replacen(&edit.find, &edit.replace, 1);
+                if let Err(e) = std::fs::write(&file_path, new_content) {
+                    let _ = std::fs::remove_dir_all(&tmp_dir);
+                    return Err(format!("Failed to write '{}': {e}", edit.file));
+                }
+            }
+            Err(e) => {
+                let _ = std::fs::remove_dir_all(&tmp_dir);
+                return Err(format!("Failed to read '{}': {e}", edit.file));
+            }
+        }
+    }
+
+    // 3. Create new files locally
+    for (path, content) in &solve_result.new_files {
+        let file_path = format!("{}/{}", tmp_dir, path);
+        if let Some(parent) = std::path::Path::new(&file_path).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if let Err(e) = std::fs::write(&file_path, content) {
+            let _ = std::fs::remove_dir_all(&tmp_dir);
+            return Err(format!("Failed to create '{}': {e}", path));
+        }
+    }
+
+    // 4. Run cargo check
+    let check = Command::new("cargo")
+        .args(["check", "--workspace"])
+        .current_dir(&tmp_dir)
+        .env("CARGO_TERM_COLOR", "never")
+        .output();
+
+    let check_output = check.map_err(|e| format!("cargo check failed to run: {e}"))?;
+
+    // 5. Clean up
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+
+    if check_output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&check_output.stderr);
+        let truncated: String = if stderr.len() > 2000 {
+            format!("…{}", &stderr[stderr.len() - 2000..])
+        } else {
+            stderr.to_string()
+        };
+        Err(truncated)
+    }
 }

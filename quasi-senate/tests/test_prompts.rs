@@ -137,6 +137,54 @@ fn test_gate_user_prompt_contains_draft_title() {
 }
 
 #[test]
+fn test_solver_system_prompt_warns_against_duplicate_modules() {
+    let prompt = solver_system_prompt();
+    assert!(
+        prompt.contains("Check existing implementation"),
+        "solver prompt must warn against duplicate modules"
+    );
+    assert!(
+        prompt.contains("Do not create parallel/duplicate modules"),
+        "solver prompt must forbid parallel modules"
+    );
+    assert!(
+        prompt.contains("MUST compile"),
+        "solver prompt must require compilation"
+    );
+}
+
+#[test]
+fn test_reviewer_system_prompt_rejects_stubs() {
+    let prompt = reviewer_system_prompt();
+    assert!(
+        prompt.contains("stub/placeholder"),
+        "reviewer prompt must reject stubs"
+    );
+    assert!(
+        prompt.contains("Duplicate module"),
+        "reviewer prompt must reject duplicate modules"
+    );
+}
+
+#[test]
+fn test_gate_system_prompt_rejects_trivial_gate_issues() {
+    let prompt = gate_system_prompt();
+    assert!(
+        prompt.contains("gate already"),
+        "gate prompt must reject redundant gate issues"
+    );
+}
+
+#[test]
+fn test_drafter_system_prompt_has_anti_patterns() {
+    let prompt = drafter_system_prompt();
+    assert!(
+        prompt.contains("Anti-patterns"),
+        "drafter prompt must list anti-patterns"
+    );
+}
+
+#[test]
 fn test_solver_user_prompt_contains_issue_title() {
     let issue_title = "Add ZX-IR rewrite rules for CX decomposition";
     let result = solver_user_prompt(issue_title, "## Body\nSome body", "## Context\nNone");
