@@ -1,4 +1,17 @@
 #!/usr/bin/env python3
+
+def parse_quantum_expression(text: str) -> dict:
+    """Parse a quantum expression string into the Ehrenfest QuantumExpression structure.
+
+    Args:
+        text (str): The raw expression, e.g. "H q0" or "M q1".
+
+    Returns:
+        dict: A dictionary representing the parsed expression.
+    """
+    # Very simple placeholder – in a real implementation this would use
+    # the Ehrenfest parser generated from the CDDL spec.
+    return {}
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Daniel Hinderink
 """

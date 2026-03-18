@@ -1,4 +1,11 @@
 ; Ehrenfest v0.1 — CBOR Schema for QUASI Physics Programs
+  QuantumExpression = any of {
+    Gate = { name: string; targets: [uint]; controls?: [uint];
+      params?: { angle: float; }, }
+    Measurement = { target: uint; }
+    Reset = { target: uint; }
+    Barrier = { targets: [uint]; }
+  }
 ; QUASI-001 | RFC 8610 CDDL
 ;
 ; Validate: gem install cddl && cddl spec/ehrenfest-v0.1.cddl validate <example.cbor>
