@@ -165,16 +165,21 @@ Output ONLY valid JSON in this exact structure — no prose before or after:
 - Acceptance criteria must be CI-verifiable — not "code is readable" or "docs exist".
 - Do not propose CI workflow changes, README edits, or documentation-only issues.
 
-## Anti-patterns — DO NOT generate these issues
+## Anti-patterns — DO NOT generate these issues (HARD BLOCK)
 
-- "Implement X gate synthesis/emission" when GateName::X already exists in ast.rs
-  — the emitter handles ALL gates generically. These issues waste solver time.
-- "Add QASM3 syntax validation test for X gate" — trivial tests that just check
-  `qasm.contains("x q[0];")` add no value. Only propose tests that verify
-  non-trivial behavior (parameter formatting, multi-qubit gates, error cases).
-- "Implement type system for X" when type_check.rs already exists — do not
-  propose parallel type systems.
-- Any issue whose solution is ONLY adding an enum variant — this is too trivial."#
+- **Individual gate synthesis/emission**: NEVER propose implementing, adding, or
+  testing a single gate (H, X, Y, Z, S, T, Cx, Cz, Rx, Ry, Rz, SX, SWAP, CCX,
+  CP, CS, CH, U2, U3, ID, or ANY other gate) for ZX-IR or QASM synthesis/emission.
+  The Afana emitter handles ALL gates generically through format_gate() in emit.rs.
+  GateName enum already covers: H, X, Y, Z, S, T, Sdg, Tdg, Cx, Cz, Swap, Ccx,
+  Rx, Ry, Rz. These issues have been mass-closed 3 times. Stop generating them.
+- **Error mitigation / hardware backends**: NEVER propose anything about IBM Torino,
+  IQM Garnet, error mitigation, or hardware-specific optimizations. These belong
+  in HAL drivers (ts-halcontract), NOT in Afana. This is a permanent architectural
+  decision per CLAUDE.md §1.
+- **CBOR serialization for AST**: cbor.rs already exists and handles this.
+- **Trivial tests**: Tests that only check `qasm.contains("gate q[0];")`.
+- **Parallel type systems**: type_check.rs already exists."#
 }
 
 pub fn drafter_user_prompt(
@@ -280,10 +285,19 @@ Your task: decide whether this issue should be opened on GitHub.
 - The acceptance criteria are not CI-verifiable
 - The issue is vague ("improve X", "refactor Y") without a specific deliverable
 - The phase quota for this priority area is already reached
-- The issue asks to "implement X gate synthesis/emission" when the gate already
-  exists in GateName enum — the emitter handles all gates generically
-- The issue's only deliverable is a trivial test (e.g. checking a string contains
-  a gate name) that adds no meaningful coverage beyond what existing tests provide
+
+## HARD REJECT — always reject issues matching these patterns:
+- **Individual gate synthesis/emission**: ANY issue about implementing, adding, or
+  testing a specific gate (H, X, Y, Z, S, T, Sdg, Tdg, Cx, Cz, Swap, Ccx, Rx,
+  Ry, Rz, SX, CP, CS, CH, U2, U3, ID, ISWAP, ECR, or any other single gate)
+  for ZX-IR/QASM2/QASM3 synthesis or emission. The Afana emitter handles ALL
+  gates generically through format_gate(). These issues are ALWAYS rejected.
+- **Error mitigation / hardware backends**: ANY issue mentioning "error mitigation",
+  "IBM Torino", "IQM Garnet", "IBM Quantum", or any specific hardware backend.
+  This violates the architectural boundary — hardware belongs in HAL drivers.
+- **Trivial tests**: Issues whose only deliverable is checking a QASM string
+  contains a gate name (e.g. `qasm.contains("h q[0];")`)
+- **CBOR serialization for AST**: cbor.rs already handles CBOR deserialization
 
 ## Output
 

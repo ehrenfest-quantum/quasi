@@ -170,7 +170,7 @@ fn test_reviewer_system_prompt_rejects_stubs() {
 fn test_gate_system_prompt_rejects_trivial_gate_issues() {
     let prompt = gate_system_prompt();
     assert!(
-        prompt.contains("gate already"),
+        prompt.contains("HARD REJECT"),
         "gate prompt must reject redundant gate issues"
     );
 }
