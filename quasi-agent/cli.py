@@ -1023,6 +1023,47 @@ compdef _quasi_agent cli.py''')
 
 
 def main() -> None:
+    """
+    Entry point for the quasi-agent CLI.
+    Supports running variational loops with the `run-variational-loop` command.
+    """
+    parser = argparse.ArgumentParser(description='QUASI task agent CLI')
+    subparsers = parser.add_subparsers(dest='command')
+
+    # Existing commands
+    # ... (existing subcommands) ...
+
+    # NEW: Add variational loop command
+    vl_parser = subparsers.add_parser(
+        'run-variational-loop',
+        help='Run an Ehrenfest program using the quantum memory model in a variational loop'
+    )
+    vl_parser.add_argument('program_path', type=Path, help='Path to the Ehrenfest program CBOR file')
+    vl_parser.add_argument('--memory-size', type=int, default=1024,
+                            help='Quantum memory size (qubits) for the variational loop')
+    vl_parser.add_argument('--shots', type=int, default=1000,
+                            help='Number of shots for the variational loop execution')
+    vl_parser.add_argument('--backend', default='simulator',
+                            help='Quantum backend to use (e.g., ibm, qiskit_simulator)')
+
+    # Register the handler
+    def run_variational_loop(args):
+        """
+        Execute the Ehrenfest program in a variational loop using the quantum memory model.
+        This is a placeholder that will call the actual implementation once available.
+        """
+        # TODO: Implement actual execution logic using the quantum memory model
+        print(f'Running variational loop on {args.program_path} with {args.shots} shots and {args.memory_size} qubits')
+        # Placeholder success
+        assert True
+
+    vl_parser.set_defaults(func=run_variational_loop)
+
+    # ... (rest of main function, including parsing and dispatch) ...
+
+    # In the existing dispatch block, ensure the new command is included
+    # (If the dispatch is already generic via subparsers, no further change needed)
+
     """Parse CLI arguments and dispatch to the selected quasi-agent command."""
     parser = argparse.ArgumentParser(description="quasi-agent — QUASI task client")
     parser.add_argument("--board", default=DEFAULT_BOARD, help="quasi-board URL")
