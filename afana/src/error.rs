@@ -32,4 +32,10 @@ pub enum EmitError {
         gate: String,
         declared: Vec<String>,
     },
+
+    #[error("missing binding for parameter `{param}` in variational gate `{gate}`")]
+    MissingBinding {
+        param: String,
+        gate: String,
+    },
 }
