@@ -208,10 +208,40 @@ fn format_gate(gate: &Gate, version: QasmVersion) -> Result<String, EmitError> {
     Ok(line)
 }
 
+/// Normalize a phase angle to the canonical range (-π, π].
+///
+/// This ensures equivalent rotations produce identical QASM output:
+/// e.g. 3π → π, -3π → π, 5π/2 → π/2, 2π → 0.
+fn normalize_phase(angle: f64) -> f64 {
+    let pi = std::f64::consts::PI;
+    let two_pi = 2.0 * pi;
+
+    // Reduce to (-2π, 2π) then shift into (-π, π].
+    let mut a = angle % two_pi;
+
+    if a > pi {
+        a -= two_pi;
+    } else if a < -pi {
+        a += two_pi;
+    }
+
+    // Map -π to +π for a unique canonical form, and snap near-zero to 0.
+    if (a + pi).abs() < 1e-10 {
+        pi
+    } else if a.abs() < 1e-10 {
+        0.0
+    } else {
+        a
+    }
+}
+
 /// Format a float parameter for QASM output.
 ///
 /// Uses pi-fraction notation when the value is a clean multiple of pi.
+/// The angle is first normalized to (-π, π] so that equivalent rotations
+/// produce identical output.
 fn format_float(val: f64) -> String {
+    let val = normalize_phase(val);
     let pi = std::f64::consts::PI;
     let ratio = val / pi;
 
@@ -437,10 +467,47 @@ mod tests {
     #[test]
     fn format_float_pi_fractions() {
         assert_eq!(format_float(std::f64::consts::PI), "pi");
-        assert_eq!(format_float(-std::f64::consts::PI), "-pi");
+        // -π is canonicalized to +π by normalize_phase.
+        assert_eq!(format_float(-std::f64::consts::PI), "pi");
         assert_eq!(format_float(std::f64::consts::FRAC_PI_2), "pi/2");
         assert_eq!(format_float(std::f64::consts::FRAC_PI_4), "pi/4");
         assert_eq!(format_float(0.0), "0");
-        assert_eq!(format_float(2.0 * std::f64::consts::PI), "2*pi");
+        assert_eq!(format_float(2.0 * std::f64::consts::PI), "0");
+    }
+
+    #[test]
+    fn normalize_phase_canonical_range() {
+        use std::f64::consts::PI;
+
+        // 3π → π (mod 2π, then canonical)
+        assert_eq!(format_float(3.0 * PI), "pi");
+        let val = normalize_phase(3.0 * PI);
+        assert!((val - PI).abs() < 1e-10, "3π should normalize to π, got {val}");
+
+        // -3π → π (since -3π mod 2π = -π, canonical maps -π → π)
+        let val = normalize_phase(-3.0 * PI);
+        assert!((val - PI).abs() < 1e-10, "-3π should normalize to π, got {val}");
+
+        // 5π/2 → π/2
+        let val = normalize_phase(5.0 * PI / 2.0);
+        assert!((val - PI / 2.0).abs() < 1e-10, "5π/2 should normalize to π/2, got {val}");
+        assert_eq!(format_float(5.0 * PI / 2.0), "pi/2");
+
+        // 0 → 0
+        assert_eq!(normalize_phase(0.0), 0.0);
+        assert_eq!(format_float(0.0), "0");
+
+        // 2π → 0
+        let val = normalize_phase(2.0 * PI);
+        assert!(val.abs() < 1e-10, "2π should normalize to 0, got {val}");
+
+        // -π → π (canonical: map -π to +π)
+        let val = normalize_phase(-PI);
+        assert!((val - PI).abs() < 1e-10, "-π should normalize to π, got {val}");
+
+        // -π/2 stays -π/2
+        let val = normalize_phase(-PI / 2.0);
+        assert!((val + PI / 2.0).abs() < 1e-10, "-π/2 should stay -π/2, got {val}");
+        assert_eq!(format_float(-PI / 2.0), "-pi/2");
     }
 }
