@@ -160,11 +160,48 @@ pub fn optimize_qasm(qasm: &str, do_reduce_t: bool) -> (String, OptStats) {
     stats.gate_count_before = count_qasm_gates(&working);
 
     // ZX-calculus optimization via quizx.
-    // TODO: Wire up quizx::Circuit::from_qasm → graph → full_reduce → extract → to_qasm.
-    // For now, return the T-reduced circuit as-is.
+    match zx_optimize_qasm(&working) {
+        Ok(optimized) => {
+            let new_count = count_qasm_gates(&optimized);
+            // Never-worse guarantee: only accept if gate count decreased or stayed equal.
+            if new_count <= stats.gate_count_before {
+                stats.gate_count_after = new_count;
+                return (optimized, stats);
+            }
+        }
+        Err(_) => {
+            // ZX optimization failed (e.g. extraction error) — fall through to
+            // return the T-reduced circuit unchanged.
+        }
+    }
     stats.gate_count_after = stats.gate_count_before;
 
     (working, stats)
+}
+
+// ── ZX-calculus optimization ─────────────────────────────────────────────────
+
+/// Apply ZX-calculus simplification to a QASM string via quizx.
+///
+/// Pipeline: parse QASM → decompose to basic gates → build ZX graph →
+/// `full_simp` → extract circuit → emit QASM.
+///
+/// Returns `Err` if parsing or circuit extraction fails (e.g. the simplified
+/// graph has no valid causal flow).
+pub fn zx_optimize_qasm(qasm: &str) -> Result<String, String> {
+    use quizx::circuit::Circuit;
+    use quizx::extract::ToCircuit;
+    use quizx::simplify::full_simp;
+    use quizx::vec_graph::Graph;
+
+    let circuit = Circuit::from_qasm(qasm)?;
+    let basic = circuit.to_basic_gates();
+    let mut graph: Graph = basic.to_graph();
+    full_simp(&mut graph);
+    let optimized = graph
+        .to_circuit()
+        .map_err(|e| format!("ZX extraction failed: {e}"))?;
+    Ok(optimized.to_qasm())
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -215,6 +252,103 @@ mod tests {
         // so they should NOT be merged.
         let t_count = result.lines().filter(|l| l.trim() == "t q[0];").count();
         assert_eq!(t_count, 2);
+    }
+
+    // ── ZX optimization tests ─────────────────────────────────────────────
+
+    #[test]
+    fn zx_hh_cancellation() {
+        // H·H = I — two Hadamards on the same qubit should cancel.
+        let qasm = "\
+OPENQASM 2.0;\n\
+include \"qelib1.inc\";\n\
+qreg q[1];\n\
+h q[0];\n\
+h q[0];";
+        let result = zx_optimize_qasm(qasm).expect("ZX optimization should succeed");
+        let gate_count = count_qasm_gates(&result);
+        assert_eq!(gate_count, 0, "H·H should cancel to identity, got:\n{result}");
+    }
+
+    #[test]
+    fn zx_cnot_cnot_cancellation() {
+        // CNOT·CNOT = I — two identical CNOTs should cancel.
+        let qasm = "\
+OPENQASM 2.0;\n\
+include \"qelib1.inc\";\n\
+qreg q[2];\n\
+cx q[0], q[1];\n\
+cx q[0], q[1];";
+        let result = zx_optimize_qasm(qasm).expect("ZX optimization should succeed");
+        let gate_count = count_qasm_gates(&result);
+        assert_eq!(gate_count, 0, "CNOT·CNOT should cancel, got:\n{result}");
+    }
+
+    #[test]
+    fn zx_optimize_reduces_gate_count() {
+        // A circuit with redundant gates should have fewer gates after ZX optimization.
+        let qasm = "\
+OPENQASM 2.0;\n\
+include \"qelib1.inc\";\n\
+qreg q[2];\n\
+h q[0];\n\
+h q[0];\n\
+cx q[0], q[1];\n\
+cx q[0], q[1];\n\
+h q[1];\n\
+h q[1];";
+        let before = count_qasm_gates(qasm);
+        let result = zx_optimize_qasm(qasm).expect("ZX optimization should succeed");
+        let after = count_qasm_gates(&result);
+        assert!(after < before, "ZX should reduce gates: {before} -> {after}\n{result}");
+    }
+
+    #[test]
+    fn zx_optimize_qasm_never_worse() {
+        // The optimize_qasm wrapper should never produce more gates.
+        let qasm = "\
+OPENQASM 2.0;\n\
+include \"qelib1.inc\";\n\
+qreg q[2];\n\
+h q[0];\n\
+cx q[0], q[1];";
+        let (result, stats) = optimize_qasm(qasm, false);
+        assert!(
+            stats.gate_count_after <= stats.gate_count_before,
+            "Never-worse guarantee violated: {} -> {}",
+            stats.gate_count_before,
+            stats.gate_count_after
+        );
+        // For an already-minimal circuit, the output should still be valid QASM.
+        assert!(result.contains("OPENQASM") || count_qasm_gates(&result) > 0);
+    }
+
+    #[test]
+    fn zx_with_t_reduction_combined() {
+        // Test the full pipeline: T-gate reduction + ZX simplification.
+        let qasm = "\
+OPENQASM 2.0;\n\
+include \"qelib1.inc\";\n\
+qreg q[2];\n\
+t q[0];\n\
+t q[0];\n\
+t q[0];\n\
+t q[0];\n\
+t q[0];\n\
+t q[0];\n\
+t q[0];\n\
+t q[0];\n\
+h q[1];\n\
+h q[1];";
+        let (result, stats) = optimize_qasm(qasm, true);
+        assert_eq!(stats.t_before, Some(8));
+        assert_eq!(stats.t_after, Some(0));
+        assert!(
+            stats.gate_count_after <= stats.gate_count_before,
+            "Combined optimization should not increase gate count"
+        );
+        // The 8 T-gates cancel, the 2 H-gates cancel via ZX.
+        assert_eq!(stats.gate_count_after, 0, "All gates should cancel, got:\n{result}");
     }
 
     #[test]
