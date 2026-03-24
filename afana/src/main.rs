@@ -39,6 +39,10 @@ struct Cli {
     /// Print compilation statistics to stderr.
     #[arg(long)]
     stats: bool,
+
+    /// Bind variational parameters: --param theta=1.57 --param phi=0.5
+    #[arg(long = "param", value_name = "KEY=VALUE")]
+    params: Vec<String>,
 }
 
 #[derive(Clone, ValueEnum)]
@@ -63,7 +67,22 @@ fn main() -> Result<()> {
         2 => TrotterOrder::Second,
         _ => TrotterOrder::First,
     };
-    let ast = trotter::trotterize(&program, order);
+    let mut ast = trotter::trotterize(&program, order);
+
+    // Substitute variational parameters if --param flags given.
+    if !cli.params.is_empty() {
+        let mut bindings = std::collections::HashMap::new();
+        for kv in &cli.params {
+            let (key, val) = kv
+                .split_once('=')
+                .with_context(|| format!("invalid --param format: {kv:?} (expected KEY=VALUE)"))?;
+            let val: f64 = val
+                .parse()
+                .with_context(|| format!("invalid float value for param {key:?}: {val:?}"))?;
+            bindings.insert(key.to_string(), val);
+        }
+        ast = emit::substitute_params(&ast, &bindings).context("parameter substitution failed")?;
+    }
 
     // Emit QASM.
     let qasm = emit::emit_qasm(&ast, version).context("QASM emission failed")?;

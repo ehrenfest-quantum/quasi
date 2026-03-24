@@ -33,6 +33,75 @@ pub fn verify_parameter_bindings(ast: &EhrenfestAst) -> Result<(), EmitError> {
     Ok(())
 }
 
+/// Substitute concrete parameter values into variational loops.
+///
+/// For each `VariationalLoop`, every `VariationalGate` whose `param_refs`
+/// are all present in `bindings` is converted to a regular [`Gate`] with
+/// concrete `params` and appended to `ast.gates`. The resolved loops are
+/// removed from `variational_loops`.
+///
+/// Returns a new AST with the substitution applied.
+pub fn substitute_params(
+    ast: &EhrenfestAst,
+    bindings: &std::collections::HashMap<String, f64>,
+) -> Result<EhrenfestAst, EmitError> {
+    let mut result = ast.clone();
+    let mut extra_gates: Vec<Gate> = Vec::new();
+
+    let mut remaining_loops: Vec<VariationalLoop> = Vec::new();
+
+    for vloop in &result.variational_loops {
+        let mut all_resolved = true;
+        let mut resolved_gates: Vec<Gate> = Vec::new();
+
+        for vg in &vloop.body {
+            let mut params: Vec<f64> = Vec::new();
+            let mut gate_resolved = true;
+
+            for pref in &vg.param_refs {
+                match bindings.get(pref) {
+                    Some(&val) => params.push(val),
+                    None => {
+                        gate_resolved = false;
+                        all_resolved = false;
+                        break;
+                    }
+                }
+            }
+
+            if gate_resolved {
+                resolved_gates.push(Gate {
+                    name: vg.name.clone(),
+                    qubits: vg.qubits.clone(),
+                    params,
+                });
+            }
+        }
+
+        if all_resolved {
+            extra_gates.extend(resolved_gates);
+        } else {
+            // Find the first unresolved param for the error message.
+            for vg in &vloop.body {
+                for pref in &vg.param_refs {
+                    if !bindings.contains_key(pref) {
+                        return Err(EmitError::MissingBinding {
+                            param: pref.clone(),
+                            gate: vg.name.as_str().to_string(),
+                        });
+                    }
+                }
+            }
+            remaining_loops.push(vloop.clone());
+        }
+    }
+
+    result.gates.extend(extra_gates);
+    result.variational_loops = remaining_loops;
+
+    Ok(result)
+}
+
 /// Emit an [`EhrenfestAst`] as OpenQASM source.
 pub fn emit_qasm(ast: &EhrenfestAst, version: QasmVersion) -> Result<String, EmitError> {
     // Verify parameter bindings before emission.
@@ -473,6 +542,113 @@ mod tests {
         assert_eq!(format_float(std::f64::consts::FRAC_PI_4), "pi/4");
         assert_eq!(format_float(0.0), "0");
         assert_eq!(format_float(2.0 * std::f64::consts::PI), "0");
+    }
+
+    // ── Parameter substitution tests ──────────────────────────────────────
+
+    /// Helper: build an AST with a variational loop for substitution tests.
+    fn vqe_ast() -> EhrenfestAst {
+        EhrenfestAst {
+            name: "vqe".into(),
+            n_qubits: 2,
+            prepare: None,
+            gates: vec![
+                Gate { name: GateName::H, qubits: vec![0], params: vec![] },
+            ],
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: vec![VariationalLoop {
+                params: vec!["theta".into(), "phi".into()],
+                max_iter: 100,
+                body: vec![
+                    VariationalGate {
+                        name: GateName::Rx,
+                        qubits: vec![0],
+                        param_refs: vec!["theta".into()],
+                    },
+                    VariationalGate {
+                        name: GateName::Ry,
+                        qubits: vec![1],
+                        param_refs: vec!["phi".into()],
+                    },
+                ],
+            }],
+        }
+    }
+
+    #[test]
+    fn substitute_params_resolves_to_concrete_gates() {
+        let ast = vqe_ast();
+        let mut bindings = std::collections::HashMap::new();
+        bindings.insert("theta".to_string(), std::f64::consts::FRAC_PI_2);
+        bindings.insert("phi".to_string(), 0.5);
+
+        let resolved = substitute_params(&ast, &bindings).unwrap();
+
+        // Variational loops should be empty after full substitution.
+        assert!(resolved.variational_loops.is_empty());
+
+        // Original gate (H) + 2 resolved gates = 3 total.
+        assert_eq!(resolved.gates.len(), 3);
+        assert_eq!(resolved.gates[1].name, GateName::Rx);
+        assert_eq!(resolved.gates[1].params, vec![std::f64::consts::FRAC_PI_2]);
+        assert_eq!(resolved.gates[2].name, GateName::Ry);
+        assert_eq!(resolved.gates[2].params, vec![0.5]);
+
+        // QASM output should have concrete values, not symbolic names.
+        let qasm = emit_qasm(&resolved, QasmVersion::V2).unwrap();
+        assert!(qasm.contains("rx(pi/2) q[0];"), "expected rx(pi/2), got:\n{qasm}");
+        assert!(qasm.contains("ry(0.5) q[1];"), "expected ry(0.5), got:\n{qasm}");
+        assert!(!qasm.contains("theta"));
+        assert!(!qasm.contains("phi"));
+    }
+
+    #[test]
+    fn substitute_params_missing_binding_errors() {
+        let ast = vqe_ast();
+        let mut bindings = std::collections::HashMap::new();
+        // Only bind theta, leave phi missing.
+        bindings.insert("theta".to_string(), 1.0);
+
+        let err = substitute_params(&ast, &bindings).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("phi"), "error should mention missing param: {msg}");
+    }
+
+    #[test]
+    fn substitute_params_multiple_params_per_gate() {
+        // A gate that references two params at once (synthetic scenario).
+        let ast = EhrenfestAst {
+            name: "multi".into(),
+            n_qubits: 1,
+            prepare: None,
+            gates: Vec::new(),
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: vec![VariationalLoop {
+                params: vec!["alpha".into(), "beta".into()],
+                max_iter: 10,
+                body: vec![VariationalGate {
+                    name: GateName::Rz,
+                    qubits: vec![0],
+                    // Two param refs on one gate.
+                    param_refs: vec!["alpha".into(), "beta".into()],
+                }],
+            }],
+        };
+
+        let mut bindings = std::collections::HashMap::new();
+        bindings.insert("alpha".to_string(), 1.0);
+        bindings.insert("beta".to_string(), 2.0);
+
+        let resolved = substitute_params(&ast, &bindings).unwrap();
+        assert!(resolved.variational_loops.is_empty());
+        assert_eq!(resolved.gates.len(), 1);
+        assert_eq!(resolved.gates[0].params, vec![1.0, 2.0]);
     }
 
     #[test]
