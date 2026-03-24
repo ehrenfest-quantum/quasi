@@ -171,8 +171,8 @@ fn test_variational_loop_invalid_qubit() {
     assert!(result.is_err(), "Should fail on invalid qubit in variational loop");
     let errors = result.unwrap_err();
     assert!(
-        errors.iter().any(|e| e.message.contains("undefined qubit")),
-        "Should report undefined qubit error"
+        errors.iter().any(|e| e.message.contains("qubit index 1 out of range")),
+        "Should report qubit out of range error"
     );
 }
 

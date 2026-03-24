@@ -196,6 +196,86 @@ impl TypeChecker {
         }
     }
 
+    /// Validate a variational gate within a loop.
+    ///
+    /// Checks that:
+    /// - All `param_refs` resolve to declared variational parameters
+    /// - Qubit indices are within the declared `n_qubits` range
+    /// - Qubit arity matches the gate definition
+    /// - Parametric gates (Rx, Ry, Rz) have at least one `param_ref`
+    pub fn check_variational_gate(
+        &mut self,
+        vgate: &VariationalGate,
+        declared_params: &std::collections::HashSet<&str>,
+        n_qubits: usize,
+    ) {
+        // Check qubit indices are within range
+        for &qubit in &vgate.qubits {
+            if qubit >= n_qubits {
+                self.error(
+                    &format!(
+                        "qubit index {} out of range (n_qubits={})",
+                        qubit, n_qubits
+                    ),
+                    Some(format!("variational gate {}", vgate.name)),
+                );
+            }
+        }
+
+        // Check qubit arity matches gate definition
+        let expected_arity = vgate.name.arity();
+        if vgate.qubits.len() != expected_arity {
+            self.error(
+                &format!(
+                    "gate {} expects {} qubit(s), got {}",
+                    vgate.name,
+                    expected_arity,
+                    vgate.qubits.len()
+                ),
+                Some(format!("variational gate {}", vgate.name)),
+            );
+        }
+
+        // Check all param_refs resolve to declared parameters
+        for pref in &vgate.param_refs {
+            if !declared_params.contains(pref.as_str()) {
+                self.error(
+                    &format!(
+                        "unbound parameter '{}' in variational gate {}",
+                        pref, vgate.name
+                    ),
+                    Some(format!("variational gate {}", vgate.name)),
+                );
+            }
+        }
+
+        // Parametric gates must have param_refs in variational context
+        if vgate.name.is_parametric() && vgate.param_refs.is_empty() {
+            self.error(
+                &format!(
+                    "parametric gate {} requires param_refs in variational context",
+                    vgate.name
+                ),
+                Some(format!("variational gate {}", vgate.name)),
+            );
+        }
+    }
+
+    /// Validate a variational loop.
+    pub fn check_variational_loop(&mut self, vloop: &VariationalLoop, n_qubits: usize) {
+        let declared_params: std::collections::HashSet<&str> =
+            vloop.params.iter().map(|s| s.as_str()).collect();
+
+        self.enter_scope("variational");
+        for param in &vloop.params {
+            self.declare(param, EhrenfestType::VariationalParameter);
+        }
+        for vgate in &vloop.body {
+            self.check_variational_gate(vgate, &declared_params, n_qubits);
+        }
+        self.exit_scope();
+    }
+
     /// Run type checking on an Ehrenfest AST.
     pub fn check_ast(&mut self, ast: &EhrenfestAst) {
         // Declare qubits
@@ -220,23 +300,7 @@ impl TypeChecker {
 
         // Check variational loops
         for vloop in &ast.variational_loops {
-            self.enter_scope("variational");
-            for param in &vloop.params {
-                self.declare(param, EhrenfestType::VariationalParameter);
-            }
-            for vgate in &vloop.body {
-                // Only check qubit validity — params are symbolic refs,
-                // not numeric values, so skip the parametric gate check.
-                for &qubit in &vgate.qubits {
-                    if self.lookup(&format!("q{}", qubit)).is_none() {
-                        self.error(
-                            &format!("undefined qubit: q{}", qubit),
-                            Some(format!("q{}", qubit)),
-                        );
-                    }
-                }
-            }
-            self.exit_scope();
+            self.check_variational_loop(vloop, ast.n_qubits);
         }
     }
 }
@@ -370,5 +434,167 @@ mod tests {
 
         let result = type_check_ast(&ast);
         assert!(result.is_ok(), "Variational loop should type check");
+    }
+
+    #[test]
+    fn test_variational_loop_multi_param() {
+        let ast = EhrenfestAst {
+            name: "vqe_multi".into(),
+            n_qubits: 2,
+            prepare: None,
+            gates: Vec::new(),
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: vec![VariationalLoop {
+                params: vec!["theta".into(), "phi".into()],
+                max_iter: 100,
+                body: vec![
+                    VariationalGate {
+                        name: GateName::Ry,
+                        qubits: vec![0],
+                        param_refs: vec!["theta".into()],
+                    },
+                    VariationalGate {
+                        name: GateName::Rz,
+                        qubits: vec![1],
+                        param_refs: vec!["phi".into()],
+                    },
+                    VariationalGate {
+                        name: GateName::Cx,
+                        qubits: vec![0, 1],
+                        param_refs: vec![],
+                    },
+                ],
+            }],
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_ok(), "Multi-param variational loop should type check");
+    }
+
+    #[test]
+    fn test_variational_unbound_param() {
+        let ast = EhrenfestAst {
+            name: "bad_vqe".into(),
+            n_qubits: 1,
+            prepare: None,
+            gates: Vec::new(),
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: vec![VariationalLoop {
+                params: vec!["theta".into()],
+                max_iter: 50,
+                body: vec![VariationalGate {
+                    name: GateName::Ry,
+                    qubits: vec![0],
+                    param_refs: vec!["gamma".into()],
+                }],
+            }],
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_err(), "Should fail on unbound param_ref");
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.message.contains("unbound parameter 'gamma'")),
+            "Should report unbound parameter error"
+        );
+    }
+
+    #[test]
+    fn test_variational_qubit_out_of_range() {
+        let ast = EhrenfestAst {
+            name: "bad_qubit".into(),
+            n_qubits: 2,
+            prepare: None,
+            gates: Vec::new(),
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: vec![VariationalLoop {
+                params: vec!["theta".into()],
+                max_iter: 50,
+                body: vec![VariationalGate {
+                    name: GateName::Ry,
+                    qubits: vec![5], // out of range
+                    param_refs: vec!["theta".into()],
+                }],
+            }],
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_err(), "Should fail on out-of-range qubit");
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.message.contains("qubit index 5 out of range")),
+            "Should report qubit out of range error"
+        );
+    }
+
+    #[test]
+    fn test_variational_parametric_gate_missing_param_refs() {
+        let ast = EhrenfestAst {
+            name: "no_params".into(),
+            n_qubits: 1,
+            prepare: None,
+            gates: Vec::new(),
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: vec![VariationalLoop {
+                params: vec!["theta".into()],
+                max_iter: 50,
+                body: vec![VariationalGate {
+                    name: GateName::Rx,
+                    qubits: vec![0],
+                    param_refs: vec![], // Rx needs param_refs in variational context
+                }],
+            }],
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_err(), "Should fail when parametric gate lacks param_refs");
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.message.contains("requires param_refs")),
+            "Should report missing param_refs for parametric gate"
+        );
+    }
+
+    #[test]
+    fn test_variational_gate_arity_mismatch() {
+        let ast = EhrenfestAst {
+            name: "bad_arity".into(),
+            n_qubits: 3,
+            prepare: None,
+            gates: Vec::new(),
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: vec![VariationalLoop {
+                params: vec!["theta".into()],
+                max_iter: 50,
+                body: vec![VariationalGate {
+                    name: GateName::Cx, // expects 2 qubits
+                    qubits: vec![0],    // only 1
+                    param_refs: vec![],
+                }],
+            }],
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_err(), "Should fail on qubit arity mismatch");
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.message.contains("expects 2 qubit(s), got 1")),
+            "Should report arity mismatch"
+        );
     }
 }
