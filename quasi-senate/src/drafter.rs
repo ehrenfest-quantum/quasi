@@ -85,7 +85,7 @@ pub async fn draft_issue(
     let mut user = crate::prompts::drafter_user_prompt(
         &charter,
         &file_tree,
-        recent_commits,
+        &recent_commits,
         &open_issues_str,
         level,
     );
