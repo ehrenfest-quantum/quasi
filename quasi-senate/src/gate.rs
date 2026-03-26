@@ -22,6 +22,7 @@ pub async fn gate_review(
     charter: &Charter,
     draft: &IssueDraft,
     open_issues: &str,
+    recently_closed: &str,
     exclude: &[&str],
     counts: &HashMap<String, u32>,
     last_provider: Option<&str>,
@@ -32,7 +33,7 @@ pub async fn gate_review(
 
     // 2. Build prompts
     let system = crate::prompts::gate_system_prompt();
-    let user = crate::prompts::gate_user_prompt(charter, draft, open_issues);
+    let user = crate::prompts::gate_user_prompt(charter, draft, open_issues, recently_closed);
 
     // 3. Dry-run path — return an approving verdict
     if dry_run {

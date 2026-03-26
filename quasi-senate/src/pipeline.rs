@@ -175,6 +175,26 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
         .map(|i| format!("  #{}: {}\n", i.number, i.title))
         .collect();
 
+    // 3b. List recently closed issues + merged PRs to prevent re-proposing completed work
+    let closed_issues = ctx.github.list_recently_closed_issues(14).await.unwrap_or_default();
+    let since_14d = (chrono::Utc::now() - chrono::Duration::days(14))
+        .format("%Y-%m-%dT00:00:00Z")
+        .to_string();
+    let merged_prs = ctx.github.list_merged_prs_since(&since_14d).await.unwrap_or_default();
+    let recently_closed_str: String = {
+        let closed: String = closed_issues
+            .iter()
+            .take(40)
+            .map(|i| format!("  #{}: {} [CLOSED]\n", i.number, i.title))
+            .collect();
+        let merged: String = merged_prs
+            .iter()
+            .take(20)
+            .map(|pr| format!("  PR #{}: {} [MERGED]\n", pr.number, pr.title))
+            .collect();
+        format!("{}{}", closed, merged)
+    };
+
     // 4. Determine level from charter
     let level = charter.frontier_level;
 
@@ -273,6 +293,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
             &charter,
             &draft,
             &open_issues_str,
+            &recently_closed_str,
             &gate_exclude,
             &counts,
             last_provider,
