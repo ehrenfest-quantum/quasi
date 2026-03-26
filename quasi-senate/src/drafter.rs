@@ -42,6 +42,24 @@ pub async fn draft_issue(
         .map(|i| format!("  #{}: {}\n", i.number, i.title))
         .collect();
 
+    // 2b. Fetch recently closed issues + merged PRs to avoid re-proposing completed work
+    let closed_issues = github.list_recently_closed_issues(14).await.unwrap_or_default();
+    let closed_issues_str: String = closed_issues
+        .iter()
+        .take(40)
+        .map(|i| format!("  #{}: {}\n", i.number, i.title))
+        .collect();
+
+    let since_14d = (chrono::Utc::now() - chrono::Duration::days(14))
+        .format("%Y-%m-%dT00:00:00Z")
+        .to_string();
+    let merged_prs = github.list_merged_prs_since(&since_14d).await.unwrap_or_default();
+    let merged_prs_str: String = merged_prs
+        .iter()
+        .take(20)
+        .map(|pr| format!("  PR #{}: {}\n", pr.number, pr.title))
+        .collect();
+
     // 3. Fetch ARCHITECTURE.md for file tree context
     let file_tree = github
         .get_file("ARCHITECTURE.md", "main")
@@ -49,8 +67,16 @@ pub async fn draft_issue(
         .map(|fc| fc.content)
         .unwrap_or_else(|_| "(ARCHITECTURE.md unavailable)".to_string());
 
-    // 4. Recent commits placeholder (unavailable in daemon mode)
-    let recent_commits = "(recent commits unavailable in daemon mode)";
+    // 4. Recent completed work (closed issues + merged PRs)
+    let recent_commits = if closed_issues_str.is_empty() && merged_prs_str.is_empty() {
+        "(no recently completed work)".to_string()
+    } else {
+        format!(
+            "Recently closed issues (last 14 days):\n{}\nRecently merged PRs:\n{}",
+            if closed_issues_str.is_empty() { "  (none)\n".to_string() } else { closed_issues_str },
+            if merged_prs_str.is_empty() { "  (none)\n".to_string() } else { merged_prs_str },
+        )
+    };
 
     // 5. Parse charter from JSON
     let charter: Charter = serde_json::from_str(charter_json)?;

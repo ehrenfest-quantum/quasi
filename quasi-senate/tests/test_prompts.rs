@@ -129,7 +129,7 @@ fn test_drafter_user_prompt_contains_charter() {
 fn test_gate_user_prompt_contains_draft_title() {
     let charter = dummy_charter();
     let draft = dummy_draft();
-    let result = gate_user_prompt(&charter, &draft, "No open issues");
+    let result = gate_user_prompt(&charter, &draft, "No open issues", "  PR #701: Implement parameter substitution [MERGED]");
     assert!(
         result.contains("Implement ZX-IR gate fusion pass"),
         "gate_user_prompt() does not contain the draft title"

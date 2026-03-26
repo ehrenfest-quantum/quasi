@@ -225,7 +225,11 @@ task distribution system.
 
 {file_tree}
 
-## Recent Commits
+## Recently Completed Work — DO NOT re-propose these
+
+The following issues were recently closed and PRs merged. These features are
+ALREADY IMPLEMENTED. Do not propose issues that duplicate, re-state, or
+trivially extend this completed work.
 
 {commits}
 
@@ -298,6 +302,8 @@ Your task: decide whether this issue should be opened on GitHub.
 - **Trivial tests**: Issues whose only deliverable is checking a QASM string
   contains a gate name (e.g. `qasm.contains("h q[0];")`)
 - **CBOR serialization for AST**: cbor.rs already handles CBOR deserialization
+- **Duplicates recently closed work**: If the draft substantially overlaps an issue
+  or PR listed in the "Recently Closed" section, reject it — that work is done
 
 ## Output
 
@@ -310,7 +316,7 @@ Your task: decide whether this issue should be opened on GitHub.
 Emit ONLY the JSON."#
 }
 
-pub fn gate_user_prompt(charter: &Charter, draft: &IssueDraft, open_issues: &str) -> String {
+pub fn gate_user_prompt(charter: &Charter, draft: &IssueDraft, open_issues: &str, recently_closed: &str) -> String {
     let charter_json = serde_json::to_string_pretty(charter)
         .unwrap_or_else(|_| "(charter serialization error)".to_string());
 
@@ -333,6 +339,13 @@ pub fn gate_user_prompt(charter: &Charter, draft: &IssueDraft, open_issues: &str
 ## Already-open GitHub Issues
 
 {open_issues}
+
+## Recently Closed Issues & Merged PRs (last 14 days) — ALREADY DONE
+
+Reject the draft if it duplicates, re-states, or trivially extends any of
+these completed items. The work below is already merged into the codebase.
+
+{recently_closed}
 
 ## Your task
 

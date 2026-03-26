@@ -125,6 +125,37 @@ impl GitHubClient {
         Ok(collected)
     }
 
+    /// List issues closed in the last `days` days (for dedup context).
+    pub async fn list_recently_closed_issues(&self, days: u32) -> Result<Vec<Issue>> {
+        let since = chrono::Utc::now() - chrono::Duration::days(days as i64);
+        let since_str = since.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        let url = format!(
+            "{}/issues?state=closed&since={}&per_page=100&sort=updated&direction=desc",
+            self.base_url(),
+            since_str,
+        );
+
+        let resp = self
+            .client
+            .get(&url)
+            .headers(self.default_headers())
+            .send()
+            .await
+            .context("list_recently_closed_issues: network error")?;
+
+        if !resp.status().is_success() {
+            return Err(self.github_error(resp).await);
+        }
+
+        let issues: Vec<Issue> = resp
+            .json()
+            .await
+            .context("list_recently_closed_issues: deserialise")?;
+
+        info!("list_recently_closed_issues: {} issues closed in last {} days", issues.len(), days);
+        Ok(issues)
+    }
+
     pub async fn create_issue(
         &self,
         title: &str,
