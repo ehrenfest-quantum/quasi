@@ -262,7 +262,40 @@ impl TypeChecker {
     }
 
     /// Validate a variational loop.
+    ///
+    /// Checks structural well-formedness:
+    /// - No duplicate parameter names within the loop
+    /// - Loop body must be non-empty
+    /// - `max_iter` must be greater than zero
+    /// - All gates in the body pass variational gate checks
     pub fn check_variational_loop(&mut self, vloop: &VariationalLoop, n_qubits: usize) {
+        // Check for duplicate parameter names
+        let mut seen_params = std::collections::HashSet::new();
+        for param in &vloop.params {
+            if !seen_params.insert(param.as_str()) {
+                self.error(
+                    &format!("duplicate parameter '{}' in variational loop", param),
+                    Some("variational loop".to_string()),
+                );
+            }
+        }
+
+        // Check loop body is non-empty
+        if vloop.body.is_empty() {
+            self.error(
+                "variational loop body must not be empty",
+                Some("variational loop".to_string()),
+            );
+        }
+
+        // Check max_iter > 0
+        if vloop.max_iter == 0 {
+            self.error(
+                "variational loop max_iter must be greater than zero",
+                Some("variational loop".to_string()),
+            );
+        }
+
         let declared_params: std::collections::HashSet<&str> =
             vloop.params.iter().map(|s| s.as_str()).collect();
 
@@ -565,6 +598,149 @@ mod tests {
             errors.iter().any(|e| e.message.contains("requires param_refs")),
             "Should report missing param_refs for parametric gate"
         );
+    }
+
+    #[test]
+    fn test_variational_loop_duplicate_params() {
+        let ast = EhrenfestAst {
+            name: "dup_params".into(),
+            n_qubits: 2,
+            prepare: None,
+            gates: Vec::new(),
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: vec![VariationalLoop {
+                params: vec!["theta".into(), "phi".into(), "theta".into()],
+                max_iter: 100,
+                body: vec![VariationalGate {
+                    name: GateName::Ry,
+                    qubits: vec![0],
+                    param_refs: vec!["theta".into()],
+                }],
+            }],
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_err(), "Should fail on duplicate parameter names");
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.message.contains("duplicate parameter 'theta'")),
+            "Should report duplicate parameter error"
+        );
+    }
+
+    #[test]
+    fn test_variational_loop_empty_body() {
+        let ast = EhrenfestAst {
+            name: "empty_body".into(),
+            n_qubits: 1,
+            prepare: None,
+            gates: Vec::new(),
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: vec![VariationalLoop {
+                params: vec!["theta".into()],
+                max_iter: 100,
+                body: vec![],
+            }],
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_err(), "Should fail on empty loop body");
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.message.contains("body must not be empty")),
+            "Should report empty body error"
+        );
+    }
+
+    #[test]
+    fn test_variational_loop_zero_max_iter() {
+        let ast = EhrenfestAst {
+            name: "zero_iter".into(),
+            n_qubits: 1,
+            prepare: None,
+            gates: Vec::new(),
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: vec![VariationalLoop {
+                params: vec!["theta".into()],
+                max_iter: 0,
+                body: vec![VariationalGate {
+                    name: GateName::Ry,
+                    qubits: vec![0],
+                    param_refs: vec!["theta".into()],
+                }],
+            }],
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_err(), "Should fail on zero max_iter");
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.message.contains("max_iter must be greater than zero")),
+            "Should report zero max_iter error"
+        );
+    }
+
+    #[test]
+    fn test_variational_loop_valid_nested_structure() {
+        // Multiple well-formed variational loops in the same program
+        let ast = EhrenfestAst {
+            name: "nested_valid".into(),
+            n_qubits: 3,
+            prepare: None,
+            gates: vec![Gate {
+                name: GateName::H,
+                qubits: vec![0],
+                params: vec![],
+            }],
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: vec![
+                VariationalLoop {
+                    params: vec!["alpha".into(), "beta".into()],
+                    max_iter: 200,
+                    body: vec![
+                        VariationalGate {
+                            name: GateName::Rx,
+                            qubits: vec![0],
+                            param_refs: vec!["alpha".into()],
+                        },
+                        VariationalGate {
+                            name: GateName::Ry,
+                            qubits: vec![1],
+                            param_refs: vec!["beta".into()],
+                        },
+                        VariationalGate {
+                            name: GateName::Cx,
+                            qubits: vec![0, 1],
+                            param_refs: vec![],
+                        },
+                    ],
+                },
+                VariationalLoop {
+                    params: vec!["gamma".into()],
+                    max_iter: 50,
+                    body: vec![VariationalGate {
+                        name: GateName::Rz,
+                        qubits: vec![2],
+                        param_refs: vec!["gamma".into()],
+                    }],
+                },
+            ],
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_ok(), "Valid nested variational structure should type check");
     }
 
     #[test]
