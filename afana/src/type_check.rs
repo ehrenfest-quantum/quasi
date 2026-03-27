@@ -151,6 +151,42 @@ impl TypeChecker {
         &self.errors
     }
 
+    /// Validate gate connectivity: multi-qubit gates must reference distinct qubits,
+    /// and the qubit count must match the gate's arity.
+    pub fn validate_connectivity(&mut self, gate: &Gate) {
+        let arity = gate.name.arity();
+
+        // Check arity match
+        if gate.qubits.len() != arity {
+            self.error(
+                &format!(
+                    "gate {} expects {} qubit(s), got {}",
+                    gate.name,
+                    arity,
+                    gate.qubits.len()
+                ),
+                Some(format!("gate {}", gate.name)),
+            );
+            return;
+        }
+
+        // For multi-qubit gates, check all qubits are distinct
+        if arity >= 2 {
+            let mut seen = std::collections::HashSet::new();
+            for &qubit in &gate.qubits {
+                if !seen.insert(qubit) {
+                    self.error(
+                        &format!(
+                            "gate {} references qubit q[{}] more than once — operands must be distinct",
+                            gate.name, qubit
+                        ),
+                        Some(format!("gate {}", gate.name)),
+                    );
+                }
+            }
+        }
+    }
+
     /// Validate gate application.
     pub fn check_gate(&mut self, gate: &Gate) {
         // Check qubit indices are valid
@@ -193,6 +229,26 @@ impl TypeChecker {
                 &format!("undefined qubit: q{}", measure.qubit),
                 Some(format!("q{}", measure.qubit)),
             );
+        }
+    }
+
+    /// Validate connectivity for a variational gate: multi-qubit gates must
+    /// reference distinct qubits.
+    pub fn validate_variational_connectivity(&mut self, vgate: &VariationalGate) {
+        let arity = vgate.name.arity();
+        if arity >= 2 && vgate.qubits.len() == arity {
+            let mut seen = std::collections::HashSet::new();
+            for &qubit in &vgate.qubits {
+                if !seen.insert(qubit) {
+                    self.error(
+                        &format!(
+                            "gate {} references qubit q[{}] more than once — operands must be distinct",
+                            vgate.name, qubit
+                        ),
+                        Some(format!("variational gate {}", vgate.name)),
+                    );
+                }
+            }
         }
     }
 
@@ -272,6 +328,7 @@ impl TypeChecker {
         }
         for vgate in &vloop.body {
             self.check_variational_gate(vgate, &declared_params, n_qubits);
+            self.validate_variational_connectivity(vgate);
         }
         self.exit_scope();
     }
@@ -286,6 +343,7 @@ impl TypeChecker {
         // Check gates
         for gate in &ast.gates {
             self.check_gate(gate);
+            self.validate_connectivity(gate);
         }
 
         // Check measurements
@@ -296,6 +354,7 @@ impl TypeChecker {
         // Check conditionals
         for cond in &ast.conditionals {
             self.check_gate(&cond.gate);
+            self.validate_connectivity(&cond.gate);
         }
 
         // Check variational loops
@@ -595,6 +654,213 @@ mod tests {
         assert!(
             errors.iter().any(|e| e.message.contains("expects 2 qubit(s), got 1")),
             "Should report arity mismatch"
+        );
+    }
+
+    // ── Connectivity validation tests ─────────────────────────────────────
+
+    #[test]
+    fn test_cx_duplicate_qubit_rejected() {
+        let ast = EhrenfestAst {
+            name: "dup_cx".into(),
+            n_qubits: 2,
+            prepare: None,
+            gates: vec![Gate {
+                name: GateName::Cx,
+                qubits: vec![0, 0], // same qubit twice
+                params: vec![],
+            }],
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: Vec::new(),
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_err(), "CX with duplicate qubits should fail");
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.message.contains("more than once")),
+            "Should report duplicate qubit: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn test_cz_duplicate_qubit_rejected() {
+        let ast = EhrenfestAst {
+            name: "dup_cz".into(),
+            n_qubits: 3,
+            prepare: None,
+            gates: vec![Gate {
+                name: GateName::Cz,
+                qubits: vec![1, 1],
+                params: vec![],
+            }],
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: Vec::new(),
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_err(), "CZ with duplicate qubits should fail");
+    }
+
+    #[test]
+    fn test_swap_duplicate_qubit_rejected() {
+        let ast = EhrenfestAst {
+            name: "dup_swap".into(),
+            n_qubits: 2,
+            prepare: None,
+            gates: vec![Gate {
+                name: GateName::Swap,
+                qubits: vec![0, 0],
+                params: vec![],
+            }],
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: Vec::new(),
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_err(), "SWAP with duplicate qubits should fail");
+    }
+
+    #[test]
+    fn test_ccx_duplicate_qubit_rejected() {
+        let ast = EhrenfestAst {
+            name: "dup_ccx".into(),
+            n_qubits: 3,
+            prepare: None,
+            gates: vec![Gate {
+                name: GateName::Ccx,
+                qubits: vec![0, 1, 0], // q0 appears twice
+                params: vec![],
+            }],
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: Vec::new(),
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_err(), "CCX with duplicate qubits should fail");
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.message.contains("q[0]") && e.message.contains("more than once")),
+            "Should report duplicate qubit q[0]: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn test_ccx_all_distinct_qubits_accepted() {
+        let ast = EhrenfestAst {
+            name: "good_ccx".into(),
+            n_qubits: 3,
+            prepare: None,
+            gates: vec![Gate {
+                name: GateName::Ccx,
+                qubits: vec![0, 1, 2],
+                params: vec![],
+            }],
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: Vec::new(),
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_ok(), "CCX with 3 distinct qubits should pass");
+    }
+
+    #[test]
+    fn test_cx_arity_mismatch_rejected() {
+        let ast = EhrenfestAst {
+            name: "cx_one_qubit".into(),
+            n_qubits: 2,
+            prepare: None,
+            gates: vec![Gate {
+                name: GateName::Cx,
+                qubits: vec![0], // CX needs 2
+                params: vec![],
+            }],
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: Vec::new(),
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_err(), "CX with 1 qubit should fail");
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.message.contains("expects 2 qubit(s), got 1")),
+            "Should report arity mismatch: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn test_single_qubit_gate_no_false_positive() {
+        // Single-qubit gates should not trigger connectivity errors
+        let ast = EhrenfestAst {
+            name: "single".into(),
+            n_qubits: 1,
+            prepare: None,
+            gates: vec![
+                Gate { name: GateName::H, qubits: vec![0], params: vec![] },
+                Gate { name: GateName::X, qubits: vec![0], params: vec![] },
+                Gate { name: GateName::Rz, qubits: vec![0], params: vec![1.57] },
+            ],
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: Vec::new(),
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_ok(), "Single-qubit gates should pass connectivity check");
+    }
+
+    #[test]
+    fn test_variational_cx_duplicate_qubit_rejected() {
+        let ast = EhrenfestAst {
+            name: "var_dup".into(),
+            n_qubits: 2,
+            prepare: None,
+            gates: Vec::new(),
+            measures: Vec::new(),
+            conditionals: Vec::new(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: vec![VariationalLoop {
+                params: vec!["theta".into()],
+                max_iter: 50,
+                body: vec![VariationalGate {
+                    name: GateName::Cx,
+                    qubits: vec![0, 0], // duplicate
+                    param_refs: vec![],
+                }],
+            }],
+        };
+
+        let result = type_check_ast(&ast);
+        assert!(result.is_err(), "Variational CX with duplicate qubits should fail");
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.message.contains("more than once")),
+            "Should report duplicate qubit in variational gate: {:?}",
+            errors
         );
     }
 }
