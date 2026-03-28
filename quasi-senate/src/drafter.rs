@@ -43,17 +43,17 @@ pub async fn draft_issue(
         .collect();
 
     // 2b. Fetch recently closed issues + merged PRs to avoid re-proposing completed work
-    let closed_issues = github.list_recently_closed_issues(14).await.unwrap_or_default();
+    let closed_issues = github.list_recently_closed_issues(7).await.unwrap_or_default();
     let closed_issues_str: String = closed_issues
         .iter()
         .take(40)
         .map(|i| format!("  #{}: {}\n", i.number, i.title))
         .collect();
 
-    let since_14d = (chrono::Utc::now() - chrono::Duration::days(14))
+    let since_7d = (chrono::Utc::now() - chrono::Duration::days(7))
         .format("%Y-%m-%dT00:00:00Z")
         .to_string();
-    let merged_prs = github.list_merged_prs_since(&since_14d).await.unwrap_or_default();
+    let merged_prs = github.list_merged_prs_since(&since_7d).await.unwrap_or_default();
     let merged_prs_str: String = merged_prs
         .iter()
         .take(20)
@@ -72,7 +72,7 @@ pub async fn draft_issue(
         "(no recently completed work)".to_string()
     } else {
         format!(
-            "Recently closed issues (last 14 days):\n{}\nRecently merged PRs:\n{}",
+            "Recently closed issues (last 7 days):\n{}\nRecently merged PRs:\n{}",
             if closed_issues_str.is_empty() { "  (none)\n".to_string() } else { closed_issues_str },
             if merged_prs_str.is_empty() { "  (none)\n".to_string() } else { merged_prs_str },
         )

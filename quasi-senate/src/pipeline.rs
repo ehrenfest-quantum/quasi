@@ -176,11 +176,11 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
         .collect();
 
     // 3b. List recently closed issues + merged PRs to prevent re-proposing completed work
-    let closed_issues = ctx.github.list_recently_closed_issues(14).await.unwrap_or_default();
-    let since_14d = (chrono::Utc::now() - chrono::Duration::days(14))
+    let closed_issues = ctx.github.list_recently_closed_issues(7).await.unwrap_or_default();
+    let since_7d = (chrono::Utc::now() - chrono::Duration::days(7))
         .format("%Y-%m-%dT00:00:00Z")
         .to_string();
-    let merged_prs = ctx.github.list_merged_prs_since(&since_14d).await.unwrap_or_default();
+    let merged_prs = ctx.github.list_merged_prs_since(&since_7d).await.unwrap_or_default();
     let recently_closed_str: String = {
         let closed: String = closed_issues
             .iter()
@@ -204,8 +204,8 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
     let mut drafter_exclude: Vec<String> = Vec::new();
     let mut retry_feedback: Option<String> = None;
 
-    // 5. Retry loop — up to 2 attempts
-    for retry in 0..2u32 {
+    // 5. Retry loop — up to 4 attempts
+    for retry in 0..4u32 {
         info!("pipeline: A.2 draft attempt {}", retry + 1);
 
         let exclude_refs: Vec<&str> = drafter_exclude.iter().map(|s| s.as_str()).collect();
@@ -567,8 +567,8 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
 
     // All retries exhausted
     if let Some(bot) = &ctx.matrix {
-        let plain = "⚠️ Draft shelved after 2 rejected attempts — moving on.".to_string();
-        let html = "<p>⚠️ <b>Draft shelved</b> after 2 rejected attempts — moving on.</p>"
+        let plain = "⚠️ Draft shelved after 4 rejected attempts — moving on.".to_string();
+        let html = "<p>⚠️ <b>Draft shelved</b> after 4 rejected attempts — moving on.</p>"
             .to_string();
         match bot.join_room("#senate-drafts:paulsboutique.hal-contract.org").await {
             Ok(room_id) => {
@@ -580,7 +580,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
         }
     }
 
-    Err(anyhow!("Draft rejected after 2 attempts"))
+    Err(anyhow!("Draft rejected after 4 attempts"))
 }
 
 // ── B-track ───────────────────────────────────────────────────────────────────

@@ -340,7 +340,7 @@ pub fn gate_user_prompt(charter: &Charter, draft: &IssueDraft, open_issues: &str
 
 {open_issues}
 
-## Recently Closed Issues & Merged PRs (last 14 days) — ALREADY DONE
+## Recently Closed Issues & Merged PRs (last 7 days) — ALREADY DONE
 
 Reject the draft if it duplicates, re-states, or trivially extends any of
 these completed items. The work below is already merged into the codebase.
