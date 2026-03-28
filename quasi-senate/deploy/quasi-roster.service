@@ -1,0 +1,15 @@
+[Unit]
+Description=QUASI Roster Maintenance (discover + prune + profile)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/vops
+ExecStart=/usr/bin/python3 -m quasi_roster.cli discover --apply
+ExecStart=/usr/bin/python3 -m quasi_roster.cli prune --apply
+ExecStart=/usr/bin/python3 -m quasi_roster.cli profile --apply
+User=vops
+EnvironmentFile=/home/vops/.env.quasi
+Environment=PYTHONPATH=/home/vops/quasi-roster
+StandardOutput=append:/home/vops/logs/quasi-roster.log
+StandardError=append:/home/vops/logs/quasi-roster.log

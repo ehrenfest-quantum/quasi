@@ -1,1 +1,27 @@
-# CI cache clear: 2026-02-26 19:59 UTC
+# Build artifacts
+target/
+*.so
+*.dylib
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Node
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Pre-built binaries
+quasi-senate-linux-amd64

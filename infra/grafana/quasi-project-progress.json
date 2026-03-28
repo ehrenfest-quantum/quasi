@@ -1,0 +1,454 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Overview",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Total Source LOC",
+      "type": "stat",
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+        "editorMode": "code",
+        "format": "table",
+        "rawQuery": true,
+        "rawSql": "SELECT SUM(loc_source) AS \"Total\" FROM project_stats WHERE snapshot_at = (SELECT MAX(snapshot_at) FROM project_stats)",
+        "refId": "A"
+      }]
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Core LOC",
+      "type": "stat",
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+        "editorMode": "code",
+        "format": "table",
+        "rawQuery": true,
+        "rawSql": "SELECT SUM(loc_source) AS \"Core\" FROM project_stats WHERE category = 'core' AND snapshot_at = (SELECT MAX(snapshot_at) FROM project_stats)",
+        "refId": "A"
+      }]
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Infrastructure LOC",
+      "type": "stat",
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+        "editorMode": "code",
+        "format": "table",
+        "rawQuery": true,
+        "rawSql": "SELECT SUM(loc_source) AS \"Infra\" FROM project_stats WHERE category = 'infrastructure' AND snapshot_at = (SELECT MAX(snapshot_at) FROM project_stats)",
+        "refId": "A"
+      }]
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 30 }, { "color": "red", "value": 20 }] },
+          "unit": "percent",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Core %",
+      "type": "stat",
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+        "editorMode": "code",
+        "format": "table",
+        "rawQuery": true,
+        "rawSql": "SELECT ROUND(SUM(CASE WHEN category='core' THEN loc_source ELSE 0 END)::numeric / NULLIF(SUM(loc_source),0) * 100, 1) AS \"Core %\" FROM project_stats WHERE snapshot_at = (SELECT MAX(snapshot_at) FROM project_stats)",
+        "refId": "A"
+      }]
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 5,
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Test LOC",
+      "type": "stat",
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+        "editorMode": "code",
+        "format": "table",
+        "rawQuery": true,
+        "rawSql": "SELECT SUM(loc_tests) AS \"Tests\" FROM project_stats WHERE snapshot_at = (SELECT MAX(snapshot_at) FROM project_stats)",
+        "refId": "A"
+      }]
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 40 }, { "color": "green", "value": 70 }] },
+          "unit": "percent",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 6,
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Overall Completion",
+      "type": "stat",
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+        "editorMode": "code",
+        "format": "table",
+        "rawQuery": true,
+        "rawSql": "SELECT ROUND(AVG(pct)) AS \"Completion\" FROM roadmap_progress WHERE snapshot_at = (SELECT MAX(snapshot_at) FROM roadmap_progress)",
+        "refId": "A"
+      }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "LOC by Component",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 6 },
+      "id": 7,
+      "options": {
+        "orientation": "horizontal",
+        "showValue": "always",
+        "barWidth": 0.7,
+        "groupWidth": 0.7,
+        "xTickLabelRotation": 0,
+        "stacking": "none"
+      },
+      "title": "Lines of Code by Component",
+      "type": "barchart",
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+        "editorMode": "code",
+        "format": "table",
+        "rawQuery": true,
+        "rawSql": "SELECT component, SUM(loc_source) AS loc_source FROM project_stats WHERE snapshot_at = (SELECT MAX(snapshot_at) FROM project_stats) AND language != 'markdown' GROUP BY component ORDER BY loc_source DESC",
+        "refId": "A"
+      }]
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 6 },
+      "id": 8,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] },
+        "pieType": "donut",
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "tooltip": { "mode": "single" }
+      },
+      "title": "Language Distribution",
+      "type": "piechart",
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+        "editorMode": "code",
+        "format": "table",
+        "rawQuery": true,
+        "rawSql": "SELECT language, SUM(loc_source) AS loc FROM project_stats WHERE snapshot_at = (SELECT MAX(snapshot_at) FROM project_stats) AND language != 'markdown' AND loc_source > 0 GROUP BY language ORDER BY loc DESC",
+        "refId": "A"
+      }],
+      "transformations": [{
+        "id": "rowsToFields",
+        "options": { "mappings": [{ "fieldName": "language", "handlerKey": "field.name" }, { "fieldName": "loc", "handlerKey": "field.value" }] }
+      }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 },
+      "id": 102,
+      "title": "Core vs Infrastructure",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "core" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "infrastructure" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 17 },
+      "id": 9,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "values": ["value", "percent"] },
+        "pieType": "donut",
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "tooltip": { "mode": "single" }
+      },
+      "title": "Core vs Infrastructure",
+      "type": "piechart",
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+        "editorMode": "code",
+        "format": "table",
+        "rawQuery": true,
+        "rawSql": "SELECT category, SUM(loc_source) AS loc FROM project_stats WHERE snapshot_at = (SELECT MAX(snapshot_at) FROM project_stats) AND language != 'markdown' GROUP BY category ORDER BY category",
+        "refId": "A"
+      }],
+      "transformations": [{
+        "id": "rowsToFields",
+        "options": { "mappings": [{ "fieldName": "category", "handlerKey": "field.name" }, { "fieldName": "loc", "handlerKey": "field.value" }] }
+      }]
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 17 },
+      "id": 10,
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "loc_source", "desc": true }]
+      },
+      "title": "Component Detail",
+      "type": "table",
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+        "editorMode": "code",
+        "format": "table",
+        "rawQuery": true,
+        "rawSql": "SELECT component, category, language, loc_source, loc_tests, loc_docs FROM project_stats WHERE snapshot_at = (SELECT MAX(snapshot_at) FROM project_stats) ORDER BY loc_source DESC",
+        "refId": "A"
+      }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 },
+      "id": 103,
+      "title": "Roadmap Progress",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "continuous-GrYlRd" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 40 },
+              { "color": "green", "value": 70 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 26 },
+      "id": 11,
+      "options": {
+        "displayMode": "gradient",
+        "minVizHeight": 16,
+        "minVizWidth": 0,
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "title": "Roadmap Phase Completion",
+      "type": "bargauge",
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+        "editorMode": "code",
+        "format": "table",
+        "rawQuery": true,
+        "rawSql": "SELECT phase_name || ' (#' || phase || ')' AS metric, pct AS value FROM roadmap_progress WHERE snapshot_at = (SELECT MAX(snapshot_at) FROM roadmap_progress) ORDER BY phase",
+        "refId": "A"
+      }],
+      "transformations": [{
+        "id": "rowsToFields",
+        "options": { "mappings": [{ "fieldName": "metric", "handlerKey": "field.name" }, { "fieldName": "value", "handlerKey": "field.value" }] }
+      }]
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "pct" }, "properties": [{ "id": "unit", "value": "percent" }, { "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "gauge" } }, { "id": "max", "value": 100 }, { "id": "min", "value": 0 }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 40 }, { "color": "green", "value": 70 }] } }] }
+        ]
+      },
+      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 26 },
+      "id": 12,
+      "options": { "showHeader": true },
+      "title": "Roadmap Detail",
+      "type": "table",
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+        "editorMode": "code",
+        "format": "table",
+        "rawQuery": true,
+        "rawSql": "SELECT phase, phase_name, theme, pct, done, missing FROM roadmap_progress WHERE snapshot_at = (SELECT MAX(snapshot_at) FROM roadmap_progress) ORDER BY phase",
+        "refId": "A"
+      }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 38 },
+      "id": 104,
+      "title": "Trends",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true,
+            "pointSize": 5,
+            "showPoints": "auto"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 39 },
+      "id": 13,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "title": "Total LOC Over Time",
+      "type": "timeseries",
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+        "editorMode": "code",
+        "format": "table",
+        "rawQuery": true,
+        "rawSql": "SELECT snapshot_at AS time, SUM(loc_source) AS \"Total LOC\" FROM project_stats WHERE language != 'markdown' GROUP BY snapshot_at ORDER BY snapshot_at",
+        "refId": "A"
+      }]
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true,
+            "pointSize": 5,
+            "showPoints": "auto"
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "core" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "infrastructure" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 39 },
+      "id": 14,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "title": "Core vs Infra Over Time",
+      "type": "timeseries",
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "ffeagtzfyvvnkf" },
+        "editorMode": "code",
+        "format": "table",
+        "rawQuery": true,
+        "rawSql": "SELECT snapshot_at AS time, category, SUM(loc_source) AS loc FROM project_stats WHERE language != 'markdown' GROUP BY snapshot_at, category ORDER BY snapshot_at",
+        "refId": "A"
+      }],
+      "transformations": [{
+        "id": "prepareTimeSeries",
+        "options": { "format": "many" }
+      }]
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 39,
+  "tags": ["quasi", "project"],
+  "templating": { "list": [] },
+  "time": { "from": "now-30d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "QUASI Project Progress",
+  "uid": "quasi-project-progress",
+  "version": 1
+}
