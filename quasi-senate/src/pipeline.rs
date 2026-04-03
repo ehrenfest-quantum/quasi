@@ -1265,18 +1265,18 @@ async fn pre_review_cargo_check(
     }
 
     // 4. Run cargo check
-    // Use full path to cargo — vops user may not have /root/.cargo/bin in PATH.
-    let cargo_bin = std::env::var("CARGO").unwrap_or_else(|_| {
-        ["/root/.cargo/bin/cargo", "/usr/local/bin/cargo", "cargo"]
-            .iter()
-            .find(|p| std::path::Path::new(p).exists())
-            .unwrap_or(&"cargo")
-            .to_string()
-    });
-    let check = Command::new(&cargo_bin)
+    // Ensure cargo + rustc are in PATH — vops user may not have /root/.cargo/bin.
+    let mut path = std::env::var("PATH").unwrap_or_default();
+    if !path.contains(".cargo/bin") {
+        path = format!("/root/.cargo/bin:{path}");
+    }
+    let check = Command::new("/root/.cargo/bin/cargo")
         .args(["check", "--workspace"])
         .current_dir(&tmp_dir)
         .env("CARGO_TERM_COLOR", "never")
+        .env("PATH", &path)
+        .env("RUSTUP_HOME", "/root/.rustup")
+        .env("CARGO_HOME", "/root/.cargo")
         .output();
 
     let check_output = check.map_err(|e| format!("cargo check failed to run: {e}"))?;
