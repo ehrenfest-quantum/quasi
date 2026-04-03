@@ -383,10 +383,11 @@ Respond with ONLY a JSON object (no markdown fences, no prose before or after):
 }
 
 Rules:
-- Use "edits" for modifying EXISTING files. Each edit is a find/replace on the file.
+- Use "edits" for modifying EXISTING files. Each edit is a SEPARATE object in the array.
   - "find" must be an exact verbatim substring of the current file content — not paraphrased.
   - "replace" is what it becomes. Can be empty string to delete.
-  - Multiple edits on the same file are applied in order.
+  - For MULTIPLE edits, use SEPARATE objects: [{"file":"a","find":"x","replace":"y"}, {"file":"a","find":"p","replace":"q"}]
+  - NEVER put multiple "file"/"find"/"replace" groups in one object — that creates duplicate JSON keys which is invalid.
 - Use "new_files" only for files that do not yet exist.
 - If the issue is already fully satisfied, set "edits" to [] and explain in "reasoning".
 - Do not modify lines unrelated to the issue.

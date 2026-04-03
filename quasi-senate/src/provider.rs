@@ -424,6 +424,19 @@ pub fn parse_json_response<T: DeserializeOwned>(raw: &str) -> Result<T> {
         }
     }
 
+    // Step 9: fix duplicate keys in edit objects.
+    // Some models emit {"file":"a","find":"x","replace":"y","file":"a","find":"p","replace":"q"}
+    // instead of separate objects. Split these into separate edit objects.
+    let dup_key_re = regex::Regex::new(
+        r#"("replace"\s*:\s*"(?:[^"\\]|\\.)*")\s*,\s*("file"\s*:\s*")"#
+    ).expect("valid regex");
+    if dup_key_re.is_match(&fixed_escapes) {
+        let split = dup_key_re.replace_all(&fixed_escapes, "$1}, {$2").to_string();
+        if let Ok(v) = serde_json::from_str::<T>(&split) {
+            return Ok(v);
+        }
+    }
+
     // All attempts exhausted.
     Err(anyhow!(
         "Failed to parse LLM response as JSON after all repair attempts.\n\
