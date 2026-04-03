@@ -440,6 +440,12 @@ with working emission, the issue may only need a **test** proving it works.
 - If the issue is already satisfied, set "edits" to [] and explain in "reasoning".
 - Your solution MUST compile. Run a mental `cargo check` before emitting.
   If you reference types or functions, verify they exist in the context provided.
+- NEVER duplicate an existing function. If a function already exists in the source,
+  EDIT it (using "find"/"replace" on its body) — do NOT append a second definition.
+  Duplicate definitions cause error[E0592] and will be rejected.
+- When adding new methods to an `impl` block, insert them INSIDE the existing block
+  (use a "find" that matches the closing `}` of the impl block and "replace" with
+  your new method followed by `}`).
 
 ## Afana public API — ONLY use functions/types listed here
 
