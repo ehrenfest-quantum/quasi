@@ -679,6 +679,20 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
             }
         };
 
+        // Empty-solution guard — reject solutions that produce no code changes.
+        if solve_result.edits.is_empty() && solve_result.new_files.is_empty() {
+            warn!(
+                "pipeline: solver produced empty solution for #{issue_number} (model={}) — skipping reviewer",
+                b1_entry.id
+            );
+            solver_exclude.push(b1_entry.id.to_string());
+            retry_feedback = Some(
+                "Your solution produced 0 edits and 0 new files. \
+                 You must produce actual code changes to solve the issue.".to_string()
+            );
+            continue;
+        }
+
         // Pre-review compilation gate — check if the solver's edits compile
         // before wasting a reviewer API call on non-compiling code.
         let has_rust_edits = solve_result

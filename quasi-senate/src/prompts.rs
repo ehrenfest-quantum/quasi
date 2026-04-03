@@ -439,7 +439,62 @@ with working emission, the issue may only need a **test** proving it works.
 - Do not modify lines unrelated to the issue.
 - If the issue is already satisfied, set "edits" to [] and explain in "reasoning".
 - Your solution MUST compile. Run a mental `cargo check` before emitting.
-  If you reference types or functions, verify they exist in the context provided."#
+  If you reference types or functions, verify they exist in the context provided.
+
+## Afana public API — ONLY use functions/types listed here
+
+ast.rs:
+  GateName { H,X,Y,Z,S,T,Sdg,Tdg,Cx,Cz,Swap,Ccx,Rx,Ry,Rz }
+    .from_token(&str)->Option<Self>, .as_str()->&str, .arity()->usize, .is_parametric()->bool
+  Gate { name: GateName, qubits: Vec<usize>, params: Vec<f64> }
+  Measure { qubit: usize, cbit: usize }
+  ConditionalGate { cbit: usize, cbit_value: u32, gate: Gate }
+  VariationalGate { name: GateName, qubits: Vec<usize>, param_refs: Vec<String> }
+  VariationalLoop { params: Vec<String>, max_iter: u32, body: Vec<VariationalGate> }
+  EhrenfestAst { name, n_qubits, prepare, gates, measures, conditionals, expects, type_decls, variational_loops }
+
+cbor.rs:
+  EhrenfestProgram { version, system, hamiltonian, evolution, observables, noise }
+  Hamiltonian { terms: Vec<PauliTerm>, constant_offset: f64 }
+  PauliTerm { coefficient: f64, paulis: Vec<PauliOpEntry> }
+  from_cbor(bytes) -> Result<EhrenfestProgram, CborError>
+
+emit.rs:
+  QasmVersion { V2, V3 }
+  emit_qasm(ast: &EhrenfestAst, version: QasmVersion) -> Result<String, EmitError>
+  verify_parameter_bindings(ast: &EhrenfestAst) -> Result<(), EmitError>
+  substitute_params(ast: &EhrenfestAst, bindings: &HashMap<String,f64>) -> Result<EhrenfestAst, EmitError>
+
+optimize.rs:
+  optimize_qasm(qasm: &str, do_reduce_t: bool) -> (String, OptStats)
+  zx_optimize_qasm(qasm: &str) -> Result<String, String>
+  reduce_t_gates(qasm: &str) -> (String, usize, usize)
+
+trotter.rs:
+  TrotterOrder { First, Second }
+  trotterize(program: &EhrenfestProgram, order: TrotterOrder) -> EhrenfestAst
+
+synthesis.rs:
+  SynthesisResult { entangling_gates, cx_count, cz_count, ccx_count }
+  synthesize_entangling_gates(gates: &[Gate]) -> SynthesisResult
+  synthesize_toffoli_from_gates(gates: &[Gate]) -> Vec<Gate>
+
+type_check.rs:
+  TypeChecker::new(), .check_ast(&EhrenfestAst), .check_gate(&Gate),
+    .check_measure(&Measure), .check_variational_loop(&VariationalLoop, n_qubits),
+    .error(&str, Option<String>), .has_errors()->bool, .errors()->&[TypeError]
+  type_check_ast(ast: &EhrenfestAst) -> Result<(), Vec<TypeError>>
+  TypeError { message: String, location: Option<String> }
+
+zx_to_qasm.rs:
+  Graph { spider_types, phases, edges }, .get_type(Node)->Type, .get_phase(Node)->f64
+  decompose_spider_pair(graph: &Graph, spider1: Node, spider2: Node) -> Option<Vec<Gate>>
+
+error.rs:
+  CborError { Decode(String), Schema(String), Io(io::Error) }
+  EmitError { UnsupportedGate(String), QubitOutOfRange{..}, UnboundParameter{..}, MissingBinding{..} }
+
+Do NOT call functions or reference types that are not in this list."#
 }
 
 pub fn solver_user_prompt(issue_title: &str, issue_body: &str, repo_context: &str) -> String {

@@ -63,12 +63,21 @@ pub async fn solve_issue(
         }
         // Afana compiler source (Rust crate) — essential so the solver can see
         // existing modules, data structures, and test patterns.
+        // Include ALL source files so the solver can reference types, functions,
+        // and patterns from any module (especially synthesis, type_check, trotter,
+        // zx_to_qasm which are needed for ZX-IR and QASM3 issues).
         for path in &[
             "afana/src/lib.rs",
             "afana/src/ast.rs",
-            "afana/src/parser.rs",
             "afana/src/emit.rs",
             "afana/src/optimize.rs",
+            "afana/src/cbor.rs",
+            "afana/src/trotter.rs",
+            "afana/src/synthesis.rs",
+            "afana/src/type_check.rs",
+            "afana/src/zx_to_qasm.rs",
+            "afana/src/error.rs",
+            "afana/src/main.rs",
         ] {
             if let Ok(fc) = github.get_file(path, "main").await {
                 context_parts.push(format!("#### {path}\n```rust\n{}\n```", fc.content));
@@ -160,10 +169,16 @@ pub async fn solve_issue(
 
     // 8. Parse raw response — map failure to ParseFailure so pipeline can write telemetry.
     let raw_result = crate::provider::parse_json_response::<SolveResultRaw>(&raw)
-        .map_err(|e| crate::provider::ParseFailure {
-            call: call_result.clone(),
-            entry,
-            error: e.to_string(),
+        .map_err(|e| {
+            // Dump raw response to /tmp for debugging JSON parse failures.
+            let dump_path = format!("/tmp/senate-raw-{}-{}.txt", entry.id, issue_number);
+            let _ = std::fs::write(&dump_path, &raw);
+            tracing::warn!("JSON parse failed for model={}, dumped raw response to {}", entry.id, dump_path);
+            crate::provider::ParseFailure {
+                call: call_result.clone(),
+                entry,
+                error: e.to_string(),
+            }
         })?;
 
     // 9. Convert to SolveResult
