@@ -712,8 +712,9 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
                 }
                 Err(compiler_output) => {
                     warn!(
-                        "pipeline: pre-review cargo check FAILED for #{issue_number} (model={}) — skipping reviewer",
-                        b1_entry.id
+                        "pipeline: pre-review cargo check FAILED for #{issue_number} (model={}): {}",
+                        b1_entry.id,
+                        &compiler_output[..compiler_output.len().min(500)]
                     );
                     solver_exclude.push(b1_entry.id.to_string());
                     retry_feedback = Some(format!(
@@ -1264,7 +1265,15 @@ async fn pre_review_cargo_check(
     }
 
     // 4. Run cargo check
-    let check = Command::new("cargo")
+    // Use full path to cargo — vops user may not have /root/.cargo/bin in PATH.
+    let cargo_bin = std::env::var("CARGO").unwrap_or_else(|_| {
+        ["/root/.cargo/bin/cargo", "/usr/local/bin/cargo", "cargo"]
+            .iter()
+            .find(|p| std::path::Path::new(p).exists())
+            .unwrap_or(&"cargo")
+            .to_string()
+    });
+    let check = Command::new(&cargo_bin)
         .args(["check", "--workspace"])
         .current_dir(&tmp_dir)
         .env("CARGO_TERM_COLOR", "never")
