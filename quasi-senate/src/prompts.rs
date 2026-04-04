@@ -497,6 +497,21 @@ zx_to_qasm.rs:
   Graph { spider_types, phases, edges }, .get_type(Node)->Type, .get_phase(Node)->f64
   decompose_spider_pair(graph: &Graph, spider1: Node, spider2: Node) -> Option<Vec<Gate>>
 
+zx_ir.rs:
+  NodeId = usize
+  SpiderColor { Z, X }
+  Spider { color: SpiderColor, phase: f64, qubit: Option<usize> }
+  ZxGraph::new(), .add_spider(color,phase,qubit)->NodeId, .add_edge(a,b),
+    .set_inputs(Vec<NodeId>), .set_outputs(Vec<NodeId>),
+    .spider(NodeId)->&Spider, .neighbors(NodeId)->Vec<NodeId>,
+    .spider_count()->usize, .edge_count()->usize,
+    .validate()->Result<(), Vec<ZxValidationError>>
+  ZxValidationError { InvalidEdge{..}, InvalidPhase{..}, InvalidBoundary{..}, StructuralError(String) }
+
+lower.rs:
+  lower_ast_to_zx(ast: &EhrenfestAst) -> Result<ZxGraph, LowerError>
+  LowerError { UnsupportedGate(String), QubitOutOfRange{..} }
+
 error.rs:
   CborError { Decode(String), Schema(String), Io(io::Error) }
   EmitError { UnsupportedGate(String), QubitOutOfRange{..}, UnboundParameter{..}, MissingBinding{..} }

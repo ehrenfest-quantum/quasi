@@ -76,6 +76,8 @@ pub async fn solve_issue(
             "afana/src/synthesis.rs",
             "afana/src/type_check.rs",
             "afana/src/zx_to_qasm.rs",
+            "afana/src/zx_ir.rs",
+            "afana/src/lower.rs",
             "afana/src/error.rs",
             "afana/src/main.rs",
         ] {
