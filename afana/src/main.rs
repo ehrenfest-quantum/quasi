@@ -11,8 +11,10 @@ use clap::{Parser, ValueEnum};
 
 use afana::cbor;
 use afana::emit::{self, QasmVersion};
+use afana::lower;
 use afana::optimize;
 use afana::trotter::{self, TrotterOrder};
+use afana::type_check;
 
 #[derive(Parser)]
 #[command(name = "afana", version, about = "Ehrenfest → OpenQASM compiler")]
@@ -84,7 +86,21 @@ fn main() -> Result<()> {
         ast = emit::substitute_params(&ast, &bindings).context("parameter substitution failed")?;
     }
 
-    // Emit QASM.
+    // Type check.
+    type_check::type_check_ast(&ast)
+        .map_err(|errs| {
+            let msgs: Vec<String> = errs.iter().map(|e| e.to_string()).collect();
+            anyhow::anyhow!("type check failed:\n  {}", msgs.join("\n  "))
+        })?;
+
+    // Lower to ZX-IR and validate.
+    let zx = lower::lower_ast_to_zx(&ast).context("ZX-IR lowering failed")?;
+    zx.validate().map_err(|errs| {
+        let msgs: Vec<String> = errs.iter().map(|e| e.to_string()).collect();
+        anyhow::anyhow!("ZX-IR validation failed:\n  {}", msgs.join("\n  "))
+    })?;
+
+    // Emit QASM (still from AST — ZX→QASM extraction is a follow-up).
     let qasm = emit::emit_qasm(&ast, version).context("QASM emission failed")?;
 
     // Optimize if requested.
@@ -107,6 +123,8 @@ fn main() -> Result<()> {
         eprintln!("--- Compilation stats ---");
         eprintln!("  Program: {}", ast.name);
         eprintln!("  Qubits:  {}", ast.n_qubits);
+        eprintln!("  ZX-IR spiders: {}", zx.spider_count());
+        eprintln!("  ZX-IR edges:   {}", zx.edge_count());
         eprintln!("  Gates before optimization: {}", stats.gate_count_before);
         eprintln!("  Gates after optimization:  {}", stats.gate_count_after);
         if let (Some(tb), Some(ta)) = (stats.t_before, stats.t_after) {
