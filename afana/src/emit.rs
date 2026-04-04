@@ -128,7 +128,7 @@ pub fn emit_qasm(ast: &EhrenfestAst, version: QasmVersion) -> Result<String, Emi
             lines.push(format!("qubit[{}] q;", ast.n_qubits));
             let max_cbit = max_cbit_index(ast);
             if max_cbit > 0 {
-                lines.push(format!("bit[{}] c;", max_cbit));
+                lines.push(format!("bit c[{}];", max_cbit));
             }
         }
     }
