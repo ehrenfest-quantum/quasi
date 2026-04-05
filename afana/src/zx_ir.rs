@@ -61,6 +61,9 @@ pub enum ZxValidationError {
 
     #[error("structural error: {0}")]
     StructuralError(String),
+    
+    #[error("Trotter step count {steps} would exceed T1/T2 constraints (max_steps={max_steps})")]
+    TrotterStepConstraint { steps: u32, max_steps: u32 },
 }
 
 /// A ZX calculus graph.
