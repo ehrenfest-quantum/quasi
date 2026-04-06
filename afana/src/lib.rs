@@ -19,6 +19,8 @@ pub mod cbor;
 pub mod emit;
 pub mod error;
 pub mod lower;
+pub mod noise;
+pub mod observable;
 pub mod optimize;
 pub mod synthesis;
 pub mod trotter;

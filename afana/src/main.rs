@@ -12,6 +12,8 @@ use clap::{Parser, ValueEnum};
 use afana::cbor;
 use afana::emit::{self, QasmVersion};
 use afana::lower;
+use afana::noise;
+use afana::observable;
 use afana::optimize;
 use afana::trotter::{self, TrotterOrder};
 use afana::type_check;
@@ -100,6 +102,14 @@ fn main() -> Result<()> {
         anyhow::anyhow!("ZX-IR validation failed:\n  {}", msgs.join("\n  "))
     })?;
 
+    // Noise-aware circuit analysis.
+    let noise_report = noise::analyze_noise(&ast, &program.noise, &program.evolution);
+
+    // Observable measurement synthesis.
+    let measurements =
+        observable::synthesize_measurements(&program.observables, program.system.n_qubits);
+    observable::apply_measurement_circuits(&mut ast, &measurements);
+
     // Emit QASM (still from AST — ZX→QASM extraction is a follow-up).
     let qasm = emit::emit_qasm(&ast, version).context("QASM emission failed")?;
 
@@ -131,6 +141,9 @@ fn main() -> Result<()> {
             eprintln!("  T-gates before: {tb}");
             eprintln!("  T-gates after:  {ta}");
         }
+        eprintln!("--- Noise analysis ---");
+        eprintln!("{}", noise::format_report(&noise_report));
+        eprintln!("  Observables:    {}", measurements.len());
     }
 
     Ok(())
