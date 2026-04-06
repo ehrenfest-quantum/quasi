@@ -78,6 +78,8 @@ pub async fn solve_issue(
             "afana/src/zx_to_qasm.rs",
             "afana/src/zx_ir.rs",
             "afana/src/lower.rs",
+            "afana/src/noise.rs",
+            "afana/src/observable.rs",
             "afana/src/error.rs",
             "afana/src/main.rs",
         ] {

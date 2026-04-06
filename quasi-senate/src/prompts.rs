@@ -512,6 +512,22 @@ lower.rs:
   lower_ast_to_zx(ast: &EhrenfestAst) -> Result<ZxGraph, LowerError>
   LowerError { UnsupportedGate(String), QubitOutOfRange{..} }
 
+noise.rs:
+  NoiseReport { circuit_depth, estimated_time_us, within_t2, within_t1, estimated_fidelity,
+    qubit_gate_counts: Vec<usize>, warnings: Vec<NoiseWarning> }
+  NoiseWarning { DepthExceedsT2{..}, DepthExceedsT1{..}, FidelityBelowThreshold{..}, QubitHotspot{..} }
+  analyze_noise(ast: &EhrenfestAst, noise: &NoiseConstraint, evolution: &EvolutionTime) -> NoiseReport
+  circuit_depth(ast: &EhrenfestAst) -> usize
+  gate_count_by_type(ast: &EhrenfestAst) -> HashMap<String, usize>
+
+observable.rs:
+  MeasurementCircuit { observable: ObservableKind, basis_change_gates: Vec<Gate>,
+    measure_qubits: Vec<usize>, postprocess: PostProcess }
+  ObservableKind { PauliZ{qubit}, PauliX{qubit}, Energy, DensityMatrix{qubits}, Fidelity{target_state} }
+  PostProcess { DirectMeasurement, ExpectationValue, Tomography{n_qubits} }
+  synthesize_measurements(observables: &[Observable], n_qubits: usize) -> Vec<MeasurementCircuit>
+  apply_measurement_circuits(ast: &mut EhrenfestAst, circuits: &[MeasurementCircuit])
+
 error.rs:
   CborError { Decode(String), Schema(String), Io(io::Error) }
   EmitError { UnsupportedGate(String), QubitOutOfRange{..}, UnboundParameter{..}, MissingBinding{..} }
