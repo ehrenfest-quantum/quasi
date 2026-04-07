@@ -82,6 +82,11 @@ pub fn trotterize(program: &EhrenfestProgram, order: TrotterOrder) -> EhrenfestA
 ///   e^{-iθX} → H; Rz(2θ); H
 ///   e^{-iθY} → Sdg; H; Rz(2θ); H; S
 ///
+/// For two-qubit Pauli tensor products (XX, YY, ZZ):
+///   e^{-iθXX} → H q0; CX q0,q1; Rz(2θ) q1; CX q0,q1; H q0
+///   e^{-iθYY} → Sdg q0; Sdg q1; H q0; H q1; CX q0,q1; Rz(2θ) q1; CX q0,q1; H q0; H q1; S q0; S q1
+///   e^{-iθZZ} → CX q0,q1; Rz(2θ) q1; CX q0,q1
+///
 /// For multi-qubit Pauli tensor products, CNOT ladders entangle the qubits,
 /// then a single Rz rotation is applied, then the ladder is undone.
 fn pauli_rotation_gates(ops: &[PauliOpEntry], theta: f64) -> Vec<Gate> {
