@@ -3,6 +3,7 @@
 //! OpenQASM 2.0 / 3.0 emission from an [`EhrenfestAst`].
 
 use crate::ast::*;
+use crate::cbor::PauliOp;
 use crate::error::EmitError;
 
 /// QASM dialect to emit.
