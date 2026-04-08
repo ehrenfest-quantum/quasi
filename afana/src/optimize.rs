@@ -11,6 +11,8 @@ use regex::Regex;
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
+use crate::cbor::{Hamiltonian, PauliTerm};
+
 /// Statistics from an optimization pass.
 #[derive(Debug, Clone, Default)]
 pub struct OptStats {
