@@ -61,6 +61,9 @@ pub enum ZxValidationError {
 
     #[error("structural error: {0}")]
     StructuralError(String),
+
+    #[error("graph is disconnected: {unvisited} nodes unreachable")]
+    DisconnectedGraph { unvisited: usize },
 }
 
 /// A ZX calculus graph.
