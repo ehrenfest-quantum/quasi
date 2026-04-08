@@ -207,6 +207,20 @@ impl ZxGraph {
             }
         }
 
+        // Check wire label consistency: connected spiders must share the same
+        // qubit label when both have one assigned.
+        for &(a, b) in &self.edges {
+            let qa = self.spiders[a].qubit;
+            let qb = self.spiders[b].qubit;
+            if let (Some(qa), Some(qb)) = (qa, qb) {
+                if qa != qb {
+                    errors.push(ZxValidationError::StructuralError(format!(
+                        "wire label mismatch: edge ({a}, {b}) connects qubit {qa} to qubit {qb}"
+                    )));
+                }
+            }
+        }
+
         if errors.is_empty() {
             Ok(())
         } else {
