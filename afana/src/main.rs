@@ -66,12 +66,19 @@ fn main() -> Result<()> {
     // Deserialize CBOR binary program.
     let program = cbor::from_cbor_file(&cli.input).context("CBOR deserialization failed")?;
 
+    // Normalize Hamiltonian coefficients before Trotterization.
+    let normalized_hamiltonian = optimize::normalize_hamiltonian(&program.hamiltonian);
+    let normalized_program = cbor::EhrenfestProgram {
+        hamiltonian: normalized_hamiltonian,
+        ..program.clone()
+    };
+
     // Trotterize: Hamiltonian → gate sequence.
     let order = match cli.trotter_order {
         2 => TrotterOrder::Second,
         _ => TrotterOrder::First,
     };
-    let mut ast = trotter::trotterize(&program, order);
+    let mut ast = trotter::trotterize(&normalized_program, order);
 
     // Substitute variational parameters if --param flags given.
     if !cli.params.is_empty() {
