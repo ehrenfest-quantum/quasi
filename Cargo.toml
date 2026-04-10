@@ -4,6 +4,8 @@
 [workspace]
 members = [
     "afana",
+    "quasi-cache",
+    "quasi-scheduler",
     "quasi-senate",
 ]
 resolver = "2"
