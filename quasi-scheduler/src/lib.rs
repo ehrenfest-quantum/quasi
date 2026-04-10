@@ -8,5 +8,6 @@
 pub mod backend;
 pub mod job;
 pub mod plugin;
+pub mod profiler;
 pub mod profiles;
 pub mod scheduler;
