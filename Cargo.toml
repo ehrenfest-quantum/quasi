@@ -8,5 +8,6 @@ members = [
     "quasi-demo",
     "quasi-scheduler",
     "quasi-senate",
+    "quasi-solvayeur",
 ]
 resolver = "2"
