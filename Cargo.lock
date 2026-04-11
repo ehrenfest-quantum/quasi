@@ -1731,6 +1731,7 @@ dependencies = [
  "clap",
  "quasi-cache",
  "quasi-scheduler",
+ "quasi-solvayeur",
  "reqwest",
  "serde",
  "serde_json",
