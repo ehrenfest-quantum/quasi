@@ -273,14 +273,16 @@ pub fn simulator() -> Backend {
     }
 }
 
-/// Huoma MPS simulator — tensor-network, supports 10³-10⁵ qubits
-/// for low-entanglement circuits. Fidelity depends on bond dimension.
+/// Huoma ProjectedTTN simulator — tensor-network with projected tree structure.
+/// 1,000,000 qubits in 5.2 seconds (PR hiq-lab/huoma#14).
+/// Topology construction O(N) via HashSet, rayon-parallel edge scoring.
+/// Fidelity depends on bond dimension and commensurability partition.
 pub fn huoma_mps() -> Backend {
     Backend {
         id: "huoma_mps".into(),
-        name: "Huoma MPS Simulator".into(),
+        name: "Huoma ProjectedTTN Simulator".into(),
         backend_type: BackendType::Simulator,
-        qubit_count: 1000,
+        qubit_count: 1_000_000,
         gate_set: gates(&[
             "h", "x", "y", "z", "s", "t", "sdg", "tdg",
             "cx", "cz", "swap", "rx", "ry", "rz",
@@ -390,9 +392,9 @@ mod tests {
     }
 
     #[test]
-    fn huoma_supports_1000_qubits() {
+    fn huoma_supports_1m_qubits() {
         let h = huoma_mps();
-        assert_eq!(h.qubit_count, 1000);
+        assert_eq!(h.qubit_count, 1_000_000);
         assert!(matches!(h.backend_type, BackendType::Simulator));
     }
 

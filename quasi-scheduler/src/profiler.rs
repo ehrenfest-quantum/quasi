@@ -5,9 +5,13 @@
 //! Before the scheduler picks a backend, it asks: "Is this circuit classically
 //! simulable?" Huoma answers by profiling the circuit's entanglement structure.
 //!
-//! If the MPS simulator can handle it efficiently (low bond dimension), the job
-//! stays classical. If entanglement grows exponentially, the job routes to QPU.
+//! If Huoma's ProjectedTTN can handle it efficiently (low bond dimension), the
+//! job stays classical. If entanglement grows exponentially, the job routes to QPU.
 //! This is the sinC²-routing decision automated.
+//!
+//! Huoma benchmark (hiq-lab/huoma#14): 1,000,000 qubits in 5.2 seconds.
+//! At this scale, almost everything stays classical — QPU is only invoked
+//! when there's provable quantum advantage beyond tensor-network reach.
 //!
 //! ```text
 //! Circuit → Profiler (Huoma) → WorkloadProfile
