@@ -28,7 +28,7 @@ pub struct EpochResult {
 /// This compiles the scheduling Hamiltonian through Afana and returns
 /// a simulated measurement outcome. In production, the measurement
 /// would come from actual QPU execution.
-pub fn run_epoch(params: &AtwParams) -> Result<EpochResult, EpochError> {
+pub fn run_epoch(params: &AtwParams, epoch: usize) -> Result<EpochResult, EpochError> {
     // 1. COMPILE: Build EhrenfestProgram from scheduling Hamiltonian
     let program = build_scheduling_program(params);
 
@@ -49,7 +49,7 @@ pub fn run_epoch(params: &AtwParams) -> Result<EpochResult, EpochError> {
     //
     //    For now, we derive a deterministic "measurement" from the bias fields.
     //    This lets us test the full ATW loop without QPU access.
-    let measurement = simulate_measurement(params);
+    let measurement = simulate_measurement(params, epoch);
 
     // 5. DECODE: Bitstring -> backend index
     let backend_index = decode_backend(&measurement, params.n_backends);
@@ -69,22 +69,30 @@ pub fn run_epoch(params: &AtwParams) -> Result<EpochResult, EpochError> {
 /// When bias h_i is large and positive, qubit i tends to |0>.
 /// When bias h_i is large and negative, qubit i tends to |1>.
 /// When bias is zero, 50/50 (maximum exploration).
-fn simulate_measurement(params: &AtwParams) -> Vec<bool> {
-    // Deterministic pseudo-random based on bias values.
-    // In production this would be actual quantum measurement.
+fn simulate_measurement(params: &AtwParams, epoch: usize) -> Vec<bool> {
+    // Simulate quantum measurement using bias fields + exploration noise.
+    // In production this would be actual QPU measurement of the Trotterized
+    // scheduling Hamiltonian.
+    //
+    // The exploration term (Γ) creates a probability of flipping each qubit
+    // away from the bias-preferred state, mimicking the transverse field
+    // in the Hamiltonian creating superposition.
     params
         .bias
         .iter()
         .enumerate()
         .map(|(i, &h)| {
-            // sigmoid: P(|1>) = 1 / (1 + e^h)
-            // When h > 0, P(|1>) < 0.5 (prefer |0>)
-            // When h < 0, P(|1>) > 0.5 (prefer |1>)
-            // When h = 0, P(|1>) = 0.5 (unbiased)
+            // sigmoid: P(|1⟩) = 1 / (1 + e^h)
             let p1 = 1.0 / (1.0 + h.exp());
-            // Use a simple deterministic threshold based on qubit index
-            // (Real implementation uses actual quantum measurement)
-            let threshold = 0.5 + 0.1 * (i as f64 / params.n_qubits.max(1) as f64);
+
+            // Pseudo-random threshold from exploration + epoch + qubit index.
+            // Uses a simple hash-like function to create deterministic but
+            // varied exploration patterns across epochs.
+            let hash = ((epoch * 7919 + i * 104729 + 31) % 1000) as f64 / 1000.0;
+            // Exploration mixes: when Γ is high, threshold varies widely (more randomness).
+            // When Γ is low, threshold is near 0.5 (bias dominates).
+            let exploration_range = params.exploration.min(1.0) * 0.5;
+            let threshold = 0.5 + exploration_range * (hash - 0.5);
             p1 > threshold
         })
         .collect()
@@ -136,7 +144,7 @@ mod tests {
     fn run_epoch_compiles_and_returns_valid_result() {
         let backends = make_backends(4);
         let params = AtwParams::from_backends(&backends);
-        let result = run_epoch(&params).unwrap();
+        let result = run_epoch(&params, 0).unwrap();
 
         assert!(result.backend_index < 4);
         assert_eq!(result.measurement.len(), 2);
@@ -148,7 +156,7 @@ mod tests {
     fn run_epoch_zero_bias_produces_valid_index() {
         let backends = make_backends(8);
         let params = AtwParams::from_backends(&backends);
-        let result = run_epoch(&params).unwrap();
+        let result = run_epoch(&params, 0).unwrap();
 
         assert!(result.backend_index < 8);
     }
@@ -157,7 +165,7 @@ mod tests {
     fn run_epoch_qasm_output_is_valid_qasm3() {
         let backends = make_backends(4);
         let params = AtwParams::from_backends(&backends);
-        let result = run_epoch(&params).unwrap();
+        let result = run_epoch(&params, 0).unwrap();
 
         assert!(result.qasm.contains("OPENQASM 3.0;"));
         assert!(result.qasm.contains("include \"stdgates.inc\";"));

@@ -60,7 +60,7 @@ impl Solvayeur {
     /// Does NOT dispatch or observe reward — the caller does that and
     /// then calls `observe()` with the result.
     pub fn decide(&self) -> Result<EpochResult, EpochError> {
-        run_epoch(&self.params)
+        run_epoch(&self.params, self.history.len())
     }
 
     /// Observe the reward from a dispatching decision and update bias.
