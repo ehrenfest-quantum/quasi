@@ -1723,6 +1723,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "quasi-demo"
+version = "0.1.0"
+dependencies = [
+ "afana",
+ "anyhow",
+ "clap",
+ "quasi-cache",
+ "quasi-scheduler",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "quasi-scheduler"
 version = "0.1.0"
 dependencies = [

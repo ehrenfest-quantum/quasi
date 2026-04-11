@@ -5,6 +5,7 @@
 members = [
     "afana",
     "quasi-cache",
+    "quasi-demo",
     "quasi-scheduler",
     "quasi-senate",
 ]
