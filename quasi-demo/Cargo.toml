@@ -9,11 +9,15 @@ description = "End-to-end QUASI demo: compile, simulate, run on QPU, compare"
 name = "quasi-demo"
 path = "src/main.rs"
 
+[[bin]]
+name = "quasi-vqe"
+path = "src/vqe.rs"
+
 [dependencies]
 afana = { path = "../afana" }
 quasi-scheduler = { path = "../quasi-scheduler" }
 quasi-cache = { path = "../quasi-cache" }
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 anyhow = "1"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 serde = { version = "1", features = ["derive"] }
