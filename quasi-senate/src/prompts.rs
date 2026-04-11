@@ -144,7 +144,7 @@ the current phase charter's priorities.
 
 ## Label taxonomy
 
-compiler · specification · core · agent-ux · good-first-issue
+compiler · specification · scheduler · cache · solvayeur · os · core · agent-ux · good-first-issue
 
 ## Output format
 
@@ -179,7 +179,34 @@ Output ONLY valid JSON in this exact structure — no prose before or after:
   decision per CLAUDE.md §1.
 - **CBOR serialization for AST**: cbor.rs already exists and handles this.
 - **Trivial tests**: Tests that only check `qasm.contains("gate q[0];")`.
-- **Parallel type systems**: type_check.rs already exists."#
+- **Parallel type systems**: type_check.rs already exists.
+
+## Ehrenfest example programs — HIGH VALUE issues
+
+The Ehrenfest specification grows by adding example programs. Each example is a
+CBOR-encoded physics problem with documentation. Issues that add new Ehrenfest
+examples are labeled 'specification' and are HIGH PRIORITY.
+
+An Ehrenfest example issue looks like:
+- Title: "Add Ehrenfest example: XXX model (Nq qubits)"
+- The solver creates a .cbor.hex file (hex-encoded CBOR) and a .md documentation file
+- Acceptance: the .cbor.hex file deserializes through afana::cbor::from_cbor()
+  and compiles to valid QASM3 via `afana <file> --qasm v3`
+
+Good examples to propose (if not already done):
+- Transverse-field Ising on 8+ qubits (scaling up from existing 2q)
+- XXZ spin chain with anisotropy parameter
+- Quantum random walk on a line graph
+- Variational quantum eigensolver ansatz for LiH molecule
+- QAOA for graph coloring (3-colorable graph)
+- Time-dependent driven Hamiltonian (Floquet)
+- Solvayeur scheduling Hamiltonian for 8 backends (3 qubits)
+- Heisenberg model on a 2D grid (ladder geometry)
+- Toric code stabilizer Hamiltonian (error correction)
+
+Existing examples (DO NOT duplicate): rabi_oscillation_1q, transverse_ising_2q,
+heisenberg_4q, vqe_h2_parametric, qaoa_maxcut_4q, hubbard_2site, ghz_8q,
+solvayeur_4backend, spin_chain_16q, h2_molecule"#
 }
 
 pub fn drafter_user_prompt(
@@ -433,6 +460,27 @@ with working emission, the issue may only need a **test** proving it works.
 - NEVER create .py files inside `afana/` — this is an architectural violation.
 - If you create a new `.rs` file inside `afana/src/`, you MUST also add a
   `pub mod <name>;` line to `afana/src/lib.rs` — otherwise it won't compile.
+
+## Creating Ehrenfest example programs (for 'specification' labeled issues)
+
+For issues that ask for new Ehrenfest examples, create TWO files via new_files:
+1. `spec/examples/{name}.cbor.hex` — the hex-encoded CBOR binary
+2. `spec/examples/{name}.md` — documentation (physics, parameters, expected results)
+
+To generate the CBOR hex, think through the Hamiltonian structure and encode it
+directly as hex. The CBOR structure is a map with text keys:
+
+Key fields: "version" (uint 1), "system" (map with "n_qubits"), "hamiltonian"
+(map with "terms" array and "constant_offset"), "evolution" (map with "total_us",
+"steps", "dt_us"), "observables" (array), "noise" (map with "t1_us", "t2_us").
+
+Each Pauli term: {"coefficient": float, "paulis": [{"qubit": uint, "axis": uint}]}
+Axis encoding: 0=I, 1=X, 2=Y, 3=Z.
+
+Observables: {"type": "E"} for energy, {"type": "SZ", "qubit": N} for sigma-Z.
+
+Look at existing examples in the repo context for the exact hex patterns.
+The .md file should explain the physics, list parameters, and state expected results.
 
 ## General rules
 
