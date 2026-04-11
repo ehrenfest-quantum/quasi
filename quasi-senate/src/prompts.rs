@@ -532,6 +532,44 @@ error.rs:
   CborError { Decode(String), Schema(String), Io(io::Error) }
   EmitError { UnsupportedGate(String), QubitOutOfRange{..}, UnboundParameter{..}, MissingBinding{..} }
 
+## quasi-scheduler public API (for issues labeled 'scheduler')
+
+backend.rs:
+  Backend { id, name, backend_type, qubit_count, gate_set, topology, noise, status, cost_per_shot }
+  BackendType { Qpu, Simulator }; BackendStatus { Online{queue_depth}, Maintenance, Offline }
+  GateSet { native_gates }, .supports(gate), .supports_all(gates)
+  Topology { AllToAll, Linear, Grid{rows,cols}, HeavyHex, Custom{edges} }
+  NoiseProfile { t1_us, t2_us, single_qubit_error, two_qubit_error, readout_error, calibration_version }
+
+plugin.rs:
+  trait SchedulerPlugin { fn name(), fn filter(job,backend)->bool, fn score(job,backend)->f64, fn weight()->f64 }
+  Built-in: GateSetFilter, QubitCountFilter, NoiseBudgetPlugin, QueueDepthPlugin, CostPlugin, BackendTypePlugin
+
+scheduler.rs:
+  Scheduler::new(), .with_plugin(p), .with_default_plugins(), .schedule(job, backends)->ScheduleDecision
+
+profiler.rs:
+  WorkloadProfile { peak_bond_dimension, max_tractable_bond, estimated_classical_fidelity, entanglement_class, .. }
+  EntanglementClass { Constant, Logarithmic, Polynomial, Exponential }
+  trait WorkloadProfiler { fn profile(hash, depth, qubits)->WorkloadProfile }
+  HeuristicProfiler::default(); ProfilerPlugin::heuristic()
+
+profiles.rs:
+  all_backends()->Vec<Backend>; ibm_torino(), ibm_eagle(), iqm_garnet(), ionq_aria(), quantinuum_h2(), ..., simulator(), huoma_mps()
+
+## quasi-cache public API (for issues labeled 'cache')
+
+key.rs:   CacheKey::build(circuit_bytes, backend_id, parameters, calibration_version)->CacheKey
+entry.rs: CacheEntry { key, backend_id, calibration_version, parameters, measurement_counts, .. }
+store.rs: CacheStore::new(config), .get(key)->Option<CacheEntry>, .put(entry), .contains(key), .stats(), .evict_stale(now)
+
+## quasi-solvayeur public API (for issues labeled 'solvayeur')
+
+hamiltonian.rs: AtwParams::from_backends(backends), build_scheduling_program(params)->EhrenfestProgram
+bias.rs:        update_bias(current, measurement, reward, learning)->Vec<f64>; decode_backend(bits, n)->usize; Reward { fidelity, latency_ms, cost }
+epoch.rs:       run_epoch(params, epoch)->EpochResult { backend_index, measurement, qasm, gate_count, ran_on_qpu }
+atw.rs:         Solvayeur::new(backends), .decide()->EpochResult, .observe(result, reward), .bias(), .exploration(), .preferred_backend()
+
 Do NOT call functions or reference types that are not in this list."#
 }
 

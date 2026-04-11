@@ -89,6 +89,31 @@ pub async fn solve_issue(
         }
     }
 
+    if label_names.contains(&"scheduler") || label_names.contains(&"cache") || label_names.contains(&"solvayeur") || label_names.contains(&"os") {
+        for path in &[
+            "quasi-scheduler/src/lib.rs",
+            "quasi-scheduler/src/backend.rs",
+            "quasi-scheduler/src/job.rs",
+            "quasi-scheduler/src/plugin.rs",
+            "quasi-scheduler/src/profiler.rs",
+            "quasi-scheduler/src/profiles.rs",
+            "quasi-scheduler/src/scheduler.rs",
+            "quasi-cache/src/lib.rs",
+            "quasi-cache/src/key.rs",
+            "quasi-cache/src/entry.rs",
+            "quasi-cache/src/store.rs",
+            "quasi-solvayeur/src/lib.rs",
+            "quasi-solvayeur/src/atw.rs",
+            "quasi-solvayeur/src/bias.rs",
+            "quasi-solvayeur/src/epoch.rs",
+            "quasi-solvayeur/src/hamiltonian.rs",
+        ] {
+            if let Ok(fc) = github.get_file(path, "main").await {
+                context_parts.push(format!("#### {path}\n```rust\n{}\n```", fc.content));
+            }
+        }
+    }
+
     if label_names.contains(&"specification") {
         if let Ok(fc) = github.get_file("spec/ehrenfest-v0.1.cddl", "main").await {
             context_parts.push(format!(
