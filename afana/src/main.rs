@@ -33,7 +33,7 @@ struct Cli {
     #[arg(long)]
     reduce_t: bool,
 
-    /// Trotter decomposition order (1 or 2).
+    /// Trotter decomposition order (1, 2, or 4).
     #[arg(long, default_value = "1")]
     trotter_order: u32,
 
@@ -75,12 +75,23 @@ fn main() -> Result<()> {
     // Deserialize CBOR binary program.
     let program = cbor::from_cbor_file(&cli.input).context("CBOR deserialization failed")?;
 
-    // Trotterize: Hamiltonian → gate sequence.
+    // Validate Hamiltonian before Trotterization.
+    trotter::validate_hamiltonian(&program).context("Hamiltonian validation failed")?;
+
+    // Trotterize: Hamiltonian → gate sequence (with statistics).
     let order = match cli.trotter_order {
         2 => TrotterOrder::Second,
+        4 => TrotterOrder::Fourth,
         _ => TrotterOrder::First,
     };
-    let mut ast = trotter::trotterize(&program, order);
+    let (mut ast, trotter_stats) = trotter::trotterize_with_stats(&program, order)
+        .context("Trotterization failed")?;
+
+    // Check noise budget against the Trotterized circuit.
+    let noise_budget = trotter::check_noise_budget(&trotter_stats, &program.noise);
+    for warning in &noise_budget.warnings {
+        eprintln!("warning: {warning}");
+    }
 
     // Substitute variational parameters if --param flags given.
     if !cli.params.is_empty() {
@@ -132,15 +143,15 @@ fn main() -> Result<()> {
     let qasm = emit::emit_qasm(&ast, version).context("QASM emission failed")?;
 
     // Optimize if requested.
-    let (output, stats) = if cli.optimize || cli.reduce_t {
+    let (output, opt_stats) = if cli.optimize || cli.reduce_t {
         optimize::optimize_qasm(&qasm, cli.reduce_t)
     } else {
-        let stats = optimize::OptStats {
+        let s = optimize::OptStats {
             gate_count_before: optimize::count_qasm_gates(&qasm),
             gate_count_after: optimize::count_qasm_gates(&qasm),
             ..Default::default()
         };
-        (qasm, stats)
+        (qasm, s)
     };
 
     // Print output.
@@ -148,14 +159,39 @@ fn main() -> Result<()> {
 
     // Print stats to stderr if requested.
     if cli.stats {
+        eprintln!("--- Trotterization ---");
+        eprintln!("{}", trotter::format_trotter_stats(&trotter_stats));
+        eprintln!("--- Noise budget ---");
+        eprintln!(
+            "  Within T1:          {}",
+            if noise_budget.within_t1 { "yes" } else { "NO" }
+        );
+        eprintln!(
+            "  Within T2:          {}",
+            if noise_budget.within_t2 { "yes" } else { "NO" }
+        );
+        eprintln!(
+            "  Fidelity OK:        {}",
+            if noise_budget.fidelity_ok { "yes" } else { "NO" }
+        );
+        eprintln!(
+            "  Est. fidelity:      {:.6}",
+            noise_budget.estimated_fidelity
+        );
         eprintln!("--- Compilation stats ---");
         eprintln!("  Program: {}", ast.name);
         eprintln!("  Qubits:  {}", ast.n_qubits);
         eprintln!("  ZX-IR spiders: {}", zx.spider_count());
         eprintln!("  ZX-IR edges:   {}", zx.edge_count());
-        eprintln!("  Gates before optimization: {}", stats.gate_count_before);
-        eprintln!("  Gates after optimization:  {}", stats.gate_count_after);
-        if let (Some(tb), Some(ta)) = (stats.t_before, stats.t_after) {
+        eprintln!(
+            "  Gates before optimization: {}",
+            opt_stats.gate_count_before
+        );
+        eprintln!(
+            "  Gates after optimization:  {}",
+            opt_stats.gate_count_after
+        );
+        if let (Some(tb), Some(ta)) = (opt_stats.t_before, opt_stats.t_after) {
             eprintln!("  T-gates before: {tb}");
             eprintln!("  T-gates after:  {ta}");
         }
