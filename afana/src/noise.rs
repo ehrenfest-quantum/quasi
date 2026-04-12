@@ -8,7 +8,7 @@
 
 use std::collections::HashMap;
 
-use crate::ast::EhrenfestAst;
+use crate::ast::{EhrenfestAst, GateName};
 use crate::cbor::{EvolutionTime, NoiseConstraint};
 
 // ── Gate timing and error assumptions (superconducting) ────────────────────
@@ -41,6 +41,10 @@ pub struct NoiseReport {
     pub estimated_fidelity: f64,
     /// Per-qubit gate counts.
     pub qubit_gate_counts: Vec<usize>,
+    /// T-gate count (T + Tdg). Key resource metric for non-Clifford circuits.
+    pub t_count: usize,
+    /// Whether the circuit contains non-Clifford gates.
+    pub has_non_clifford: bool,
     /// Warnings about potential noise issues.
     pub warnings: Vec<NoiseWarning>,
 }
@@ -66,6 +70,11 @@ pub enum NoiseWarning {
         qubit: usize,
         gate_count: usize,
         avg_count: f64,
+    },
+    /// High T-count: non-Clifford gates dominate the circuit cost.
+    HighTCount {
+        t_count: usize,
+        total_gates: usize,
     },
 }
 
@@ -156,6 +165,22 @@ pub fn analyze_noise(
         }
     }
 
+    // T-count and non-Clifford analysis.
+    let t_count = ast
+        .gates
+        .iter()
+        .filter(|g| matches!(g.name, GateName::T | GateName::Tdg))
+        .count();
+    let has_non_clifford = ast.gates.iter().any(|g| g.name.is_non_clifford());
+
+    let total_all = total_single + total_two;
+    if t_count > 0 && total_all > 0 && t_count as f64 / total_all as f64 > 0.3 {
+        warnings.push(NoiseWarning::HighTCount {
+            t_count,
+            total_gates: total_all,
+        });
+    }
+
     NoiseReport {
         circuit_depth: depth,
         estimated_time_us,
@@ -163,6 +188,8 @@ pub fn analyze_noise(
         within_t1,
         estimated_fidelity,
         qubit_gate_counts,
+        t_count,
+        has_non_clifford,
         warnings,
     }
 }
@@ -236,6 +263,11 @@ pub fn format_report(report: &NoiseReport) -> String {
         "  Within T2:          {}",
         if report.within_t2 { "yes" } else { "NO" }
     ));
+    lines.push(format!("  T-count:            {}", report.t_count));
+    lines.push(format!(
+        "  Non-Clifford:       {}",
+        if report.has_non_clifford { "yes" } else { "no" }
+    ));
     for w in &report.warnings {
         match w {
             NoiseWarning::DepthExceedsT2 {
@@ -271,6 +303,14 @@ pub fn format_report(report: &NoiseReport) -> String {
             } => {
                 lines.push(format!(
                     "  WARNING: qubit {qubit} hotspot ({gate_count} gates, avg {avg_count:.1})"
+                ));
+            }
+            NoiseWarning::HighTCount {
+                t_count,
+                total_gates,
+            } => {
+                lines.push(format!(
+                    "  WARNING: high T-count ({t_count} of {total_gates} gates are T/Tdg)"
                 ));
             }
         }

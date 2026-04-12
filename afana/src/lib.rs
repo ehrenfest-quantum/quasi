@@ -16,6 +16,7 @@
 
 pub mod ast;
 pub mod cbor;
+pub mod decompose;
 pub mod emit;
 pub mod error;
 pub mod lower;
