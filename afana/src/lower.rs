@@ -24,10 +24,12 @@
 //! | CX      | Z(0) arity-3 — X(0) arity-3, connected       |
 //! | CZ      | Z(0) arity-3 — Z(0) arity-3, connected       |
 //! | Swap    | Three CX gates decomposed                     |
+//! | CCX     | Decomposed to 15-gate Clifford+T, then lowered|
 
 use thiserror::Error;
 
 use crate::ast::{EhrenfestAst, Gate, GateName};
+use crate::decompose;
 use crate::zx_ir::{NodeId, SpiderColor, ZxGraph};
 
 /// Errors raised during AST-to-ZX lowering.
@@ -230,11 +232,15 @@ fn lower_gate(
             graph.add_edge(z3, x3);
         }
 
-        // Ccx (Toffoli) — not yet decomposed into ZX.
+        // Ccx (Toffoli) — decompose to Clifford+T, then lower each sub-gate.
         GateName::Ccx => {
-            return Err(LowerError::UnsupportedGate(
-                "ccx (Toffoli) — ZX decomposition not yet implemented".to_string(),
-            ));
+            let ctrl1 = gate.qubits[0];
+            let ctrl2 = gate.qubits[1];
+            let target = gate.qubits[2];
+            let sub_gates = decompose::decompose_ccx(ctrl1, ctrl2, target);
+            for sg in &sub_gates {
+                lower_gate(graph, wires, sg)?;
+            }
         }
     }
 
@@ -469,12 +475,18 @@ mod tests {
     }
 
     #[test]
-    fn lower_ccx_unsupported() {
+    fn lower_ccx_decomposes_to_clifford_t() {
         let ast = make_ast(3, vec![
             Gate { name: GateName::Ccx, qubits: vec![0, 1, 2], params: vec![] },
         ]);
-        let err = lower_ast_to_zx(&ast).unwrap_err();
-        assert!(err.to_string().contains("ccx"));
+        let zx = lower_ast_to_zx(&ast).unwrap();
+        assert!(zx.validate().is_ok());
+        // 3 inputs + 3 outputs + spiders from 15-gate Clifford+T decomposition.
+        // The decomposition has: 2 H (3 spiders each = 6), 4 T/Tdg (1 each = 4),
+        // 3 T on ctrl/target (1 each = 3), 6 CX (2 each = 12) = 25 gate spiders
+        // + 6 boundary = 31 total.
+        assert!(zx.spider_count() > 6, "CCX should produce many spiders");
+        assert!(zx.edge_count() > 3, "CCX should produce many edges");
     }
 
     #[test]

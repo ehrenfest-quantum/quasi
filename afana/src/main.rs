@@ -10,6 +10,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 
 use afana::cbor;
+use afana::decompose;
 use afana::emit::{self, QasmVersion};
 use afana::lower;
 use afana::noise;
@@ -39,6 +40,14 @@ struct Cli {
     /// Run ZX-calculus optimization.
     #[arg(long)]
     optimize: bool,
+
+    /// Decompose non-Clifford gates (CCX, Rz/Rx/Ry) into Clifford+T.
+    #[arg(long)]
+    decompose: bool,
+
+    /// Approximation precision for rotation decomposition (radians).
+    #[arg(long, default_value = "0.0001")]
+    precision: f64,
 
     /// Print compilation statistics to stderr.
     #[arg(long)]
@@ -87,6 +96,15 @@ fn main() -> Result<()> {
         }
         ast = emit::substitute_params(&ast, &bindings).context("parameter substitution failed")?;
     }
+
+    // Decompose non-Clifford gates into Clifford+T if requested.
+    let decompose_stats = if cli.decompose {
+        let (decomposed, stats) = decompose::decompose_non_clifford(&ast, cli.precision);
+        ast = decomposed;
+        Some(stats)
+    } else {
+        None
+    };
 
     // Type check.
     type_check::type_check_ast(&ast)
@@ -140,6 +158,13 @@ fn main() -> Result<()> {
         if let (Some(tb), Some(ta)) = (stats.t_before, stats.t_after) {
             eprintln!("  T-gates before: {tb}");
             eprintln!("  T-gates after:  {ta}");
+        }
+        if let Some(ref ds) = decompose_stats {
+            eprintln!("--- Non-Clifford decomposition ---");
+            eprintln!("  CCX decomposed:     {}", ds.ccx_decomposed);
+            eprintln!("  Rz exact decomp:    {}", ds.rz_exact);
+            eprintln!("  Rz approx decomp:   {}", ds.rz_approx);
+            eprintln!("  T-count:            {}", ds.t_count);
         }
         eprintln!("--- Noise analysis ---");
         eprintln!("{}", noise::format_report(&noise_report));
