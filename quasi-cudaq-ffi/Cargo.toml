@@ -1,0 +1,24 @@
+[package]
+name = "quasi-cudaq-ffi"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+description = "C FFI bridge for CUDA-Q integration — exposes Huoma simulation and Solvayeur scheduling"
+repository = "https://github.com/ehrenfest-quantum/quasi"
+
+[lib]
+name = "quasi_cudaq_ffi"
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+afana = { path = "../afana" }
+quasi-bridge = { path = "../quasi-bridge" }
+quasi-solvayeur = { path = "../quasi-solvayeur" }
+quasi-scheduler = { path = "../quasi-scheduler" }
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"

@@ -6,6 +6,7 @@ members = [
     "afana",
     "quasi-bridge",
     "quasi-cache",
+    "quasi-cudaq-ffi",
     "quasi-demo",
     "quasi-scheduler",
     "quasi-senate",

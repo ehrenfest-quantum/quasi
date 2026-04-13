@@ -1780,6 +1780,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "quasi-cudaq-ffi"
+version = "0.1.0"
+dependencies = [
+ "afana",
+ "anyhow",
+ "quasi-bridge",
+ "quasi-scheduler",
+ "quasi-solvayeur",
+ "tempfile",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "quasi-demo"
 version = "0.1.0"
 dependencies = [
