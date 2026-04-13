@@ -1750,6 +1750,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "quasi-benchmark"
+version = "0.1.0"
+dependencies = [
+ "afana",
+ "anyhow",
+ "clap",
+ "quasi-bridge",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "quasi-bridge"
 version = "0.1.0"
 dependencies = [

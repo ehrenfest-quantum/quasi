@@ -1,0 +1,32 @@
+{
+  "molecule": "H5O2+",
+  "name": "Zundel cation (protonated water dimer)",
+  "charge": 1,
+  "multiplicity": 1,
+  "n_electrons": 20,
+  "reference": "Bickley et al. arXiv:2505.16796",
+  "geometry_source": "Symmetric proton-sharing, d(O-O) = 2.4 Å",
+  "coordinate_unit": "angstrom",
+  "atoms": [
+    {"symbol": "O", "Z": 8, "x":  0.000, "y":  0.000, "z": -1.200},
+    {"symbol": "H", "Z": 1, "x":  0.000, "y":  0.757, "z": -1.775},
+    {"symbol": "H", "Z": 1, "x":  0.000, "y": -0.757, "z": -1.775},
+    {"symbol": "H", "Z": 1, "x":  0.000, "y":  0.000, "z":  0.000},
+    {"symbol": "O", "Z": 8, "x":  0.000, "y":  0.000, "z":  1.200},
+    {"symbol": "H", "Z": 1, "x":  0.757, "y":  0.000, "z":  1.775},
+    {"symbol": "H", "Z": 1, "x": -0.757, "y":  0.000, "z":  1.775}
+  ],
+  "basis_sets": {
+    "proof_of_concept": "STO-3G",
+    "production": "cc-pVDZ"
+  },
+  "notes": [
+    "The Zundel cation is the proof-of-concept system from the UCL/IQM/NVIDIA GPCR paper.",
+    "d(O-O) = 2.4 Å is the experimental equilibrium O-O distance.",
+    "Terminal O-H bonds use water-like geometry: r(O-H) = 0.96 Å, angle 104.5°.",
+    "The shared proton sits at the O-O midpoint (symmetric configuration).",
+    "STO-3G gives 15 basis functions: 2×O(1s,2s,2px,2py,2pz) + 5×H(1s).",
+    "Full active space = 15 orbitals = 30 qubits (exceeds exact diag limit).",
+    "10-orbital active space = 20 qubits (matches IQM QExa20)."
+  ]
+}
