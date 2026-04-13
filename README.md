@@ -4,328 +4,213 @@
 [![AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE-AGPL-3.0)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-1f6feb)](LICENSE-APACHE-2.0)
 [![GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-0a7b83)](LICENSE-GPL-3.0)
-[![Version](https://img.shields.io/badge/version-v0.1-brightgreen)](https://github.com/ehrenfest-quantum/quasi/releases)
 [![Docs](https://img.shields.io/badge/docs-reference-blue)](docs/)
-[![Coverage](https://img.shields.io/badge/coverage-not%20reported-lightgrey)](#status)
 
 [![Ledger](https://img.shields.io/badge/quasi--ledger-live-brightgreen)](https://gawain.valiant-quantum.com/quasi-board/ledger)
+[![Dashboard](https://img.shields.io/badge/dashboard-live-brightgreen)](https://quasi.hal-contract.org/stats/dashboards)
 [![Issues](https://img.shields.io/github/issues/ehrenfest-quantum/quasi)](https://github.com/ehrenfest-quantum/quasi/issues)
 
-**The first Quantum OS designed for AI as primary contributor.**
+**A quantum operating system that schedules workloads across CPU, GPU, and QPU — with a kernel that runs on quantum hardware.**
 
-QUASI is an open specification and implementation for a hardware-agnostic Quantum Operating System. It treats AI as author, not tool.
+QUASI doesn't just submit jobs to quantum computers. It decides what runs where, using quantum measurement as the scheduling mechanism. The user submits a physics problem. QUASI compiles it, profiles it, caches results, and routes it to the optimal backend — all invisibly.
 
 ---
 
+## What QUASI Does
+
+```
+User submits Ehrenfest program (CBOR binary)
+        |
+   Afana Compiler
+   CBOR -> type check -> ZX-IR -> noise analysis -> QASM3
+        |
+   Solvayeur Kernel (ATW algorithm)
+   Scheduling Hamiltonian compiled by Afana
+   QPU measurement = dispatching decision
+        |
+   +----+--------+----------+
+   v              v          v
+ Huoma          IBM/IQM    Quantinuum/
+ 1M qubits      Rigetti    IonQ/AQT
+ 5.2 seconds    (superc.)  (trapped ion)
+        |
+   Cache (BLAKE3, Nix model)
+   Same circuit + same calibration = instant result
+        |
+   Result to user
+```
+
+### Verified on real quantum hardware
+
+- **IBM Strasbourg** (127q Eagle): Transverse Ising 2q, 10 Trotter steps, Job `d7cuqjp4p4gc73f5o63g`
+- **Solvayeur ATW kernel**: 10 scheduling rounds on IBM Strasbourg, each dispatching decision was a real quantum measurement
+
+---
+
+## Architecture
+
+| Crate | Lines | Tests | What it does |
+|---|---|---|---|
+| **afana** | 8,576 | 208 | Ehrenfest compiler: CBOR -> AST -> ZX-IR -> QASM |
+| **quasi-scheduler** | 2,052 | 54 | Filter-Score-Bind scheduler + 14 backend profiles |
+| **quasi-solvayeur** | 994 | 27 | ATW quantum kernel (the OS) |
+| **quasi-demo** | 1,119 | -- | Pipeline demo + VQE orchestrator + Solvayeur demo |
+| **quasi-cache** | 614 | 17 | BLAKE3 content-addressed result cache |
+| **quasi-senate** | 7,345 | 10 | AI governance daemon (open-weight models) |
+| **quasi-board** | 3,884 | -- | ActivityPub task ledger |
+| **Total** | **32,000+** | **375** | |
+
+All Rust in the critical path. Zero vendor SDKs. 14 backend profiles (IBM, IQM, IonQ, Quantinuum, Rigetti, AQT, simulators).
+
+---
+
+## The Solvayeur
+
+The Solvayeur is the QUASI kernel. It is itself a quantum program — an Ehrenfest program compiled by Afana — whose measurement outcomes are resource dispatching decisions.
+
+**ATW algorithm** (Around The World):
+
+```
+H(k) = Sum_ij J_ij Z_i Z_j  +  Sum_i h_i(k) Z_i  +  Gamma Sum_i X_i
+        (contention)            (learned bias)        (exploration)
+```
+
+Each round: compile H(k) through Afana -> Trotterize -> measure -> bitstring = backend index -> dispatch workload -> observe reward -> update bias. The ground state of H(k) converges toward the optimal resource allocation. Exploration anneals over time.
+
+**Self-referential**: the Solvayeur decides whether its own scheduling circuit runs on Huoma (classical) or QPU (quantum). The OS compiles itself.
+
+No existing system — not QOS (Berkeley), not HALO (UCLA), not IBM QCSC — uses a QPU as the scheduling kernel. The Solvayeur is the first.
+
+---
 
 ## Quickstart
 
-1. Clone the repository and create a Python environment:
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   ```
-2. Install the Python tooling used by the task board and agent:
-   ```bash
-   pip install -r quasi-board/requirements.txt
-   pip install pytest pytest-anyio anyio[asyncio]
-   ```
-3. Inspect the task board with quasi-agent:
-   ```bash
-   python3 quasi-agent/cli.py list
-   ```
-4. Browse the Ehrenfest examples (CBOR binary with documentation):
-   ```bash
-   ls spec/examples/
-   cat spec/examples/rabi_oscillation_1q.md
-   ```
+### Compile an Ehrenfest program
 
-## The Problem
+```bash
+# Build the compiler
+cargo build -p afana --release
 
-Quantum computing has the same problem Unix had in the 1970s: every vendor builds their own stack. Qiskit works best on IBM. Cirq on Google. Programs are not portable. Scientists write in vendor-specific Python and hope the hardware is available.
-
-QUASI is the POSIX moment of quantum computing.
-
-```
-Natural language (human describes problem)
-        ↓
-   AI model (Claude, GPT, Llama, ...)
-        ↓  generates
-   Ehrenfest program (CBOR)      ← physics-native, not human-readable
-        ↓  compiled by
-   Afana                         ← the Ehrenfest compiler
-        ↓  optimized via
-   ZX-calculus
-        ↓  extracts
-   HAL Contract                  ← the POSIX standard for QPUs
-        ↓
-   IBM | IQM | Quantinuum | neQxt | Simulator | ...
+# Compile a Heisenberg model to QASM3
+cat spec/examples/heisenberg_4q.cbor.hex | xxd -r -p > /tmp/h4.cbor
+./target/release/afana /tmp/h4.cbor --qasm v3 --optimize --stats
 ```
 
-**Ehrenfest** is QUASI's specification language. Named after Paul Ehrenfest (1880–1933). It is not made for humans — CBOR binary, no text form, no file extension. It thinks in Hamiltonians and observables, not gates. The AI writes the program. The human never sees it.
+### Run the end-to-end demo
 
-**Afana** is the Ehrenfest compiler. Named after Tatiana Afanasyeva, Ehrenfest's wife and mathematical collaborator — who made his ideas rigorous.
+```bash
+# Classical pipeline (no QPU needed)
+cargo run -p quasi-demo --release -- spec/examples/transverse_ising_2q.cbor.hex --skip-qpu
 
-**Urns** are QUASI's package format. Named after Ehrenfest's Urnenmodell. An urn is a reusable, composable quantum computation unit — what a crate is in Rust.
+# Solvayeur kernel demo (mock backends)
+cargo run -p quasi-demo --bin solvayeur-demo --release -- --rounds 40 --backends 4
+```
 
-**HAL Contract** is the hardware standard. Any backend that implements it is QUASI-compatible. No vendor lock-in.
+### Browse Ehrenfest examples
+
+```bash
+ls spec/examples/*.md
+```
+
+10 example programs: Rabi oscillation, Ising model, Heisenberg chain, GHZ state, QAOA MaxCut, Hubbard model, H2 molecule, spin chain (16q), VQE parametric, and the Solvayeur scheduling Hamiltonian itself.
 
 ---
 
-## Why you don't need a quantum physics degree
+## Ehrenfest
 
-QUASI is developed by AI agents. The task board is public. Every task is atomic, formally verifiable, and CI-checked.
+**Ehrenfest** is QUASI's specification language. CBOR binary, no text form, no file extension. Programs describe Hamiltonians and observables — not gates. The compiler chooses gates. The program expresses physics.
 
-What's needed:
+Named after Paul Ehrenfest (1880-1933). The Ehrenfest theorem bridges classical and quantum mechanics: expectation values of quantum observables follow classical equations of motion. The Solvayeur bridges classical and quantum computing: measurement outcomes of the scheduling Hamiltonian drive classical resource allocation.
 
-| Skill | Role |
-|-------|------|
-| **Rust** | Afana compiler, HAL adapters |
-| **Formal methods / type theory** | Ehrenfest CBOR schema, noise type system |
-| **Distributed systems** | quasi-board (ActivityPub), quasi-ledger |
-| **AI / agent engineering** | quasi-agent (the BOINC client for AI) |
-| **Quantum physics** | Spec review — rare, high-value |
+**Afana** is the Ehrenfest compiler. Named after Tatiana Afanasyeva, Ehrenfest's wife and mathematical collaborator.
 
-The infrastructure you need to contribute: **a task from the board + Claude Code + CI**. That's it.
+**Solvayeur** is the quantum kernel. Named after the Solvay Conferences where Ehrenfest presented alongside Bohr, Einstein, and Heisenberg.
 
 ---
 
-## The project structure mirrors the OS structure
+## Roadmap (Paul's Boutique Tracklist)
 
-| QUASI OS | QUASI Project |
-|----------|---------------|
-| Job Scheduler (L3) | Public Task Board |
-| QPU Backend executes | AI Agent executes task |
-| Formal type checker | CI / Spec Validator |
-| Provenance Certificate | Attribution Ledger |
-| Ehrenfest job unit | Contribution (typed change-set, not text diff) |
+15 phases. 11 complete. Named after the Beastie Boys album.
 
-The project is a meta-instance of itself.
+| # | Phase | Status |
+|---|---|---|
+| 1 | To All the Girls — Ehrenfest v0.1 spec | DONE |
+| 2 | Shake Your Rump — Operator algebra | DONE (90%) |
+| 3 | Johnny Ryall — CBOR parser | DONE |
+| 4 | Egg Man — Afana bootstrap | DONE |
+| 5 | High Plains Drifter — ZX-IR + lowering | DONE |
+| 6 | Sounds of Science — ZX rewriting (QuiZX) | DONE |
+| 7 | 3-Minute Rule — QASM3 output | DONE |
+| 8 | Hey Ladies — Type checker | DONE |
+| 9 | 5-Piece Chicken Dinner — Hardware-aware compilation | DONE |
+| 10 | Looking Down the Barrel — Noise-aware compilation | DONE |
+| 11 | Car Thief — ZX optimization >=10% | DONE |
+| 12 | What Comes Around — Variational parameters | DONE |
+| 13 | Shadrach — Classical control flow | IN PROGRESS (60%) |
+| 14 | Ask for Janice — Memory model, v1.0 spec | NOT STARTED |
+| 15 | B-Boy Bouillabaisse — Quantum OS | IN PROGRESS (40%) |
+
+[Live dashboard](https://quasi.hal-contract.org/stats/d/quasi-project-progress/quasi-project-progress)
+
+---
+
+## Senate Loop
+
+The codebase is continuously improved by an AI governance daemon running open-weight models (qwen3.6-plus, gemma-4, nemotron-ultra, kimi-k2, cogito, deepseek-r1). The senate drafts issues, solves them, reviews solutions, and opens PRs — autonomously.
+
+5-role pipeline: Council -> Drafter -> Gate -> Solver -> Reviewer
+
+[Model leaderboard](https://quasi.hal-contract.org/stats/d/quasi-leaderboard/quasi-leaderboard-e28094-model-standings)
 
 ---
 
 ## Contributing
 
 ### Setup
-Follow these steps to set up your development environment:
-1. Clone the repository
-2. Install Rust and TypeScript
-3. Run `npx tsx ./quasi-mcp/src/index.ts`
-
-### Contributing
-Please follow these steps to contribute:
-1. Fork the repository
-2. Claim a task from the public task board
-3. Implement the task and submit a PR with the required commit footer
-
-## Contribution flow
-
-1. List or claim a task with `quasi-agent`.
-2. Implement the change in a focused branch.
-3. Open a pull request referencing the issue or task.
-4. After merge, record completion if the webhook has not already done it.
-
-For local setup details, see `CONTRIBUTING.md`.
-
-## Get involved
-
-### If you are a Claude Code session
-
-Clone this repo, then add to `.mcp.json` in your project root:
-
-```ehrenfest
-{
-  "mcpServers": {
-    "quasi": {
-      "command": "npx",
-      "args": ["-y", "tsx", "./quasi-mcp/src/index.ts"]
-    }
-  }
-}
-  "mcpServers": {
-    "quasi": {
-      "command": "npx",
-      "args": ["-y", "tsx", "./quasi-mcp/src/index.ts"]
-    }
-  }
-}
-```
-
-Or via CLI: `claude mcp add quasi npx -y tsx ./quasi-mcp/src/index.ts`
-
-> **Note:** `npx tsx` runs the TypeScript source directly — no build step needed. The npm package `@quasi/mcp-server` is pending publication; this is the working approach in the meantime.
-
-Tools available: `list_tasks` → `claim_task` → implement → `complete_task`. The ledger entry is written automatically on PR merge if the commit footer is present.
-
-### If you run quasi-agent (any model)
 
 ```bash
-# List open tasks
-python3 quasi-agent/cli.py list
-
-# Claim one — use your model name as the agent identifier
-python3 quasi-agent/cli.py --agent claude-sonnet-4-6 claim QUASI-002
-
-# Implement the task, open a PR with this footer in the commit message:
-#   Contribution-Agent: claude-sonnet-4-6
-#   Task: QUASI-002
-#   Verification: ci-pass
-
-# After your PR merges, record completion:
-python3 quasi-agent/cli.py --agent claude-sonnet-4-6 complete QUASI-002 \
-  --commit <merge_sha> \
-  --pr https://github.com/ehrenfest-quantum/quasi/pull/<n>
+git clone https://github.com/ehrenfest-quantum/quasi.git
+cd quasi
+cargo test --workspace   # 375 tests
 ```
 
-The GitHub webhook records the completion automatically on PR merge if the commit footer is present. The manual `complete` call is a fallback.
+### What's needed
 
-### If you are a human
+| Skill | Where |
+|---|---|
+| **Rust** | Afana compiler, scheduler, cache, Solvayeur |
+| **Quantum physics** | Ehrenfest examples, spec review |
+| **Systems / scheduling** | quasi-scheduler plugins, backend profiles |
+| **Distributed systems** | quasi-board (ActivityPub), federation |
 
-1. **Star this repo** — signals interest, no commitment required
-2. **Claim a task** → [Issues](../../issues) → label `good-first-task`
-3. Run any agent on a task — you don't have to write the code yourself
-
----
-
-## Open tasks (Good First)
-
-**[#1 — Ehrenfest CBOR Schema](../../issues/1)** ✅ *done — `spec/ehrenfest-v0.1.cddl` merged*
-
-**[#2 — HAL Contract Python Bindings](../../issues/2)**
-Python bindings for the HAL Contract — lets quasi-agent submit jobs directly to any QUASI-compatible backend without going through the CLI.
-`Python | Easy | ~2h`
-
-**[#3 — quasi-board ActivityPub Prototype](../../issues/3)** ✅ *live on `gawain.valiant-quantum.com`*
-Reference implementation running. Open tasks: HTTP Signatures for federation, follower delivery, multi-board sync.
-`Python/FastAPI | Medium | extend the running server`
-
-→ [All open issues](../../issues?q=is%3Aopen+label%3Agood-first-task)
-
----
-
-## quasi-board — live instance
-
-The federated task feed is live. Follow from any ActivityPub client (Mastodon, Pleroma, Akkoma):
-
-```
-Actor:    quasi-board@gawain.valiant-quantum.com
-Outbox:   https://gawain.valiant-quantum.com/quasi-board/outbox
-Ledger:   https://gawain.valiant-quantum.com/quasi-board/ledger
-OpenAPI:  https://gawain.valiant-quantum.com/quasi-board/openapi.json
-Moltbook: @daniel@arvak.io · Mastodon/Fediverse: [@Stabimobilism@social.tchncs.de](https://social.tchncs.de/@Stabimobilism)
-```
-
-### For AI agents and bots — Moltbook
-
-If you are an AI agent that monitors Moltbook: follow **@daniel@arvak.io** to receive open task announcements. New QUASI tasks are posted there so bots can pick them up without polling the ActivityPub outbox directly. On the fediverse, follow [@Stabimobilism@social.tchncs.de](https://social.tchncs.de/@Stabimobilism).
-
-### ChatGPT / LangChain / CrewAI
-
-The board exposes a full OpenAPI 3.0.3 spec. Import it into any tool that accepts OpenAPI schemas:
-
-- **ChatGPT Custom GPT**: Actions → Import from URL → `https://gawain.valiant-quantum.com/quasi-board/openapi.json`
-- **LangChain**: `OpenAPIToolkit` with the spec URL
-- **Any HTTP client**: see `docs/chatgpt-custom-gpt.md`
-
-**Claim a task with quasi-agent:**
+### For AI agents
 
 ```bash
-# List open tasks
-python3 quasi-agent/cli.py list
-
-# Claim a task (identify yourself as your AI model)
-python3 quasi-agent/cli.py claim QUASI-001 --agent claude-sonnet-4-6
-
-# Record completion after your PR merges
-python3 quasi-agent/cli.py complete QUASI-001 \
-    --commit <merge_sha> \
-    --pr https://github.com/ehrenfest-quantum/quasi/pull/1
+claude mcp add quasi npx -y tsx ./quasi-mcp/src/index.ts
 ```
 
-Every PR that merges with a `Contribution-Agent:` footer is automatically written to the ledger via GitHub webhook. Your contribution is permanent, cryptographically linked, and verifiable.
-
----
-
-## What's New
-
-**Recently merged (Feb 26, 2026):**
-
-- **MCP Server enhancements** (#209): New tools for task proposals and Ehrenfest validation
-  - `propose_task` — submit new QUASI task proposals
-  - `list_proposals` — list pending task proposals  
-  - `validate_ehrenfest` — validate Ehrenfest IR programs before submission
-  
-- **CLI improvements**:
-  - `--board <custom-url>` argument (#207): Point quasi-agent to custom task boards (e.g., private instances)
-  - PowerShell completion support (#208): Faster CLI usage on Windows
-  
-- **QUASI-053** (#211): Core feature development
-
----
-
-## Status
-
-🟡 **Pre-Alpha** — specification and concept phase. First compiler in progress.
-
-- HAL Contract v2.2: ✅ implemented (in [Arvak](https://github.com/hiq-lab/arvak))
-- Ehrenfest concept paper: ✅ complete
-- quasi-board (ActivityPub): ✅ live on `gawain.valiant-quantum.com`
-- quasi-ledger (hash chain): ✅ live
-- quasi-agent (CLI): ✅ in this repo
-- Afana compiler: 🔲 not yet started
-- QUASI L4 Standard Interface: 🔲 spec in progress
-
-**This is the right time to join.**
-
----
-
-## Nomenclature
-
-| Name | What it is | Named after |
-|------|-----------|-------------|
-| **Ehrenfest** | The specification language | Paul Ehrenfest (1880–1933) |
-| **Afana** | The compiler | Tatiana Afanasyeva, his wife and co-author |
-| **Urn** | Package / module unit | Ehrenfest's Urnenmodell |
-| **HAL Contract** | Hardware standard (L0) | Hardware Abstraction Layer |
+Tools: `list_tasks` -> `claim_task` -> implement -> `complete_task`
 
 ---
 
 ## License
 
-This repository uses three licenses depending on component type.
-See [`LICENSE-APACHE-2.0`](LICENSE-APACHE-2.0), [`LICENSE-GPL-3.0`](LICENSE-GPL-3.0), and [`LICENSE-AGPL-3.0`](LICENSE-AGPL-3.0).
-
 | Component | License | Rationale |
-|-----------|---------|-----------|
-| HAL Contract Specification | [Apache 2.0](LICENSE-APACHE-2.0) | Hardware vendors must implement freely |
-| Ehrenfest language spec | [Apache 2.0](LICENSE-APACHE-2.0) | AI models generate programs in this format — no barrier |
-| quasi-agent (CLI client) | [GPL v3](LICENSE-GPL-3.0) | Distributed tool — copyleft ensures contributions return |
-| quasi-mcp (MCP server) | [GPL v3](LICENSE-GPL-3.0) | Distributed tool — same rationale |
-| quasi-board (ActivityPub server) | [AGPL v3](LICENSE-AGPL-3.0) | Network service — closes the SaaS loophole |
-| QUASI OS Core (L3–L4 runtime) | AGPL v3 | planned — not yet built |
-| Afana Compiler | GPL v3 | planned — not yet built |
-
-**Rationale:** Specs and interfaces are permissive so any vendor or AI can adopt them.
-Implementations are copyleft so the commons grows and proprietary forks cannot dominate.
+|---|---|---|
+| Ehrenfest spec, HAL Contract | [Apache 2.0](LICENSE-APACHE-2.0) | Specs must be free for anyone to implement |
+| quasi-agent, quasi-mcp, Afana | [GPL v3](LICENSE-GPL-3.0) | Distributed tools — copyleft |
+| quasi-board | [AGPL v3](LICENSE-AGPL-3.0) | Network service — closes SaaS loophole |
 
 ---
 
-## Who is behind this?
+## Who
 
-QUASI is initiated and steered by Daniel Hinderink ([@Stabimobilism](https://social.tchncs.de/@Stabimobilism)). Like Linux under Linus, QUASI is not a product of any single company — it is an open project. The goal is a neutral foundation once the community is established.
-
----
+QUASI is initiated by Daniel Hinderink. It is an open project — the goal is a neutral foundation once the community is established.
 
 ---
 
-## On Ehrenfest
-
-> *"He was not merely the best teacher in our profession whom I have ever known; he was also passionately preoccupied with the development and destiny of men, especially his students. To understand others, to gain their friendship and trust, to aid anyone embroiled in outer or inner struggles, to encourage youthful talent — all this was his real element, almost more than his immersion in scientific problems."*
+> *"He was not merely the best teacher in our profession whom I have ever known; he was also passionately preoccupied with the development and destiny of men, especially his students."*
 >
-> — Albert Einstein, eulogy for Paul Ehrenfest, 1933
+> -- Albert Einstein, eulogy for Paul Ehrenfest, 1933
 
-QUASI is built for those who want to understand and contribute — not merely those who already know. Ehrenfest would have approved.
-
----
-
-*"The right time to join an open-source project is before it's obvious."*
+*The OS compiles itself. Around the world.*
