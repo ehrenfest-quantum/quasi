@@ -4,6 +4,7 @@
 //! ```text
 //! quasi-bridge run --smiles "O" --basis sto-3g --accuracy chemical
 //! quasi-bridge analyze --smiles "[H][H]"
+//! quasi-bridge serve --bind 0.0.0.0:9090
 //! ```
 
 use clap::{Parser, Subcommand};
@@ -43,6 +44,12 @@ enum Command {
         /// Basis set
         #[arg(long, default_value = "sto-3g")]
         basis: String,
+    },
+    /// Start HTTP server
+    Serve {
+        /// Bind address (e.g. 0.0.0.0:9090)
+        #[arg(long, default_value = "127.0.0.1:9090")]
+        bind: String,
     },
 }
 
@@ -103,6 +110,19 @@ fn main() {
                     std::process::exit(1);
                 }
             }
+        }
+        Command::Serve { bind } => {
+            let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+            rt.block_on(async {
+                let app = quasi_bridge::server::app();
+                let listener = tokio::net::TcpListener::bind(&bind)
+                    .await
+                    .unwrap_or_else(|e| panic!("failed to bind {bind}: {e}"));
+                eprintln!("quasi-bridge serving on http://{bind}");
+                axum::serve(listener, app)
+                    .await
+                    .expect("server error");
+            });
         }
         Command::Analyze { smiles, basis } => {
             // Just RHF + partition analysis

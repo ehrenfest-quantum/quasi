@@ -33,6 +33,10 @@ nalgebra = "0.33"
 # CLI
 clap = { version = "4", features = ["derive"] }
 
+# HTTP server
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+
 # Error handling
 anyhow = "1"
 thiserror = "2"
