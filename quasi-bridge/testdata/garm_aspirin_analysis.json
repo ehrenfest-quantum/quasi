@@ -1,0 +1,16 @@
+{
+  "molecules": [
+    {
+      "smiles": "CC(=O)Oc1ccccc1C(=O)O",
+      "name": "aspirin",
+      "active_orbitals": [15, 16, 17, 18, 19, 20],
+      "n_active_electrons": 6,
+      "qubit_estimate": 12,
+      "qpu_flag": true,
+      "sinc2_threshold": 0.25,
+      "hardness_score": 0.73,
+      "fiedler_value": 0.042,
+      "basis": "sto-3g"
+    }
+  ]
+}
