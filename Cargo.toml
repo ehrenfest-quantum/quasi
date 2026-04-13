@@ -4,6 +4,7 @@
 [workspace]
 members = [
     "afana",
+    "quasi-bridge",
     "quasi-cache",
     "quasi-demo",
     "quasi-scheduler",
