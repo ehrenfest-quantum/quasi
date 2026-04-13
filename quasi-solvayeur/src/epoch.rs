@@ -23,12 +23,33 @@ pub struct EpochResult {
     pub ran_on_qpu: bool,
 }
 
+/// Configuration for QPU execution.
+#[derive(Debug, Clone, Default)]
+pub struct QpuConfig {
+    /// Path to the QPU submission script (e.g., "/home/vops/solvayeur-qpu.py").
+    /// When set, the Solvayeur submits its scheduling circuit to a real QPU.
+    /// When None, measurements are simulated from the bias fields.
+    pub script_path: Option<String>,
+    /// Number of shots per QPU submission.
+    pub shots: u32,
+    /// Backend name (e.g., "ibm_strasbourg").
+    pub backend: String,
+}
+
 /// Execute one ATW epoch: compile -> evolve -> measure -> decode.
 ///
-/// This compiles the scheduling Hamiltonian through Afana and returns
-/// a simulated measurement outcome. In production, the measurement
-/// would come from actual QPU execution.
+/// When `qpu_config.script_path` is set, the scheduling circuit is submitted
+/// to a real QPU. Otherwise, measurements are simulated from the bias fields.
 pub fn run_epoch(params: &AtwParams, epoch: usize) -> Result<EpochResult, EpochError> {
+    run_epoch_with_config(params, epoch, &QpuConfig::default())
+}
+
+/// Execute one ATW epoch with QPU configuration.
+pub fn run_epoch_with_config(
+    params: &AtwParams,
+    epoch: usize,
+    qpu_config: &QpuConfig,
+) -> Result<EpochResult, EpochError> {
     // 1. COMPILE: Build EhrenfestProgram from scheduling Hamiltonian
     let program = build_scheduling_program(params);
 
@@ -41,15 +62,18 @@ pub fn run_epoch(params: &AtwParams, epoch: usize) -> Result<EpochResult, EpochE
 
     let gate_count = ast.gates.len();
 
-    // 4. MEASURE: Simulate measurement from the compiled circuit.
-    //    In a full implementation, this would:
-    //    a) Check routing confidence (Huoma profiler)
-    //    b) Run on Huoma (classical) or QPU (quantum) accordingly
-    //    c) Return actual measurement outcome
-    //
-    //    For now, we derive a deterministic "measurement" from the bias fields.
-    //    This lets us test the full ATW loop without QPU access.
-    let measurement = simulate_measurement(params, epoch);
+    // 4. MEASURE: Either real QPU or simulated
+    let (measurement, ran_on_qpu) = if let Some(script) = &qpu_config.script_path {
+        match submit_to_qpu(script, &qasm, qpu_config.shots, &qpu_config.backend) {
+            Ok(bits) => (bits, true),
+            Err(e) => {
+                tracing::warn!("QPU submission failed, falling back to simulation: {e}");
+                (simulate_measurement(params, epoch), false)
+            }
+        }
+    } else {
+        (simulate_measurement(params, epoch), false)
+    };
 
     // 5. DECODE: Bitstring -> backend index
     let backend_index = decode_backend(&measurement, params.n_backends);
@@ -59,8 +83,68 @@ pub fn run_epoch(params: &AtwParams, epoch: usize) -> Result<EpochResult, EpochE
         measurement,
         qasm,
         gate_count,
-        ran_on_qpu: false, // simulated for now
+        ran_on_qpu,
     })
+}
+
+/// Submit the scheduling QASM to a real QPU via an external script.
+///
+/// The script takes a QASM file and returns JSON counts (e.g., {"00": 52, "01": 23}).
+/// We pick the majority bitstring and decode it to a measurement vector.
+fn submit_to_qpu(
+    script_path: &str,
+    qasm: &str,
+    shots: u32,
+    backend: &str,
+) -> Result<Vec<bool>, EpochError> {
+    use std::process::Command;
+
+    // Write QASM to temp file
+    let qasm_path = "/tmp/solvayeur-atw.qasm";
+    std::fs::write(qasm_path, qasm)
+        .map_err(|e| EpochError::Execute(format!("Failed to write QASM: {e}")))?;
+
+    // Call the QPU script
+    let output = Command::new(script_path)
+        .arg(qasm_path)
+        .arg("--shots")
+        .arg(shots.to_string())
+        .arg("--backend")
+        .arg(backend)
+        .output()
+        .map_err(|e| EpochError::Execute(format!("Failed to run QPU script: {e}")))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(EpochError::Execute(format!("QPU script failed: {stderr}")));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let counts: std::collections::HashMap<String, u64> =
+        serde_json::from_str(stdout.trim())
+            .map_err(|e| EpochError::Execute(format!("Failed to parse QPU result: {e}")))?;
+
+    // Majority vote: pick the bitstring with the most counts
+    let majority = counts
+        .iter()
+        .max_by_key(|(_, &c)| c)
+        .map(|(bs, _)| bs.clone())
+        .unwrap_or_default();
+
+    tracing::info!(
+        "QPU measurement: {} (counts: {:?})",
+        majority,
+        counts.iter().take(4).collect::<Vec<_>>()
+    );
+
+    // Decode bitstring to bool vector (LSB first)
+    let measurement: Vec<bool> = majority
+        .chars()
+        .rev()
+        .map(|c| c == '1')
+        .collect();
+
+    Ok(measurement)
 }
 
 /// Simulate a measurement outcome based on bias fields.

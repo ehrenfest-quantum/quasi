@@ -8,7 +8,7 @@
 //! the workload, and then calling `observe()` with the reward.
 
 use crate::bias::{update_bias, AtwLearning, Reward};
-use crate::epoch::{run_epoch, EpochError, EpochResult};
+use crate::epoch::{run_epoch_with_config, EpochError, EpochResult, QpuConfig};
 use crate::hamiltonian::AtwParams;
 
 /// ATW kernel state.
@@ -21,6 +21,8 @@ pub struct Solvayeur {
     pub history: Vec<EpochRecord>,
     /// Backend names for display.
     pub backend_names: Vec<String>,
+    /// QPU configuration for real hardware execution.
+    pub qpu_config: QpuConfig,
 }
 
 /// Record of one completed ATW epoch.
@@ -43,7 +45,7 @@ pub struct EpochRecord {
 }
 
 impl Solvayeur {
-    /// Create a new Solvayeur kernel for the given backends.
+    /// Create a new Solvayeur kernel for the given backends (simulated measurement).
     pub fn new(backends: &[quasi_scheduler::backend::Backend]) -> Self {
         let params = AtwParams::from_backends(backends);
         let backend_names: Vec<String> = backends.iter().map(|b| b.id.clone()).collect();
@@ -52,7 +54,15 @@ impl Solvayeur {
             learning: AtwLearning::default(),
             history: Vec::new(),
             backend_names,
+            qpu_config: QpuConfig::default(),
         }
+    }
+
+    /// Create a Solvayeur kernel that uses a real QPU for scheduling decisions.
+    pub fn with_qpu(backends: &[quasi_scheduler::backend::Backend], qpu_config: QpuConfig) -> Self {
+        let mut s = Self::new(backends);
+        s.qpu_config = qpu_config;
+        s
     }
 
     /// Run one ATW round: compile -> measure -> decode -> return decision.
@@ -60,7 +70,7 @@ impl Solvayeur {
     /// Does NOT dispatch or observe reward — the caller does that and
     /// then calls `observe()` with the result.
     pub fn decide(&self) -> Result<EpochResult, EpochError> {
-        run_epoch(&self.params, self.history.len())
+        run_epoch_with_config(&self.params, self.history.len(), &self.qpu_config)
     }
 
     /// Observe the reward from a dispatching decision and update bias.
