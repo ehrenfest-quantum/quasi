@@ -14,12 +14,50 @@
 
 QUASI doesn't just submit jobs to quantum computers. It decides what runs where, using quantum measurement as the scheduling mechanism. The user submits a physics problem. QUASI compiles it, profiles it, caches results, and routes it to the optimal backend — all invisibly.
 
+```
+curl https://garm.valiant-quantum.com/quasi/run -d '{"smiles":"O"}'
+# -> { "energy_hartree": -74.989, "method": "RHF/STO-3G", "qubits": 14 }
+```
+
 ---
 
 ## What QUASI Does
 
+### SMILES to Energy (quasi-bridge)
+
+The molecular pipeline turns chemical structures into ground state energies. Zero Python. All Rust.
+
 ```
-User submits Ehrenfest program (CBOR binary)
+SMILES ("O" = water)
+  -> McMurchie-Davidson integrals
+  -> Restricted Hartree-Fock
+  -> Jordan-Wigner mapping
+  -> Ehrenfest CBOR
+  -> Afana compiler -> QASM3
+  -> Solvayeur routes to optimal backend
+  -> Energy: -74.989 Hartree (H2O)
+```
+
+Verified: H2 = -1.1373 Ha (textbook), H2O = -74.989 Ha. 48 tests.
+
+### CUDA-Q Target
+
+Any existing CUDA-Q application runs on QUASI without code changes:
+
+```python
+import cudaq
+cudaq.set_target("quasi")  # one line — now using Huoma/Afana/Solvayeur
+```
+
+**Level 1**: Circuit execution via Huoma (drop-in replacement for cuQuantum statevector).
+**Level 2**: Hamiltonian interception — QUASI intercepts at the Hamiltonian level, BEFORE circuit generation, using sinC2 commensurability analysis to decide if a QPU is even needed.
+
+No other CUDA-Q target has Hamiltonian-level interception or commensurability-guided scheduling.
+
+### Full Compilation Pipeline
+
+```
+Ehrenfest program (CBOR binary)
         |
    Afana Compiler
    CBOR -> type check -> ZX-IR -> noise analysis -> QASM3
@@ -31,8 +69,8 @@ User submits Ehrenfest program (CBOR binary)
    +----+--------+----------+
    v              v          v
  Huoma          IBM/IQM    Quantinuum/
- 1M qubits      Rigetti    IonQ/AQT
- 5.2 seconds    (superc.)  (trapped ion)
+ 1B qubits      Rigetti    IonQ/AQT
+ 17 min          (superc.)  (trapped ion)
         |
    Cache (BLAKE3, Nix model)
    Same circuit + same calibration = instant result
@@ -44,23 +82,25 @@ User submits Ehrenfest program (CBOR binary)
 
 - **IBM Strasbourg** (127q Eagle): Transverse Ising 2q, 10 Trotter steps, Job `d7cuqjp4p4gc73f5o63g`
 - **Solvayeur ATW kernel**: 10 scheduling rounds on IBM Strasbourg, each dispatching decision was a real quantum measurement
+- **Huoma**: 1,000,000,000 qubits, 17 minutes, 4 GB RAM on a Mac Studio
 
 ---
 
 ## Architecture
 
-| Crate | Lines | Tests | What it does |
-|---|---|---|---|
-| **afana** | 8,576 | 208 | Ehrenfest compiler: CBOR -> AST -> ZX-IR -> QASM |
-| **quasi-scheduler** | 2,052 | 54 | Filter-Score-Bind scheduler + 14 backend profiles |
-| **quasi-solvayeur** | 994 | 27 | ATW quantum kernel (the OS) |
-| **quasi-demo** | 1,119 | -- | Pipeline demo + VQE orchestrator + Solvayeur demo |
-| **quasi-cache** | 614 | 17 | BLAKE3 content-addressed result cache |
-| **quasi-senate** | 7,345 | 10 | AI governance daemon (open-weight models) |
-| **quasi-board** | 3,884 | -- | ActivityPub task ledger |
-| **Total** | **32,000+** | **375** | |
+| Crate | What it does |
+|---|---|
+| **afana** | Ehrenfest compiler: CBOR -> AST -> ZX-IR -> QASM |
+| **quasi-bridge** | Molecular pipeline: SMILES -> integrals -> RHF -> Jordan-Wigner -> Ehrenfest |
+| **quasi-cudaq-ffi** | CUDA-Q backend: makes QUASI a `cudaq.set_target()` |
+| **quasi-scheduler** | Filter-Score-Bind scheduler + 14 backend profiles + Huoma profiler |
+| **quasi-solvayeur** | ATW quantum kernel — scheduling via QPU measurement |
+| **quasi-cache** | BLAKE3 content-addressed result cache (Nix model) |
+| **quasi-demo** | Pipeline demo + VQE orchestrator + Solvayeur demo |
+| **quasi-senate** | AI governance daemon (open-weight models) |
+| **quasi-board** | ActivityPub task ledger |
 
-All Rust in the critical path. Zero vendor SDKs. 14 backend profiles (IBM, IQM, IonQ, Quantinuum, Rigetti, AQT, simulators).
+34,000+ lines of Rust. 400+ tests. Zero vendor SDKs. 14 backend profiles across 6 vendors.
 
 ---
 
