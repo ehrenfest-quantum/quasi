@@ -17,6 +17,10 @@ path = "src/vqe.rs"
 name = "solvayeur-demo"
 path = "src/solvayeur_demo.rs"
 
+[[bin]]
+name = "kernel-demo"
+path = "src/kernel_demo.rs"
+
 [dependencies]
 afana = { path = "../afana" }
 quasi-scheduler = { path = "../quasi-scheduler" }
