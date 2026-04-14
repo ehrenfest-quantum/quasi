@@ -24,4 +24,5 @@ pub mod bias;
 pub mod calibration;
 pub mod epoch;
 pub mod hamiltonian;
+pub mod partition;
 pub mod qubit_map;
