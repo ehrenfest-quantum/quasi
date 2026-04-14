@@ -23,6 +23,7 @@ pub mod atw;
 pub mod bias;
 pub mod calibration;
 pub mod coherence;
+pub mod entanglement;
 pub mod epoch;
 pub mod hamiltonian;
 pub mod partition;
