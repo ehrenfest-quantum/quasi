@@ -94,32 +94,41 @@ Ehrenfest program (CBOR binary)
 | **quasi-bridge** | Molecular pipeline: SMILES -> integrals -> RHF -> Jordan-Wigner -> Ehrenfest |
 | **quasi-cudaq-ffi** | CUDA-Q backend: makes QUASI a `cudaq.set_target()` |
 | **quasi-scheduler** | Filter-Score-Bind scheduler + 14 backend profiles + Huoma profiler |
-| **quasi-solvayeur** | ATW quantum kernel — scheduling via QPU measurement |
+| **quasi-solvayeur** | ATW quantum kernel — 6 phases: backend, qubits, scheduling, coherence, entanglement, errors |
 | **quasi-cache** | BLAKE3 content-addressed result cache (Nix model) |
 | **quasi-demo** | Pipeline demo + VQE orchestrator + Solvayeur demo |
 | **quasi-senate** | AI governance daemon (open-weight models) |
 | **quasi-board** | ActivityPub task ledger |
 
-34,000+ lines of Rust. 400+ tests. Zero vendor SDKs. 14 backend profiles across 6 vendors.
+36,000+ lines of Rust. 450+ tests. Zero vendor SDKs. 14 backend profiles across 6 vendors. All backend types from HAL Contract v2 (single source of truth).
 
 ---
 
 ## The Solvayeur
 
-The Solvayeur is the QUASI kernel. It is itself a quantum program — an Ehrenfest program compiled by Afana — whose measurement outcomes are resource dispatching decisions.
+The Solvayeur is the QUASI kernel — not a job scheduler, but an OS kernel that manages quantum resources the way Linux manages CPU, memory, and I/O.
 
-**ATW algorithm** (Around The World):
+**Six kernel capabilities (Phases A-F):**
+
+| Phase | What the kernel manages | Classical OS analog |
+|---|---|---|
+| **A** Backend selection | Which QPU/simulator runs this workload | Process → CPU core |
+| **B** Qubit region allocation | Which physical qubits, avoiding degraded hardware | Virtual memory → physical RAM |
+| **C** Multi-program scheduling | Multiple programs on one QPU simultaneously | Multi-core scheduling |
+| **D** Coherence budgeting | T2 deadlines, circuit splitting when too deep | Real-time deadline scheduling |
+| **E** Entanglement tracking | Shared quantum state across programs | Shared memory / IPC |
+| **F** Error budget management | Cumulative gate error monitoring, halt/warn | Resource limits (cgroups) |
+
+**ATW algorithm** (Around The World) — the kernel's scheduling cycle:
 
 ```
 H(k) = Sum_ij J_ij Z_i Z_j  +  Sum_i h_i(k) Z_i  +  Gamma Sum_i X_i
         (contention)            (learned bias)        (exploration)
 ```
 
-Each round: compile H(k) through Afana -> Trotterize -> measure -> bitstring = backend index -> dispatch workload -> observe reward -> update bias. The ground state of H(k) converges toward the optimal resource allocation. Exploration anneals over time.
+The scheduling Hamiltonian is an Ehrenfest program, compiled by Afana, measured on a QPU. Each measurement is a resource allocation decision. Bias fields learn from outcomes. Exploration anneals. The OS compiles itself.
 
-**Self-referential**: the Solvayeur decides whether its own scheduling circuit runs on Huoma (classical) or QPU (quantum). The OS compiles itself.
-
-No existing system — not QOS (Berkeley), not HALO (UCLA), not IBM QCSC — uses a QPU as the scheduling kernel. The Solvayeur is the first.
+No existing system — not QOS (Berkeley), not HALO (UCLA), not IBM QCSC — uses a QPU as the scheduling kernel.
 
 ---
 
