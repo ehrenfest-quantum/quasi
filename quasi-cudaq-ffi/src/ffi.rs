@@ -313,31 +313,8 @@ pub unsafe extern "C" fn quasi_bridge_observe(
 fn make_default_backends() -> Vec<quasi_scheduler::backend::Backend> {
     use quasi_scheduler::backend::*;
     vec![Backend {
-        id: "huoma_statevector".into(),
-        name: "Huoma Statevector".into(),
+        capabilities: Capabilities::simulator(30),
         backend_type: BackendType::Simulator,
-        qubit_count: 30,
-        gate_set: GateSet {
-            native_gates: vec![
-                "h".into(),
-                "x".into(),
-                "y".into(),
-                "z".into(),
-                "cx".into(),
-                "rz".into(),
-                "ry".into(),
-                "rx".into(),
-            ],
-        },
-        topology: Topology::AllToAll,
-        noise: NoiseProfile {
-            t1_us: 1e9,
-            t2_us: 1e9,
-            single_qubit_error: 0.0,
-            two_qubit_error: 0.0,
-            readout_error: 0.0,
-            calibration_version: "exact".into(),
-        },
         status: BackendStatus::Online { queue_depth: 0 },
         cost_per_shot: 0.0001,
     }]

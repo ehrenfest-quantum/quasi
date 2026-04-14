@@ -173,22 +173,29 @@ mod tests {
     fn make_backends(n: usize) -> Vec<Backend> {
         (0..n)
             .map(|i| Backend {
-                id: format!("backend_{i}"),
-                name: format!("Backend {i}"),
+                capabilities: Capabilities {
+                    name: format!("backend_{i}"),
+                    num_qubits: 20,
+                    gate_set: GateSet {
+                        single_qubit: vec!["h".into(), "rz".into()],
+                        two_qubit: vec!["cx".into()],
+                        three_qubit: vec![],
+                        native: vec!["h".into(), "cx".into(), "rz".into()],
+                    },
+                    topology: Topology::full(20),
+                    max_shots: 10_000,
+                    is_simulator: false,
+                    features: vec![],
+                    noise_profile: Some(NoiseProfile {
+                        t1: Some(200.0),
+                        t2: Some(100.0),
+                        single_qubit_fidelity: Some(0.999),
+                        two_qubit_fidelity: Some(0.99),
+                        readout_fidelity: Some(0.98),
+                        gate_time: Some(0.05),
+                    }),
+                },
                 backend_type: BackendType::Qpu,
-                qubit_count: 20,
-                gate_set: GateSet {
-                    native_gates: vec!["h".into(), "cx".into(), "rz".into()],
-                },
-                topology: Topology::AllToAll,
-                noise: NoiseProfile {
-                    t1_us: 200.0,
-                    t2_us: 100.0,
-                    single_qubit_error: 0.001,
-                    two_qubit_error: 0.01,
-                    readout_error: 0.02,
-                    calibration_version: "v1".into(),
-                },
                 status: BackendStatus::Online { queue_depth: i as u32 },
                 cost_per_shot: 0.01,
             })

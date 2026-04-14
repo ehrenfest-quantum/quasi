@@ -13,3 +13,6 @@ members = [
     "quasi-solvayeur",
 ]
 resolver = "2"
+
+[workspace.dependencies]
+hal-contract = { path = "../hal-contract/rust" }

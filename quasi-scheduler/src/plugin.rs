@@ -42,9 +42,7 @@ impl SchedulerPlugin for GateSetFilter {
     }
 
     fn filter(&self, job: &QuantumJob, backend: &Backend) -> bool {
-        backend
-            .gate_set
-            .supports_all(&job.requirements.required_gates)
+        backend.supports_all_gates(&job.requirements.required_gates)
     }
 
     fn score(&self, job: &QuantumJob, backend: &Backend) -> f64 {
@@ -54,7 +52,7 @@ impl SchedulerPlugin for GateSetFilter {
         }
         let supported = required
             .iter()
-            .filter(|g| backend.gate_set.supports(g))
+            .filter(|g| backend.supports_gate(g))
             .count();
         supported as f64 / required.len() as f64
     }
@@ -69,15 +67,15 @@ impl SchedulerPlugin for QubitCountFilter {
     }
 
     fn filter(&self, job: &QuantumJob, backend: &Backend) -> bool {
-        backend.qubit_count >= job.requirements.min_qubits
+        backend.qubit_count() >= job.requirements.min_qubits
     }
 
     fn score(&self, job: &QuantumJob, backend: &Backend) -> f64 {
-        if backend.qubit_count == 0 || job.requirements.min_qubits == 0 {
+        if backend.qubit_count() == 0 || job.requirements.min_qubits == 0 {
             return 0.5;
         }
         // Closer to exact match = higher score (avoids wasting qubits).
-        let ratio = job.requirements.min_qubits as f64 / backend.qubit_count as f64;
+        let ratio = job.requirements.min_qubits as f64 / backend.qubit_count() as f64;
         ratio.min(1.0)
     }
 }
@@ -94,14 +92,22 @@ impl SchedulerPlugin for NoiseBudgetPlugin {
         let Some(budget) = &job.requirements.noise_budget else {
             return true;
         };
-        if backend.noise.t1_us < budget.min_t1_us {
+        let t1 = backend.noise_profile().and_then(|n| n.t1).unwrap_or(0.0);
+        let t2 = backend.noise_profile().and_then(|n| n.t2).unwrap_or(0.0);
+        if t1 < budget.min_t1_us {
             return false;
         }
-        if backend.noise.t2_us < budget.min_t2_us {
+        if t2 < budget.min_t2_us {
             return false;
         }
         if let Some(max_err) = budget.max_gate_error {
-            if backend.noise.two_qubit_error > max_err {
+            // HAL uses fidelity; convert to error: error = 1.0 - fidelity
+            let two_qubit_error = 1.0
+                - backend
+                    .noise_profile()
+                    .and_then(|n| n.two_qubit_fidelity)
+                    .unwrap_or(0.0);
+            if two_qubit_error > max_err {
                 return false;
             }
         }
@@ -112,14 +118,16 @@ impl SchedulerPlugin for NoiseBudgetPlugin {
         let Some(budget) = &job.requirements.noise_budget else {
             return 0.5;
         };
+        let t1 = backend.noise_profile().and_then(|n| n.t1).unwrap_or(0.0);
+        let t2 = backend.noise_profile().and_then(|n| n.t2).unwrap_or(0.0);
         // Score by how much margin above the threshold.
         let t1_margin = if budget.min_t1_us > 0.0 {
-            (backend.noise.t1_us / budget.min_t1_us).min(2.0) / 2.0
+            (t1 / budget.min_t1_us).min(2.0) / 2.0
         } else {
             1.0
         };
         let t2_margin = if budget.min_t2_us > 0.0 {
-            (backend.noise.t2_us / budget.min_t2_us).min(2.0) / 2.0
+            (t2 / budget.min_t2_us).min(2.0) / 2.0
         } else {
             1.0
         };
@@ -197,22 +205,29 @@ mod tests {
 
     fn make_backend(overrides: impl FnOnce(&mut Backend)) -> Backend {
         let mut b = Backend {
-            id: "test-backend".into(),
-            name: "Test Backend".into(),
+            capabilities: Capabilities {
+                name: "test-backend".into(),
+                num_qubits: 20,
+                gate_set: GateSet {
+                    single_qubit: vec!["h".into(), "rz".into()],
+                    two_qubit: vec!["cx".into()],
+                    three_qubit: vec![],
+                    native: vec!["h".into(), "cx".into(), "rz".into()],
+                },
+                topology: Topology::full(20),
+                max_shots: 10_000,
+                is_simulator: false,
+                features: vec![],
+                noise_profile: Some(NoiseProfile {
+                    t1: Some(100.0),
+                    t2: Some(50.0),
+                    single_qubit_fidelity: Some(0.999),
+                    two_qubit_fidelity: Some(0.99),
+                    readout_fidelity: Some(0.98),
+                    gate_time: None,
+                }),
+            },
             backend_type: BackendType::Qpu,
-            qubit_count: 20,
-            gate_set: GateSet {
-                native_gates: vec!["h".into(), "cx".into(), "rz".into()],
-            },
-            topology: Topology::AllToAll,
-            noise: NoiseProfile {
-                t1_us: 100.0,
-                t2_us: 50.0,
-                single_qubit_error: 0.001,
-                two_qubit_error: 0.01,
-                readout_error: 0.02,
-                calibration_version: "v1".into(),
-            },
             status: BackendStatus::Online { queue_depth: 5 },
             cost_per_shot: 0.01,
         };

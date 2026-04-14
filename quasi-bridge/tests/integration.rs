@@ -141,36 +141,14 @@ fn solvayeur_classical_fallback() {
 
     let backends = vec![
         Backend {
-            id: "huoma_statevector".into(),
-            name: "Huoma SV".into(),
+            capabilities: Capabilities::simulator(30),
             backend_type: BackendType::Simulator,
-            qubit_count: 30,
-            gate_set: GateSet {
-                native_gates: vec!["h".into(), "cx".into(), "rz".into()],
-            },
-            topology: Topology::AllToAll,
-            noise: NoiseProfile {
-                t1_us: 1e9, t2_us: 1e9,
-                single_qubit_error: 0.0, two_qubit_error: 0.0,
-                readout_error: 0.0, calibration_version: "exact".into(),
-            },
             status: BackendStatus::Online { queue_depth: 0 },
             cost_per_shot: 0.0001,
         },
         Backend {
-            id: "huoma_ttn".into(),
-            name: "Huoma TTN".into(),
+            capabilities: Capabilities::simulator(100),
             backend_type: BackendType::Simulator,
-            qubit_count: 100,
-            gate_set: GateSet {
-                native_gates: vec!["h".into(), "cx".into(), "rz".into()],
-            },
-            topology: Topology::AllToAll,
-            noise: NoiseProfile {
-                t1_us: 1e9, t2_us: 1e9,
-                single_qubit_error: 1e-6, two_qubit_error: 1e-5,
-                readout_error: 0.0, calibration_version: "approx".into(),
-            },
             status: BackendStatus::Online { queue_depth: 0 },
             cost_per_shot: 0.001,
         },

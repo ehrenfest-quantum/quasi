@@ -2,65 +2,32 @@
 // Copyright 2026 QUASI Contributors
 //! Backend capability model.
 //!
-//! Describes the capabilities, noise characteristics, and status of quantum
-//! backends available for scheduling.
+//! Re-exports HAL Contract v2 types as the canonical source of truth,
+//! plus QUASI-specific extensions for scheduling (cost, status).
+//!
+//! **All backend types in QUASI come from the HAL Contract spec.**
+//! If you need a new field, add it to the HAL Contract spec first,
+//! then use it here. No workarounds, no version drift.
+
+// ── Re-exports from HAL Contract v2 ─────────────────────────────────────────
+
+pub use hal_contract::{
+    Capabilities, GateSet, HalError, HalResult, NoiseProfile, Topology, TopologyKind,
+};
+
+// ── QUASI-specific extensions ───────────────────────────────────────────────
 
 use serde::{Deserialize, Serialize};
 
 /// Unique backend identifier.
 pub type BackendId = String;
 
-/// Gate set supported by a backend.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GateSet {
-    pub native_gates: Vec<String>,
-}
-
-impl GateSet {
-    /// Whether this gate set includes a specific gate.
-    pub fn supports(&self, gate: &str) -> bool {
-        self.native_gates.iter().any(|g| g == gate)
-    }
-
-    /// Whether this gate set includes all of the given gates.
-    pub fn supports_all(&self, gates: &[String]) -> bool {
-        gates.iter().all(|g| self.supports(g))
-    }
-}
-
-/// Qubit connectivity topology.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Topology {
-    /// All-to-all connectivity.
-    AllToAll,
-    /// Linear chain.
-    Linear,
-    /// Grid with dimensions.
-    Grid { rows: usize, cols: usize },
-    /// Heavy-hex (IBM style).
-    HeavyHex,
-    /// Custom adjacency list.
-    Custom { edges: Vec<(usize, usize)> },
-}
-
-/// Noise characteristics of a backend.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NoiseProfile {
-    /// T1 relaxation time in microseconds.
-    pub t1_us: f64,
-    /// T2 dephasing time in microseconds.
-    pub t2_us: f64,
-    /// Single-qubit gate error rate.
-    pub single_qubit_error: f64,
-    /// Two-qubit gate error rate.
-    pub two_qubit_error: f64,
-    /// Readout error rate.
-    pub readout_error: f64,
-    /// Calibration version string.
-    pub calibration_version: String,
-}
-
-/// Current availability status.
+/// Current availability status (QUASI scheduling view).
+///
+/// This is a simplified projection of `hal_contract::BackendAvailability`
+/// for use in the scheduler's filter-score-bind pipeline. The full HAL
+/// availability (with estimated_wait, status_message) is obtained via
+/// the Backend trait's `availability()` method at runtime.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BackendStatus {
     /// Backend is online with a queue depth.
@@ -71,7 +38,10 @@ pub enum BackendStatus {
     Offline,
 }
 
-/// Hardware type.
+/// Hardware type — used by the scheduler to distinguish QPU from simulator.
+///
+/// Note: HAL Contract uses `Capabilities.is_simulator` (bool).
+/// This enum provides a more readable API for scheduling plugins.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum BackendType {
     /// Real quantum processing unit.
@@ -80,21 +50,33 @@ pub enum BackendType {
     Simulator,
 }
 
-/// A registered backend with its capabilities.
+/// A registered backend with HAL Contract capabilities plus scheduling metadata.
+///
+/// The `capabilities` field holds the canonical HAL Contract v2 types.
+/// The remaining fields are QUASI scheduling extensions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Backend {
-    pub id: BackendId,
-    pub name: String,
+    /// HAL Contract capabilities (gate set, topology, noise profile, etc.)
+    pub capabilities: Capabilities,
+    /// QUASI scheduling: hardware type.
     pub backend_type: BackendType,
-    pub qubit_count: u32,
-    pub gate_set: GateSet,
-    pub topology: Topology,
-    pub noise: NoiseProfile,
+    /// QUASI scheduling: current availability status.
     pub status: BackendStatus,
+    /// QUASI scheduling: cost per measurement shot (for cost-aware routing).
     pub cost_per_shot: f64,
 }
 
 impl Backend {
+    /// Backend identifier (from HAL Contract capabilities.name).
+    pub fn id(&self) -> &str {
+        &self.capabilities.name
+    }
+
+    /// Number of qubits (from HAL Contract capabilities).
+    pub fn qubit_count(&self) -> u32 {
+        self.capabilities.num_qubits
+    }
+
     /// Whether the backend is currently online.
     pub fn is_online(&self) -> bool {
         matches!(self.status, BackendStatus::Online { .. })
@@ -107,116 +89,112 @@ impl Backend {
             _ => u32::MAX,
         }
     }
+
+    /// Whether the gate set supports a specific gate.
+    pub fn supports_gate(&self, gate: &str) -> bool {
+        let gs = &self.capabilities.gate_set;
+        gs.single_qubit.iter().any(|g| g == gate)
+            || gs.two_qubit.iter().any(|g| g == gate)
+            || gs.three_qubit.iter().any(|g| g == gate)
+            || gs.native.iter().any(|g| g == gate)
+    }
+
+    /// Whether the gate set supports all given gates.
+    pub fn supports_all_gates(&self, gates: &[String]) -> bool {
+        gates.iter().all(|g| self.supports_gate(g))
+    }
+
+    /// Noise profile (from HAL Contract capabilities).
+    pub fn noise_profile(&self) -> Option<&NoiseProfile> {
+        self.capabilities.noise_profile.as_ref()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn make_gate_set(gates: &[&str]) -> GateSet {
-        GateSet {
-            native_gates: gates.iter().map(|s| s.to_string()).collect(),
+    fn make_backend(name: &str, backend_type: BackendType, status: BackendStatus) -> Backend {
+        Backend {
+            capabilities: Capabilities {
+                name: name.into(),
+                num_qubits: 10,
+                gate_set: GateSet {
+                    single_qubit: vec!["h".into(), "rz".into()],
+                    two_qubit: vec!["cx".into()],
+                    three_qubit: vec![],
+                    native: vec!["rz".into(), "sx".into(), "cx".into()],
+                },
+                topology: Topology {
+                    kind: TopologyKind::FullyConnected,
+                    edges: vec![],
+                },
+                max_shots: 10_000,
+                is_simulator: matches!(backend_type, BackendType::Simulator),
+                features: vec![],
+                noise_profile: Some(NoiseProfile {
+                    t1: Some(100.0),
+                    t2: Some(50.0),
+                    single_qubit_fidelity: Some(0.999),
+                    two_qubit_fidelity: Some(0.99),
+                    readout_fidelity: Some(0.98),
+                    gate_time: Some(0.05),
+                }),
+            },
+            backend_type,
+            status,
+            cost_per_shot: 0.01,
         }
     }
 
     #[test]
-    fn gate_set_supports_present_gate() {
-        let gs = make_gate_set(&["h", "cx", "rz"]);
-        assert!(gs.supports("h"));
-        assert!(gs.supports("cx"));
-        assert!(!gs.supports("t"));
+    fn backend_id_from_capabilities() {
+        let b = make_backend("test_qpu", BackendType::Qpu, BackendStatus::Online { queue_depth: 3 });
+        assert_eq!(b.id(), "test_qpu");
+        assert_eq!(b.qubit_count(), 10);
     }
 
     #[test]
-    fn gate_set_supports_all_present_gates() {
-        let gs = make_gate_set(&["h", "cx", "rz"]);
-        let required: Vec<String> =
-            vec!["h".into(), "cx".into()];
-        assert!(gs.supports_all(&required));
+    fn gate_set_supports() {
+        let b = make_backend("test", BackendType::Qpu, BackendStatus::Online { queue_depth: 0 });
+        assert!(b.supports_gate("h"));
+        assert!(b.supports_gate("cx"));
+        assert!(b.supports_gate("rz"));
+        assert!(!b.supports_gate("t"));
     }
 
     #[test]
-    fn gate_set_supports_all_rejects_missing_gate() {
-        let gs = make_gate_set(&["h", "cx"]);
-        let required: Vec<String> =
-            vec!["h".into(), "t".into()];
-        assert!(!gs.supports_all(&required));
+    fn gate_set_supports_all() {
+        let b = make_backend("test", BackendType::Qpu, BackendStatus::Online { queue_depth: 0 });
+        assert!(b.supports_all_gates(&["h".into(), "cx".into()]));
+        assert!(!b.supports_all_gates(&["h".into(), "t".into()]));
     }
 
     #[test]
-    fn gate_set_supports_all_empty_required() {
-        let gs = make_gate_set(&["h"]);
-        assert!(gs.supports_all(&[]));
-    }
-
-    #[test]
-    fn backend_is_online_when_online() {
-        let b = Backend {
-            id: "b1".into(),
-            name: "Test".into(),
-            backend_type: BackendType::Qpu,
-            qubit_count: 5,
-            gate_set: make_gate_set(&[]),
-            topology: Topology::AllToAll,
-            noise: NoiseProfile {
-                t1_us: 100.0,
-                t2_us: 50.0,
-                single_qubit_error: 0.001,
-                two_qubit_error: 0.01,
-                readout_error: 0.02,
-                calibration_version: "v1".into(),
-            },
-            status: BackendStatus::Online { queue_depth: 3 },
-            cost_per_shot: 0.01,
-        };
+    fn backend_is_online() {
+        let b = make_backend("test", BackendType::Qpu, BackendStatus::Online { queue_depth: 5 });
         assert!(b.is_online());
-        assert_eq!(b.queue_depth(), 3);
+        assert_eq!(b.queue_depth(), 5);
     }
 
     #[test]
     fn backend_not_online_when_maintenance() {
-        let b = Backend {
-            id: "b2".into(),
-            name: "Down".into(),
-            backend_type: BackendType::Simulator,
-            qubit_count: 20,
-            gate_set: make_gate_set(&[]),
-            topology: Topology::Linear,
-            noise: NoiseProfile {
-                t1_us: 100.0,
-                t2_us: 50.0,
-                single_qubit_error: 0.001,
-                two_qubit_error: 0.01,
-                readout_error: 0.02,
-                calibration_version: "v1".into(),
-            },
-            status: BackendStatus::Maintenance,
-            cost_per_shot: 0.0,
-        };
+        let b = make_backend("test", BackendType::Simulator, BackendStatus::Maintenance);
         assert!(!b.is_online());
         assert_eq!(b.queue_depth(), u32::MAX);
     }
 
     #[test]
     fn backend_not_online_when_offline() {
-        let b = Backend {
-            id: "b3".into(),
-            name: "Off".into(),
-            backend_type: BackendType::Qpu,
-            qubit_count: 10,
-            gate_set: make_gate_set(&[]),
-            topology: Topology::HeavyHex,
-            noise: NoiseProfile {
-                t1_us: 100.0,
-                t2_us: 50.0,
-                single_qubit_error: 0.001,
-                two_qubit_error: 0.01,
-                readout_error: 0.02,
-                calibration_version: "v1".into(),
-            },
-            status: BackendStatus::Offline,
-            cost_per_shot: 0.05,
-        };
+        let b = make_backend("test", BackendType::Qpu, BackendStatus::Offline);
         assert!(!b.is_online());
+    }
+
+    #[test]
+    fn noise_profile_accessible() {
+        let b = make_backend("test", BackendType::Qpu, BackendStatus::Online { queue_depth: 0 });
+        let noise = b.noise_profile().unwrap();
+        assert_eq!(noise.t1, Some(100.0));
+        assert_eq!(noise.single_qubit_fidelity, Some(0.999));
     }
 }

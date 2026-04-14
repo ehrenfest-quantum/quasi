@@ -20,43 +20,36 @@ use crate::backend::*;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-fn gates(names: &[&str]) -> GateSet {
-    GateSet {
-        native_gates: names.iter().map(|s| s.to_string()).collect(),
-    }
-}
-
 fn noise(
     t1: f64,
     t2: f64,
-    sq_err: f64,
-    tq_err: f64,
-    ro_err: f64,
-    cal: &str,
+    sq_fidelity: f64,
+    tq_fidelity: f64,
+    ro_fidelity: f64,
 ) -> NoiseProfile {
     NoiseProfile {
-        t1_us: t1,
-        t2_us: t2,
-        single_qubit_error: sq_err,
-        two_qubit_error: tq_err,
-        readout_error: ro_err,
-        calibration_version: cal.to_string(),
+        t1: Some(t1),
+        t2: Some(t2),
+        single_qubit_fidelity: Some(sq_fidelity),
+        two_qubit_fidelity: Some(tq_fidelity),
+        readout_fidelity: Some(ro_fidelity),
+        gate_time: None,
     }
 }
 
 // ── IBM Backends (Superconducting, Heavy-Hex) ────────────────────────────────
 
 /// IBM Heron r2 — 156 qubits, heavy-hex topology.
-/// Native gates: RZ, SX, X, ECR (echoed cross-resonance).
+/// Native gates: RZ, SX, X, CZ (Heron native).
 pub fn ibm_heron() -> Backend {
     Backend {
-        id: "ibm_heron".into(),
-        name: "IBM Heron r2".into(),
+        capabilities: Capabilities::ibm_heron("ibm_heron", 156)
+            .with_topology(Topology {
+                kind: TopologyKind::HeavyHex,
+                edges: vec![],
+            })
+            .with_noise_profile(noise(200.0, 150.0, 0.9995, 0.997, 0.99)),
         backend_type: BackendType::Qpu,
-        qubit_count: 156,
-        gate_set: gates(&["rz", "sx", "x", "ecr"]),
-        topology: Topology::HeavyHex,
-        noise: noise(200.0, 150.0, 0.0005, 0.003, 0.01, "default"),
         status: BackendStatus::Online { queue_depth: 0 },
         cost_per_shot: 0.01,
     }
@@ -66,13 +59,13 @@ pub fn ibm_heron() -> Backend {
 /// Benchmark fidelity: Bell 0.867, GHZ-3 0.755, VQE-H2 0.516.
 pub fn ibm_torino() -> Backend {
     Backend {
-        id: "ibm_torino".into(),
-        name: "IBM Torino (Heron)".into(),
+        capabilities: Capabilities::ibm_heron("ibm_torino", 133)
+            .with_topology(Topology {
+                kind: TopologyKind::HeavyHex,
+                edges: vec![],
+            })
+            .with_noise_profile(noise(200.0, 150.0, 0.9995, 0.997, 0.99)),
         backend_type: BackendType::Qpu,
-        qubit_count: 133,
-        gate_set: gates(&["rz", "sx", "x", "ecr"]),
-        topology: Topology::HeavyHex,
-        noise: noise(200.0, 150.0, 0.0005, 0.003, 0.01, "default"),
         status: BackendStatus::Online { queue_depth: 0 },
         cost_per_shot: 0.01,
     }
@@ -82,13 +75,13 @@ pub fn ibm_torino() -> Backend {
 /// Older processor family, higher error rates than Heron.
 pub fn ibm_eagle() -> Backend {
     Backend {
-        id: "ibm_eagle".into(),
-        name: "IBM Eagle r3".into(),
+        capabilities: Capabilities::ibm_eagle("ibm_eagle", 127)
+            .with_topology(Topology {
+                kind: TopologyKind::HeavyHex,
+                edges: vec![],
+            })
+            .with_noise_profile(noise(150.0, 100.0, 0.999, 0.995, 0.985)),
         backend_type: BackendType::Qpu,
-        qubit_count: 127,
-        gate_set: gates(&["rz", "sx", "x", "cx"]),
-        topology: Topology::HeavyHex,
-        noise: noise(150.0, 100.0, 0.001, 0.005, 0.015, "default"),
         status: BackendStatus::Online { queue_depth: 0 },
         cost_per_shot: 0.008,
     }
@@ -97,13 +90,13 @@ pub fn ibm_eagle() -> Backend {
 /// IBM Marrakesh — 156 qubits, Heron heavy-hex.
 pub fn ibm_marrakesh() -> Backend {
     Backend {
-        id: "ibm_marrakesh".into(),
-        name: "IBM Marrakesh (Heron)".into(),
+        capabilities: Capabilities::ibm_heron("ibm_marrakesh", 156)
+            .with_topology(Topology {
+                kind: TopologyKind::HeavyHex,
+                edges: vec![],
+            })
+            .with_noise_profile(noise(200.0, 150.0, 0.9995, 0.997, 0.99)),
         backend_type: BackendType::Qpu,
-        qubit_count: 156,
-        gate_set: gates(&["rz", "sx", "x", "ecr"]),
-        topology: Topology::HeavyHex,
-        noise: noise(200.0, 150.0, 0.0005, 0.003, 0.01, "default"),
         status: BackendStatus::Online { queue_depth: 0 },
         cost_per_shot: 0.01,
     }
@@ -115,13 +108,10 @@ pub fn ibm_marrakesh() -> Backend {
 /// Native gates: PRX (phased rotation-X), CZ.
 pub fn iqm_garnet() -> Backend {
     Backend {
-        id: "iqm_garnet".into(),
-        name: "IQM Garnet".into(),
+        capabilities: Capabilities::iqm("iqm_garnet", 20)
+            .with_topology(Topology::grid(4, 5))
+            .with_noise_profile(noise(80.0, 50.0, 0.998, 0.993, 0.98)),
         backend_type: BackendType::Qpu,
-        qubit_count: 20,
-        gate_set: gates(&["prx", "cz"]),
-        topology: Topology::Grid { rows: 4, cols: 5 },
-        noise: noise(80.0, 50.0, 0.002, 0.007, 0.02, "default"),
         status: BackendStatus::Online { queue_depth: 0 },
         cost_per_shot: 0.005,
     }
@@ -131,15 +121,12 @@ pub fn iqm_garnet() -> Backend {
 /// On-premise system targeting KRITIS/defense.
 pub fn iqm_sirius() -> Backend {
     Backend {
-        id: "iqm_sirius".into(),
-        name: "IQM Sirius".into(),
+        capabilities: Capabilities::iqm("iqm_sirius", 6)
+            .with_topology(Topology::custom(
+                vec![(0, 1), (0, 2), (0, 3), (0, 4), (0, 5)],
+            ))
+            .with_noise_profile(noise(90.0, 60.0, 0.998, 0.994, 0.98)),
         backend_type: BackendType::Qpu,
-        qubit_count: 6,
-        gate_set: gates(&["prx", "cz"]),
-        topology: Topology::Custom {
-            edges: vec![(0, 1), (0, 2), (0, 3), (0, 4), (0, 5)], // star
-        },
-        noise: noise(90.0, 60.0, 0.002, 0.006, 0.02, "default"),
         status: BackendStatus::Online { queue_depth: 0 },
         cost_per_shot: 0.005,
     }
@@ -151,13 +138,10 @@ pub fn iqm_sirius() -> Backend {
 /// Native gates: GPI, GPI2, MS (Mølmer-Sørensen).
 pub fn ionq_aria() -> Backend {
     Backend {
-        id: "ionq_aria".into(),
-        name: "IonQ Aria (#AQ 25)".into(),
+        capabilities: Capabilities::ionq("ionq_aria", 25)
+            .with_topology(Topology::full(25))
+            .with_noise_profile(noise(1000.0, 500.0, 0.9997, 0.996, 0.995)),
         backend_type: BackendType::Qpu,
-        qubit_count: 25,
-        gate_set: gates(&["gpi", "gpi2", "ms"]),
-        topology: Topology::AllToAll,
-        noise: noise(1000.0, 500.0, 0.0003, 0.004, 0.005, "default"),
         status: BackendStatus::Online { queue_depth: 0 },
         cost_per_shot: 0.03,
     }
@@ -167,13 +151,10 @@ pub fn ionq_aria() -> Backend {
 /// Native gates: GPI, GPI2, ZZ.
 pub fn ionq_forte() -> Backend {
     Backend {
-        id: "ionq_forte".into(),
-        name: "IonQ Forte Enterprise (#AQ 36)".into(),
+        capabilities: Capabilities::ionq("ionq_forte", 36)
+            .with_topology(Topology::full(36))
+            .with_noise_profile(noise(1500.0, 800.0, 0.9998, 0.997, 0.996)),
         backend_type: BackendType::Qpu,
-        qubit_count: 36,
-        gate_set: gates(&["gpi", "gpi2", "zz"]),
-        topology: Topology::AllToAll,
-        noise: noise(1500.0, 800.0, 0.0002, 0.003, 0.004, "default"),
         status: BackendStatus::Online { queue_depth: 0 },
         cost_per_shot: 0.05,
     }
@@ -186,13 +167,22 @@ pub fn ionq_forte() -> Backend {
 /// Industry-leading gate fidelity (~99.8% two-qubit).
 pub fn quantinuum_h2() -> Backend {
     Backend {
-        id: "quantinuum_h2".into(),
-        name: "Quantinuum H2-1".into(),
+        capabilities: Capabilities {
+            name: "quantinuum_h2".into(),
+            num_qubits: 56,
+            gate_set: GateSet {
+                single_qubit: vec!["rz".into(), "rx".into(), "ry".into()],
+                two_qubit: vec!["zz".into()],
+                three_qubit: vec![],
+                native: vec!["rz".into(), "rx".into(), "ry".into(), "zz".into()],
+            },
+            topology: Topology::full(56),
+            max_shots: 100_000,
+            is_simulator: false,
+            features: vec![],
+            noise_profile: Some(noise(1000.0, 500.0, 0.9999, 0.998, 0.997)),
+        },
         backend_type: BackendType::Qpu,
-        qubit_count: 56,
-        gate_set: gates(&["rz", "rx", "ry", "zz"]),
-        topology: Topology::AllToAll,
-        noise: noise(1000.0, 500.0, 0.0001, 0.002, 0.003, "default"),
         status: BackendStatus::Online { queue_depth: 0 },
         cost_per_shot: 0.08,
     }
@@ -201,13 +191,22 @@ pub fn quantinuum_h2() -> Backend {
 /// Quantinuum H1 — 20 qubits, all-to-all connectivity.
 pub fn quantinuum_h1() -> Backend {
     Backend {
-        id: "quantinuum_h1".into(),
-        name: "Quantinuum H1-1".into(),
+        capabilities: Capabilities {
+            name: "quantinuum_h1".into(),
+            num_qubits: 20,
+            gate_set: GateSet {
+                single_qubit: vec!["rz".into(), "rx".into(), "ry".into()],
+                two_qubit: vec!["zz".into()],
+                three_qubit: vec![],
+                native: vec!["rz".into(), "rx".into(), "ry".into(), "zz".into()],
+            },
+            topology: Topology::full(20),
+            max_shots: 100_000,
+            is_simulator: false,
+            features: vec![],
+            noise_profile: Some(noise(800.0, 400.0, 0.9998, 0.997, 0.995)),
+        },
         backend_type: BackendType::Qpu,
-        qubit_count: 20,
-        gate_set: gates(&["rz", "rx", "ry", "zz"]),
-        topology: Topology::AllToAll,
-        noise: noise(800.0, 400.0, 0.0002, 0.003, 0.005, "default"),
         status: BackendStatus::Online { queue_depth: 0 },
         cost_per_shot: 0.06,
     }
@@ -220,13 +219,10 @@ pub fn quantinuum_h1() -> Backend {
 /// Median iSWAP gate time: 72ns.
 pub fn rigetti_ankaa3() -> Backend {
     Backend {
-        id: "rigetti_ankaa3".into(),
-        name: "Rigetti Ankaa-3".into(),
+        capabilities: Capabilities::rigetti("rigetti_ankaa3", 84)
+            .with_topology(Topology::grid(7, 12))
+            .with_noise_profile(noise(30.0, 20.0, 0.998, 0.995, 0.98)),
         backend_type: BackendType::Qpu,
-        qubit_count: 84,
-        gate_set: gates(&["rz", "rx", "iswap", "fsim"]),
-        topology: Topology::Grid { rows: 7, cols: 12 },
-        noise: noise(30.0, 20.0, 0.002, 0.005, 0.02, "default"),
         status: BackendStatus::Online { queue_depth: 0 },
         cost_per_shot: 0.007,
     }
@@ -238,13 +234,22 @@ pub fn rigetti_ankaa3() -> Backend {
 /// Native gates: RZ, RXX (Ising-type), R (arbitrary single-qubit).
 pub fn aqt_pine() -> Backend {
     Backend {
-        id: "aqt_pine".into(),
-        name: "AQT Pine".into(),
+        capabilities: Capabilities {
+            name: "aqt_pine".into(),
+            num_qubits: 24,
+            gate_set: GateSet {
+                single_qubit: vec!["rz".into(), "r".into()],
+                two_qubit: vec!["rxx".into()],
+                three_qubit: vec![],
+                native: vec!["rz".into(), "rxx".into(), "r".into()],
+            },
+            topology: Topology::full(24),
+            max_shots: 100_000,
+            is_simulator: false,
+            features: vec![],
+            noise_profile: Some(noise(500.0, 250.0, 0.9995, 0.995, 0.99)),
+        },
         backend_type: BackendType::Qpu,
-        qubit_count: 24,
-        gate_set: gates(&["rz", "rxx", "r"]),
-        topology: Topology::AllToAll,
-        noise: noise(500.0, 250.0, 0.0005, 0.005, 0.01, "default"),
         status: BackendStatus::Online { queue_depth: 0 },
         cost_per_shot: 0.02,
     }
@@ -256,18 +261,38 @@ pub fn aqt_pine() -> Backend {
 /// Practical limit ~30 qubits (2^30 amplitudes ≈ 16 GB RAM).
 pub fn simulator() -> Backend {
     Backend {
-        id: "simulator".into(),
-        name: "Ideal Statevector Simulator".into(),
+        capabilities: Capabilities {
+            name: "simulator".into(),
+            num_qubits: 30,
+            gate_set: GateSet {
+                single_qubit: vec![
+                    "h".into(), "x".into(), "y".into(), "z".into(),
+                    "s".into(), "t".into(), "sdg".into(), "tdg".into(),
+                    "rx".into(), "ry".into(), "rz".into(), "sx".into(),
+                    "gpi".into(), "gpi2".into(), "prx".into(), "r".into(),
+                ],
+                two_qubit: vec![
+                    "cx".into(), "cz".into(), "swap".into(),
+                    "ecr".into(), "iswap".into(), "ms".into(),
+                    "zz".into(), "rxx".into(), "fsim".into(),
+                ],
+                three_qubit: vec!["ccx".into()],
+                native: vec![],
+            },
+            topology: Topology::full(30),
+            max_shots: 100_000,
+            is_simulator: true,
+            features: vec!["statevector".into()],
+            noise_profile: Some(NoiseProfile {
+                t1: Some(1e9),
+                t2: Some(1e9),
+                single_qubit_fidelity: Some(1.0),
+                two_qubit_fidelity: Some(1.0),
+                readout_fidelity: Some(1.0),
+                gate_time: None,
+            }),
+        },
         backend_type: BackendType::Simulator,
-        qubit_count: 30,
-        gate_set: gates(&[
-            "h", "x", "y", "z", "s", "t", "sdg", "tdg",
-            "cx", "cz", "swap", "ccx", "rx", "ry", "rz",
-            "sx", "ecr", "iswap", "gpi", "gpi2", "ms", "zz",
-            "prx", "rxx", "r", "fsim",
-        ]),
-        topology: Topology::AllToAll,
-        noise: noise(1e9, 1e9, 0.0, 0.0, 0.0, "ideal"),
         status: BackendStatus::Online { queue_depth: 0 },
         cost_per_shot: 0.0001,
     }
@@ -279,16 +304,40 @@ pub fn simulator() -> Backend {
 /// Fidelity depends on bond dimension and commensurability partition.
 pub fn huoma_mps() -> Backend {
     Backend {
-        id: "huoma_mps".into(),
-        name: "Huoma ProjectedTTN Simulator".into(),
+        capabilities: Capabilities {
+            name: "huoma_mps".into(),
+            num_qubits: 1_000_000,
+            gate_set: GateSet {
+                single_qubit: vec![
+                    "h".into(), "x".into(), "y".into(), "z".into(),
+                    "s".into(), "t".into(), "sdg".into(), "tdg".into(),
+                    "rx".into(), "ry".into(), "rz".into(),
+                ],
+                two_qubit: vec![
+                    "cx".into(), "cz".into(), "swap".into(),
+                ],
+                three_qubit: vec![],
+                native: vec![],
+            },
+            // Use FullyConnected kind with empty edges for simulators
+            // (actual connectivity is unlimited).
+            topology: Topology {
+                kind: TopologyKind::FullyConnected,
+                edges: vec![],
+            },
+            max_shots: 100_000,
+            is_simulator: true,
+            features: vec!["tensor_network".into()],
+            noise_profile: Some(NoiseProfile {
+                t1: Some(1e9),
+                t2: Some(1e9),
+                single_qubit_fidelity: Some(1.0),
+                two_qubit_fidelity: Some(1.0),
+                readout_fidelity: Some(1.0),
+                gate_time: None,
+            }),
+        },
         backend_type: BackendType::Simulator,
-        qubit_count: 1_000_000,
-        gate_set: gates(&[
-            "h", "x", "y", "z", "s", "t", "sdg", "tdg",
-            "cx", "cz", "swap", "rx", "ry", "rz",
-        ]),
-        topology: Topology::AllToAll,
-        noise: noise(1e9, 1e9, 0.0, 0.0, 0.0, "ideal"),
         status: BackendStatus::Online { queue_depth: 0 },
         cost_per_shot: 0.001,
     }
@@ -339,7 +388,7 @@ mod tests {
     #[test]
     fn all_backends_have_unique_ids() {
         let backends = all_backends();
-        let mut ids: Vec<&str> = backends.iter().map(|b| b.id.as_str()).collect();
+        let mut ids: Vec<&str> = backends.iter().map(|b| b.id()).collect();
         ids.sort();
         ids.dedup();
         assert_eq!(ids.len(), backends.len(), "duplicate backend IDs");
@@ -348,74 +397,90 @@ mod tests {
     #[test]
     fn all_backends_are_online() {
         for b in all_backends() {
-            assert!(b.is_online(), "{} should be online by default", b.id);
+            assert!(b.is_online(), "{} should be online by default", b.id());
         }
     }
 
     #[test]
     fn ibm_torino_has_133_qubits() {
         let b = ibm_torino();
-        assert_eq!(b.qubit_count, 133);
-        assert!(b.gate_set.supports("ecr"));
-        assert!(matches!(b.topology, Topology::HeavyHex));
+        assert_eq!(b.qubit_count(), 133);
+        assert!(b.supports_gate("cz"));
+        assert_eq!(b.capabilities.topology.kind, TopologyKind::HeavyHex);
     }
 
     #[test]
     fn quantinuum_h2_has_best_fidelity() {
         let h2 = quantinuum_h2();
         let eagle = ibm_eagle();
-        assert!(h2.noise.two_qubit_error < eagle.noise.two_qubit_error);
+        let h2_fidelity = h2
+            .noise_profile()
+            .and_then(|n| n.two_qubit_fidelity)
+            .unwrap_or(0.0);
+        let eagle_fidelity = eagle
+            .noise_profile()
+            .and_then(|n| n.two_qubit_fidelity)
+            .unwrap_or(0.0);
+        assert!(h2_fidelity > eagle_fidelity);
     }
 
     #[test]
     fn ionq_has_all_to_all_connectivity() {
-        assert!(matches!(ionq_aria().topology, Topology::AllToAll));
-        assert!(matches!(ionq_forte().topology, Topology::AllToAll));
+        assert_eq!(
+            ionq_aria().capabilities.topology.kind,
+            TopologyKind::FullyConnected
+        );
+        assert_eq!(
+            ionq_forte().capabilities.topology.kind,
+            TopologyKind::FullyConnected
+        );
     }
 
     #[test]
     fn simulator_supports_all_common_gates() {
         let sim = simulator();
-        assert!(sim.gate_set.supports("h"));
-        assert!(sim.gate_set.supports("cx"));
-        assert!(sim.gate_set.supports("ecr"));
-        assert!(sim.gate_set.supports("iswap"));
-        assert!(sim.gate_set.supports("ms"));
+        assert!(sim.supports_gate("h"));
+        assert!(sim.supports_gate("cx"));
+        assert!(sim.supports_gate("ecr"));
+        assert!(sim.supports_gate("iswap"));
+        assert!(sim.supports_gate("ms"));
     }
 
     #[test]
     fn simulator_has_zero_noise() {
         let sim = simulator();
-        assert_eq!(sim.noise.single_qubit_error, 0.0);
-        assert_eq!(sim.noise.two_qubit_error, 0.0);
-        assert_eq!(sim.noise.readout_error, 0.0);
+        let noise = sim.noise_profile().unwrap();
+        assert_eq!(noise.single_qubit_fidelity, Some(1.0));
+        assert_eq!(noise.two_qubit_fidelity, Some(1.0));
+        assert_eq!(noise.readout_fidelity, Some(1.0));
     }
 
     #[test]
     fn huoma_supports_1m_qubits() {
         let h = huoma_mps();
-        assert_eq!(h.qubit_count, 1_000_000);
+        assert_eq!(h.qubit_count(), 1_000_000);
         assert!(matches!(h.backend_type, BackendType::Simulator));
     }
 
     #[test]
     fn iqm_sirius_has_star_topology() {
         let s = iqm_sirius();
-        match &s.topology {
-            Topology::Custom { edges } => {
-                assert_eq!(edges.len(), 5, "star with 6 qubits has 5 edges");
-                assert!(edges.iter().all(|(a, _)| *a == 0), "all edges from center");
-            }
-            _ => panic!("expected Custom topology for Sirius star"),
-        }
+        assert_eq!(s.capabilities.topology.kind, TopologyKind::Custom);
+        let edges = &s.capabilities.topology.edges;
+        assert_eq!(edges.len(), 5, "star with 6 qubits has 5 edges");
+        assert!(edges.iter().all(|(a, _)| *a == 0), "all edges from center");
     }
 
     #[test]
     fn trapped_ion_has_longer_coherence_than_superconducting() {
         let ion = quantinuum_h2();
         let sc = ibm_eagle();
-        assert!(ion.noise.t1_us > sc.noise.t1_us);
-        assert!(ion.noise.t2_us > sc.noise.t2_us);
+        let ion_t1 = ion.noise_profile().and_then(|n| n.t1).unwrap_or(0.0);
+        let sc_t1 = sc.noise_profile().and_then(|n| n.t1).unwrap_or(0.0);
+        let ion_t2 = ion.noise_profile().and_then(|n| n.t2).unwrap_or(0.0);
+        let sc_t2 = sc.noise_profile().and_then(|n| n.t2).unwrap_or(0.0);
+        assert!(ion_t1 > sc_t1);
+        assert!(ion_t2 > sc_t2);
     }
 
     #[test]
@@ -452,7 +517,6 @@ mod tests {
             crate::job::ScheduleDecision::Assign { backend_id, score } => {
                 // Should pick a QPU with cx support and sufficient qubits/coherence
                 assert!(score > 0.0, "score should be positive");
-                // Eagle has cx, Heron has ecr — Eagle should be eligible
                 println!("Picked: {backend_id} (score: {score:.3})");
             }
             other => panic!("expected Assign, got {:?}", other),

@@ -76,29 +76,39 @@ fn create_mock_backends(n: usize) -> (Vec<Backend>, Vec<MockBackend>) {
 
     let scheduler_backends: Vec<Backend> = specs[..count]
         .iter()
-        .map(|(name, _, _, cost, _)| Backend {
-            id: name.to_string(),
-            name: name.to_string(),
-            backend_type: if name.contains("sim") || name.contains("huoma") {
-                BackendType::Simulator
-            } else {
-                BackendType::Qpu
-            },
-            qubit_count: 100,
-            gate_set: GateSet {
-                native_gates: vec!["h".into(), "cx".into(), "rz".into()],
-            },
-            topology: Topology::AllToAll,
-            noise: NoiseProfile {
-                t1_us: 200.0,
-                t2_us: 100.0,
-                single_qubit_error: 0.001,
-                two_qubit_error: 0.01,
-                readout_error: 0.02,
-                calibration_version: "mock".into(),
-            },
-            status: BackendStatus::Online { queue_depth: 0 },
-            cost_per_shot: *cost,
+        .map(|(name, _, _, cost, _)| {
+            let is_sim = name.contains("sim") || name.contains("huoma");
+            Backend {
+                capabilities: Capabilities {
+                    name: name.to_string(),
+                    num_qubits: 100,
+                    gate_set: GateSet {
+                        single_qubit: vec!["h".into(), "rz".into()],
+                        two_qubit: vec!["cx".into()],
+                        three_qubit: vec![],
+                        native: vec!["h".into(), "cx".into(), "rz".into()],
+                    },
+                    topology: Topology::full(100),
+                    max_shots: 10_000,
+                    is_simulator: is_sim,
+                    features: vec![],
+                    noise_profile: Some(NoiseProfile {
+                        t1: Some(200.0),
+                        t2: Some(100.0),
+                        single_qubit_fidelity: Some(0.999),
+                        two_qubit_fidelity: Some(0.99),
+                        readout_fidelity: Some(0.98),
+                        gate_time: Some(0.05),
+                    }),
+                },
+                backend_type: if is_sim {
+                    BackendType::Simulator
+                } else {
+                    BackendType::Qpu
+                },
+                status: BackendStatus::Online { queue_depth: 0 },
+                cost_per_shot: *cost,
+            }
         })
         .collect();
 

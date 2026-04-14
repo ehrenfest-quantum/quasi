@@ -248,17 +248,29 @@ mod tests {
 
     fn test_backend(backend_type: BackendType) -> Backend {
         Backend {
-            id: format!("test_{:?}", backend_type).to_lowercase(),
-            name: "Test".into(),
-            backend_type,
-            qubit_count: 100,
-            gate_set: GateSet { native_gates: vec!["h".into(), "cx".into(), "rz".into()] },
-            topology: Topology::AllToAll,
-            noise: NoiseProfile {
-                t1_us: 200.0, t2_us: 100.0,
-                single_qubit_error: 0.001, two_qubit_error: 0.01,
-                readout_error: 0.02, calibration_version: "v1".into(),
+            capabilities: Capabilities {
+                name: format!("test_{:?}", backend_type).to_lowercase(),
+                num_qubits: 100,
+                gate_set: GateSet {
+                    single_qubit: vec!["h".into(), "rz".into()],
+                    two_qubit: vec!["cx".into()],
+                    three_qubit: vec![],
+                    native: vec!["h".into(), "cx".into(), "rz".into()],
+                },
+                topology: Topology::full(100),
+                max_shots: 10_000,
+                is_simulator: matches!(backend_type, BackendType::Simulator),
+                features: vec![],
+                noise_profile: Some(NoiseProfile {
+                    t1: Some(200.0),
+                    t2: Some(100.0),
+                    single_qubit_fidelity: Some(0.999),
+                    two_qubit_fidelity: Some(0.99),
+                    readout_fidelity: Some(0.98),
+                    gate_time: None,
+                }),
             },
+            backend_type,
             status: BackendStatus::Online { queue_depth: 0 },
             cost_per_shot: 0.01,
         }
@@ -423,7 +435,7 @@ mod tests {
             circuit_hash: [1u8; 32],
             requirements: JobRequirements {
                 min_qubits: 20,
-                required_gates: vec!["rz".into(), "cx".into()],
+                required_gates: vec!["rz".into(), "ecr".into()],
                 circuit_depth: 200,
                 shot_count: 1000,
                 noise_budget: None,
@@ -437,7 +449,7 @@ mod tests {
         match decision {
             ScheduleDecision::Assign { backend_id, .. } => {
                 // Should NOT be a simulator
-                let picked = backends.iter().find(|b| b.id == backend_id).unwrap();
+                let picked = backends.iter().find(|b| b.id() == backend_id).unwrap();
                 assert_eq!(
                     picked.backend_type,
                     BackendType::Qpu,

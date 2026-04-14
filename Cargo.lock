@@ -788,6 +788,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "hal-contract"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "half"
 version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1812,6 +1825,7 @@ dependencies = [
 name = "quasi-scheduler"
 version = "0.1.0"
 dependencies = [
+ "hal-contract",
  "serde",
  "serde_json",
  "thiserror 2.0.18",

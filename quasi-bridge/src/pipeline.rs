@@ -159,7 +159,7 @@ pub fn run_molecule(smiles: &str, config: &PipelineConfig) -> Result<MolecularRe
         .decide()
         .map_err(|e| BridgeError::Solvayeur(e.to_string()))?;
     let backend_name = if epoch_result.backend_index < backends.len() {
-        backends[epoch_result.backend_index].id.clone()
+        backends[epoch_result.backend_index].id().to_string()
     } else {
         "huoma_statevector".into()
     };
@@ -212,47 +212,55 @@ fn make_simulator_backends() -> Vec<quasi_scheduler::backend::Backend> {
     use quasi_scheduler::backend::*;
     vec![
         Backend {
-            id: "huoma_statevector".into(),
-            name: "Huoma Statevector".into(),
+            capabilities: Capabilities {
+                name: "huoma_statevector".into(),
+                num_qubits: 30,
+                gate_set: GateSet {
+                    single_qubit: vec![
+                        "h".into(), "x".into(), "y".into(), "z".into(),
+                        "rz".into(), "ry".into(), "rx".into(),
+                    ],
+                    two_qubit: vec!["cx".into()],
+                    three_qubit: vec![],
+                    native: vec![
+                        "h".into(), "x".into(), "y".into(), "z".into(),
+                        "cx".into(), "rz".into(), "ry".into(), "rx".into(),
+                    ],
+                },
+                topology: Topology::full(30),
+                max_shots: 100_000,
+                is_simulator: true,
+                features: vec!["statevector".into()],
+                noise_profile: None,
+            },
             backend_type: BackendType::Simulator,
-            qubit_count: 30,
-            gate_set: GateSet {
-                native_gates: vec![
-                    "h".into(), "x".into(), "y".into(), "z".into(),
-                    "cx".into(), "rz".into(), "ry".into(), "rx".into(),
-                ],
-            },
-            topology: Topology::AllToAll,
-            noise: NoiseProfile {
-                t1_us: 1e9,
-                t2_us: 1e9,
-                single_qubit_error: 0.0,
-                two_qubit_error: 0.0,
-                readout_error: 0.0,
-                calibration_version: "exact".into(),
-            },
             status: BackendStatus::Online { queue_depth: 0 },
             cost_per_shot: 0.0001,
         },
         Backend {
-            id: "huoma_projected_ttn".into(),
-            name: "Huoma Projected TTN".into(),
+            capabilities: Capabilities {
+                name: "huoma_projected_ttn".into(),
+                num_qubits: 1_000_000,
+                gate_set: GateSet {
+                    single_qubit: vec!["h".into(), "x".into(), "rz".into()],
+                    two_qubit: vec!["cx".into()],
+                    three_qubit: vec![],
+                    native: vec!["h".into(), "x".into(), "cx".into(), "rz".into()],
+                },
+                topology: Topology::full(1_000_000),
+                max_shots: 100_000,
+                is_simulator: true,
+                features: vec!["tensor_network".into()],
+                noise_profile: Some(NoiseProfile {
+                    t1: None,
+                    t2: None,
+                    single_qubit_fidelity: Some(0.999999),
+                    two_qubit_fidelity: Some(0.99999),
+                    readout_fidelity: Some(1.0),
+                    gate_time: None,
+                }),
+            },
             backend_type: BackendType::Simulator,
-            qubit_count: 100,
-            gate_set: GateSet {
-                native_gates: vec![
-                    "h".into(), "x".into(), "cx".into(), "rz".into(),
-                ],
-            },
-            topology: Topology::AllToAll,
-            noise: NoiseProfile {
-                t1_us: 1e9,
-                t2_us: 1e9,
-                single_qubit_error: 1e-6,
-                two_qubit_error: 1e-5,
-                readout_error: 0.0,
-                calibration_version: "approx_chi1024".into(),
-            },
             status: BackendStatus::Online { queue_depth: 0 },
             cost_per_shot: 0.001,
         },

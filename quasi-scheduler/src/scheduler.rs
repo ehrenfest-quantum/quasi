@@ -92,13 +92,13 @@ impl Scheduler {
 
         info!(
             job_id = %job.id,
-            backend_id = %best_backend.id,
+            backend_id = %best_backend.id(),
             score = best_score,
             "scheduled job"
         );
 
         ScheduleDecision::Assign {
-            backend_id: best_backend.id.clone(),
+            backend_id: best_backend.id().to_string(),
             score: best_score,
         }
     }
@@ -126,23 +126,32 @@ mod tests {
         t1: f64,
         t2: f64,
     ) -> Backend {
+        let single_qubit: Vec<String> = gates.iter().map(|s| s.to_string()).collect();
+        let two_qubit: Vec<String> = gates.iter().map(|s| s.to_string()).collect();
         Backend {
-            id: id.into(),
-            name: id.into(),
+            capabilities: Capabilities {
+                name: id.into(),
+                num_qubits: qubit_count,
+                gate_set: GateSet {
+                    single_qubit: single_qubit.clone(),
+                    two_qubit,
+                    three_qubit: vec![],
+                    native: single_qubit,
+                },
+                topology: Topology::full(qubit_count),
+                max_shots: 10_000,
+                is_simulator: matches!(backend_type, BackendType::Simulator),
+                features: vec![],
+                noise_profile: Some(NoiseProfile {
+                    t1: Some(t1),
+                    t2: Some(t2),
+                    single_qubit_fidelity: Some(0.999),
+                    two_qubit_fidelity: Some(0.99),
+                    readout_fidelity: Some(0.98),
+                    gate_time: None,
+                }),
+            },
             backend_type,
-            qubit_count,
-            gate_set: GateSet {
-                native_gates: gates.iter().map(|s| s.to_string()).collect(),
-            },
-            topology: Topology::AllToAll,
-            noise: NoiseProfile {
-                t1_us: t1,
-                t2_us: t2,
-                single_qubit_error: 0.001,
-                two_qubit_error: 0.01,
-                readout_error: 0.02,
-                calibration_version: "v1".into(),
-            },
             status: BackendStatus::Online { queue_depth },
             cost_per_shot: cost,
         }
