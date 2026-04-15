@@ -15,4 +15,4 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-hal-contract = { path = "../hal-contract/rust" }
+hal-contract = { git = "https://github.com/hiq-lab/hal-contract-spec.git", rev = "dcc7caa" }

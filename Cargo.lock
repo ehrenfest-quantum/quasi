@@ -790,6 +790,7 @@ dependencies = [
 [[package]]
 name = "hal-contract"
 version = "0.1.0"
+source = "git+https://github.com/hiq-lab/hal-contract-spec.git?rev=dcc7caa#dcc7caaace5c117b0a438de66794a8c47438fc49"
 dependencies = [
  "async-trait",
  "chrono",
