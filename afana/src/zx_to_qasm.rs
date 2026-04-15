@@ -180,4 +180,42 @@ mod tests {
         let qasm = emit_qasm(&ast, QasmVersion::V2).unwrap();
         assert!(qasm.contains("cz q[0], q[1];"), "QASM2 should contain cz statement");
     }
+
+    #[test]
+    fn nested_pauli_string_decomposition_produces_valid_qasm3() {
+        // Test nested Pauli string decomposition by creating a graph with multiple
+        // connected Z-spiders with phase π, which should decompose into CZ gates.
+        let graph = Graph {
+            spider_types: vec![Type::Z, Type::Z, Type::Z],
+            phases: vec![std::f64::consts::PI, std::f64::consts::PI, std::f64::consts::PI],
+            edges: vec![vec![1], vec![0, 2], vec![1]],
+        };
+
+        // Decompose spider pairs representing nested Pauli interactions
+        let result1 = decompose_spider_pair(&graph, 0, 1).unwrap();
+        let result2 = decompose_spider_pair(&graph, 1, 2).unwrap();
+        
+        // Create AST with the synthesized CZ gates
+        let mut gates = Vec::new();
+        gates.extend(result1);
+        gates.extend(result2);
+        
+        let ast = crate::ast::EhrenfestAst {
+            name: "nested_pauli_test".into(),
+            n_qubits: 3,
+            prepare: None,
+            gates,
+            measures: vec![],
+            conditionals: vec![],
+            expects: vec![],
+            type_decls: vec![],
+            variational_loops: vec![],
+        };
+        
+        // Verify QASM3 output contains the CZ gates
+        let qasm = emit_qasm(&ast, QasmVersion::V3).unwrap();
+        assert!(qasm.contains("cz q[0], q[1];"), "QASM3 should contain first cz statement");
+        assert!(qasm.contains("cz q[1], q[2];"), "QASM3 should contain second cz statement");
+        assert!(qasm.contains("OPENQASM 3.0;"), "Should be QASM3 format");
+    }
 }
