@@ -159,8 +159,20 @@ pub fn optimize_qasm(qasm: &str, do_reduce_t: bool) -> (String, OptStats) {
 
     stats.gate_count_before = count_qasm_gates(&working);
 
+    // Adjacent gate cancellation optimization
+    let cancelled = cancel_adjacent_gates(&working);
+    let cancelled_count = count_qasm_gates(&cancelled);
+    
+    // Only use cancellation result if it reduced gate count
+    let mut current = if cancelled_count < stats.gate_count_before {
+        stats.gate_count_before = cancelled_count;
+        cancelled
+    } else {
+        working
+    };
+
     // ZX-calculus optimization via quizx.
-    match zx_optimize_qasm(&working) {
+    match zx_optimize_qasm(&current) {
         Ok(optimized) => {
             let new_count = count_qasm_gates(&optimized);
             // Never-worse guarantee: only accept if gate count decreased or stayed equal.
@@ -176,7 +188,7 @@ pub fn optimize_qasm(qasm: &str, do_reduce_t: bool) -> (String, OptStats) {
     }
     stats.gate_count_after = stats.gate_count_before;
 
-    (working, stats)
+    (current, stats)
 }
 
 // ── ZX-calculus optimization ─────────────────────────────────────────────────
