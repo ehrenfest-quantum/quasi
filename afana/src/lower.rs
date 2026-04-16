@@ -533,4 +533,87 @@ mod tests {
         assert!(zx.spider_count() > 6); // at least inputs + outputs
         assert!(zx.edge_count() > 3);
     }
+
+    #[test]
+    fn zx_ir_spider_phases_scaled_by_evolution_time() {
+        // Test that ZX-IR spider phases are correctly scaled by evolution_time / trotter_steps
+        // when lowering a single-qubit Hamiltonian AST node.
+        //
+        // For H = h*X with h=0.5 GHz·rad, total_us=1.0, steps=10:
+        //   dt = 0.1 us
+        //   theta = h * dt = 0.05
+        //   Rz parameter = 2*theta = 0.1
+        //   ZX phase = theta/pi = 0.1/pi ≈ 0.03183
+        use crate::cbor::{EhrenfestProgram, EvolutionTime, Hamiltonian, NoiseConstraint,
+            Observable, PauliOp, PauliOpEntry, PauliTerm, SystemDef};
+        use crate::trotter::{trotterize, TrotterOrder};
+
+        let coefficient = 0.5;
+        let total_us = 1.0;
+        let steps: u32 = 10;
+        let dt_us = total_us / steps as f64; // 0.1
+
+        let program = EhrenfestProgram {
+            version: 1,
+            system: SystemDef {
+                n_qubits: 1,
+                cooling_profile: None,
+                backend_hint: None,
+            },
+            hamiltonian: Hamiltonian {
+                terms: vec![PauliTerm {
+                    coefficient,
+                    paulis: vec![PauliOpEntry { qubit: 0, axis: PauliOp::X }],
+                }],
+                constant_offset: 0.0,
+            },
+            evolution: EvolutionTime {
+                total_us,
+                steps,
+                dt_us,
+            },
+            observables: vec![Observable::SX { qubit: 0 }],
+            noise: NoiseConstraint {
+                t1_us: 100.0,
+                t2_us: 50.0,
+                gate_fidelity_min: None,
+                readout_fidelity_min: None,
+            },
+        };
+
+        // Trotterize to get gate sequence with scaled phases
+        let ast = trotterize(&program, TrotterOrder::First);
+
+        // Lower to ZX-IR
+        let zx = lower_ast_to_zx(&ast).unwrap();
+        assert!(zx.validate().is_ok());
+
+        // For X Hamiltonian: H - Rz(2*h*dt) - H pattern
+        // The Rz spider should have phase = (2*h*dt)/pi = 2*coefficient*dt_us/pi
+        let expected_phase = (2.0 * coefficient * dt_us) / std::f64::consts::PI;
+
+        // Find the Rz spider (X spider with non-zero, non-1 phase)
+        let mut found_scaled_spider = false;
+        for i in 0..zx.spider_count() {
+            let spider = zx.spider(i);
+            // The Rz gate becomes an X spider with phase = theta/pi
+            if spider.color == SpiderColor::X
+                && spider.phase.abs() > 0.01
+                && spider.phase.abs() < 0.5
+            {
+                assert!(
+                    (spider.phase - expected_phase).abs() < 1e-6,
+                    "ZX spider phase {} does not match expected {} (h={}, dt={})",
+                    spider.phase, expected_phase, coefficient, dt_us
+                );
+                found_scaled_spider = true;
+            }
+        }
+
+        assert!(
+            found_scaled_spider,
+            "Should find scaled X spider with phase {} in ZX graph",
+            expected_phase
+        );
+    }
 }
