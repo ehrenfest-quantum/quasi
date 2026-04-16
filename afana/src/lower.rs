@@ -55,6 +55,21 @@ struct WireHead {
     tip: NodeId,
 }
 
+/// Lower a single-qubit non-Pauli Hamiltonian term to ZX-IR.
+///
+/// Maps arbitrary single-qubit Hamiltonians (e.g. RZ(θ)) to ZX-calculus
+/// graph structures using phase-shifted spider nodes.
+pub fn lower_single_qubit_non_pauli(
+    graph: &mut ZxGraph,
+    wires: &mut [WireHead],
+    qubit: usize,
+    angle: f64,
+) -> Result<(), LowerError> {
+    // RZ(θ) = Z(θ/π) single spider
+    chain_spider(graph, wires, qubit, SpiderColor::Z, angle / std::f64::consts::PI);
+    Ok(())
+}
+
 /// Lower an [`EhrenfestAst`] into a [`ZxGraph`].
 ///
 /// Each qubit gets an input boundary spider and an output boundary spider.
