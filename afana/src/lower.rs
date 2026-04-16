@@ -29,6 +29,7 @@
 use thiserror::Error;
 
 use crate::ast::{EhrenfestAst, Gate, GateName};
+use crate::cbor::{PauliOp, PauliTerm};
 use crate::decompose;
 use crate::zx_ir::{NodeId, SpiderColor, ZxGraph};
 
