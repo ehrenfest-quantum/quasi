@@ -46,6 +46,8 @@ pub struct Spider {
 /// Validation errors for ZX graphs.
 #[derive(Debug, Error)]
 pub enum ZxValidationError {
+    #[error("coefficient {coefficient} for single-qubit Pauli term on qubit {qubit} exceeds maximum allowed magnitude of 10π")]
+    CoefficientOutOfRange { coefficient: f64, qubit: usize },
     #[error("invalid edge ({from}, {to}): {reason}")]
     InvalidEdge {
         from: NodeId,
