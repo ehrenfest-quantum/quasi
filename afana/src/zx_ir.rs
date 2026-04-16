@@ -56,6 +56,9 @@ pub enum ZxValidationError {
     #[error("invalid phase at node {node}: {phase} is not finite")]
     InvalidPhase { node: NodeId, phase: f64 },
 
+    #[error("phase out of range at node {node}: {phase} (expected [0, 2) as multiple of π)")]
+    PhaseOutOfRange { node: NodeId, phase: f64 },
+
     #[error("invalid boundary node {node}: {reason}")]
     InvalidBoundary { node: NodeId, reason: String },
 
