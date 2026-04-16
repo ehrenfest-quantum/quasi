@@ -187,6 +187,37 @@ pub fn from_cbor(bytes: &[u8]) -> Result<EhrenfestProgram, CborError> {
         )));
     }
 
+    // Validate observables
+    for obs in &program.observables {
+        match obs {
+            Observable::SZ { qubit } | Observable::SX { qubit } => {
+                if *qubit >= program.system.n_qubits {
+                    return Err(CborError::Schema(format!("observable qubit {} out of range", qubit)));
+                }
+            }
+            Observable::Density { qubits } => {
+                for &q in qubits {
+                    if q >= program.system.n_qubits {
+                        return Err(CborError::Schema(format!("density qubit {} out of range", q)));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Validate Hamiltonian Pauli terms
+    for (t_idx, term) in program.hamiltonian.terms.iter().enumerate() {
+        for (p_idx, entry) in term.paulis.iter().enumerate() {
+            if entry.qubit >= program.system.n_qubits {
+                return Err(CborError::Schema(format!(
+                    "Hamiltonian term {} pauli {} qubit {} out of range",
+                    t_idx, p_idx, entry.qubit
+                )));
+            }
+        }
+    }
+
     Ok(program)
 }
 
