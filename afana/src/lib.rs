@@ -29,3 +29,4 @@ pub mod type_check;
 pub mod zx_ir;
 pub mod validate;
 pub mod zx_to_qasm;
+pub mod ir;
