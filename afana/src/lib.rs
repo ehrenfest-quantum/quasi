@@ -20,6 +20,7 @@ pub mod decompose;
 pub mod emit;
 pub mod error;
 pub mod lower;
+pub use lower::lower_time_dependent_term;
 pub mod noise;
 pub mod observable;
 pub mod optimize;
