@@ -264,6 +264,46 @@ fn chain_spider(
 
 // ── Tests ──────────────────────────────────────────────────────────────────
 
+#[test]
+fn test_lower_single_qubit_pauli_x() {
+    let mut ast = empty_ast(1);
+    ast.gates.push(Gate {
+        name: GateName::X,
+        qubits: vec![0],
+        params: vec![],
+    });
+    
+    let zx = lower_ast_to_zx(&ast).unwrap();
+    assert!(zx.validate().is_ok());
+    
+    // Should have: input + X spider + output = 3 spiders
+    assert_eq!(zx.spider_count(), 3);
+    
+    // The middle spider should be X with phase 1.0 (π)
+    assert_eq!(zx.spider(1).color, SpiderColor::X);
+    assert!((zx.spider(1).phase - 1.0).abs() < 1e-10);
+}
+
+#[test]
+fn test_lower_single_qubit_pauli_z() {
+    let mut ast = empty_ast(1);
+    ast.gates.push(Gate {
+        name: GateName::Z,
+        qubits: vec![0],
+        params: vec![],
+    });
+    
+    let zx = lower_ast_to_zx(&ast).unwrap();
+    assert!(zx.validate().is_ok());
+    
+    // Should have: input + Z spider + output = 3 spiders
+    assert_eq!(zx.spider_count(), 3);
+    
+    // The middle spider should be Z with phase 1.0 (π)
+    assert_eq!(zx.spider(1).color, SpiderColor::Z);
+    assert!((zx.spider(1).phase - 1.0).abs() < 1e-10);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
