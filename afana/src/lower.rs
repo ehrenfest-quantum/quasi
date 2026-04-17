@@ -249,6 +249,13 @@ fn lower_gate(
 
 /// Chain a new spider onto a qubit wire: add the spider, connect it to
 /// the current wire tip, and update the wire tip. Returns the new node ID.
+pub fn lower_identity_pauli(_ops: &[crate::cbor::PauliOpEntry], _theta: f64) -> Vec<Gate> {
+    // Identity terms contribute no gates to the circuit.
+    Vec::new()
+}
+
+/// Chain a new spider onto a qubit wire: add the spider, connect it to
+/// the current wire tip, and update the wire tip. Returns the new node ID.
 fn chain_spider(
     graph: &mut ZxGraph,
     wires: &mut [WireHead],
