@@ -55,6 +55,15 @@ struct WireHead {
     tip: NodeId,
 }
 
+/// Lower an identity Pauli term into ZX-IR.
+///
+/// Identity terms contribute no gates but must preserve the coefficient
+/// and qubit indices for correct Hamiltonian representation.
+pub fn lower_identity_pauli(coefficient: f64, n_qubits: usize) -> Vec<Gate> {
+    // Identity terms produce no gates; coefficient is handled at Hamiltonian level
+    Vec::new()
+}
+
 /// Lower an [`EhrenfestAst`] into a [`ZxGraph`].
 ///
 /// Each qubit gets an input boundary spider and an output boundary spider.
