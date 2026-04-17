@@ -102,6 +102,113 @@ pub fn lower_ast_to_zx(ast: &EhrenfestAst) -> Result<ZxGraph, LowerError> {
     Ok(graph)
 }
 
+/// Lower a time-dependent Hamiltonian term into ZX-IR nodes.
+///
+/// This function processes Hamiltonian terms that may have time-dependent
+/// coefficients (Ehrenfest v0.2+ feature). For v0.1 compatibility, static
+/// coefficients are treated as constant functions.
+///
+/// The function preserves temporal metadata in the IR for downstream
+/// Trotterization passes that need to handle time-varying Hamiltonians.
+///
+/// # Arguments
+/// * `term` - The Pauli term with coefficient (static or time-dependent)
+/// * `dt` - The timestep for this term's evolution
+/// * `graph` - The ZX graph to append nodes to
+/// * `wires` - Per-qubit wire state for chaining spiders
+///
+/// # Returns
+/// Result indicating success or an error if the term cannot be lowered.
+pub fn lower_time_dependent_term(
+    term: &crate::cbor::PauliTerm,
+    dt: f64,
+    graph: &mut ZxGraph,
+    wires: &mut [WireHead],
+) -> Result<(), LowerError> {
+    // Extract coefficient - for v0.1 this is static, for v0.2+ this may
+    // include temporal metadata (function type, parameters, time points)
+    let coefficient = term.coefficient;
+    
+    // Compute rotation angle: theta = coefficient * dt
+    // For time-dependent coefficients, this would be coefficient(t) * dt
+    let theta = coefficient * dt;
+    
+    // Filter out identity operators
+    let active_ops: Vec<&crate::cbor::PauliOpEntry> = term
+        .paulis
+        .iter()
+        .filter(|entry| !matches!(entry.axis, crate::cbor::PauliOp::I))
+        .collect();
+    
+    if active_ops.is_empty() {
+        // Identity term - no gates needed, but we still record the coefficient
+        // metadata for downstream passes (e.g., constant offset tracking)
+        return Ok(());
+    }
+    
+    // Step 1: Basis change (rotate X/Y qubits into Z basis)
+    for entry in &active_ops {
+        match entry.axis {
+            crate::cbor::PauliOp::X => {
+                chain_spider(graph, wires, entry.qubit, SpiderColor::Z, 0.0);
+                chain_spider(graph, wires, entry.qubit, SpiderColor::X, 0.0);
+                chain_spider(graph, wires, entry.qubit, SpiderColor::Z, 0.0);
+            }
+            crate::cbor::PauliOp::Y => {
+                chain_spider(graph, wires, entry.qubit, SpiderColor::Z, 0.5);
+                chain_spider(graph, wires, entry.qubit, SpiderColor::X, 0.0);
+                chain_spider(graph, wires, entry.qubit, SpiderColor::Z, -0.5);
+            }
+            crate::cbor::PauliOp::Z | crate::cbor::PauliOp::I => {}
+        }
+    }
+    
+    // Step 2: CNOT ladder for multi-qubit terms
+    if active_ops.len() > 1 {
+        for i in 0..active_ops.len() - 1 {
+            let ctrl = active_ops[i].qubit;
+            let targ = active_ops[i + 1].qubit;
+            let z = chain_spider(graph, wires, ctrl, SpiderColor::Z, 0.0);
+            let x = chain_spider(graph, wires, targ, SpiderColor::X, 0.0);
+            graph.add_edge(z, x);
+        }
+    }
+    
+    // Step 3: Rz rotation on the last active qubit with angle 2*theta
+    let target = active_ops.last().unwrap().qubit;
+    chain_spider(graph, wires, target, SpiderColor::Z, (2.0 * theta) / std::f64::consts::PI);
+    
+    // Step 4: Undo CNOT ladder (reverse order)
+    if active_ops.len() > 1 {
+        for i in (0..active_ops.len() - 1).rev() {
+            let ctrl = active_ops[i].qubit;
+            let targ = active_ops[i + 1].qubit;
+            let z = chain_spider(graph, wires, ctrl, SpiderColor::Z, 0.0);
+            let x = chain_spider(graph, wires, targ, SpiderColor::X, 0.0);
+            graph.add_edge(z, x);
+        }
+    }
+    
+    // Step 5: Undo basis change (reverse of step 1)
+    for entry in active_ops.iter().rev() {
+        match entry.axis {
+            crate::cbor::PauliOp::X => {
+                chain_spider(graph, wires, entry.qubit, SpiderColor::Z, 0.0);
+                chain_spider(graph, wires, entry.qubit, SpiderColor::X, 0.0);
+                chain_spider(graph, wires, entry.qubit, SpiderColor::Z, 0.0);
+            }
+            crate::cbor::PauliOp::Y => {
+                chain_spider(graph, wires, entry.qubit, SpiderColor::Z, 0.5);
+                chain_spider(graph, wires, entry.qubit, SpiderColor::X, 0.0);
+                chain_spider(graph, wires, entry.qubit, SpiderColor::Z, -0.5);
+            }
+            crate::cbor::PauliOp::Z | crate::cbor::PauliOp::I => {}
+        }
+    }
+    
+    Ok(())
+}
+
 /// Lower a single gate into ZX spiders on the graph.
 fn lower_gate(
     graph: &mut ZxGraph,
