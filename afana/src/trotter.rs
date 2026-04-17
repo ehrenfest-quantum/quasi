@@ -608,6 +608,91 @@ mod tests {
     }
 
     #[test]
+    fn trotterize_multi_qubit_xxx_term() {
+        // Three-qubit XXX term: coefficient × X₀ ⊗ X₁ ⊗ X₂
+        let program = EhrenfestProgram {
+            version: 1,
+            system: SystemDef {
+                n_qubits: 3,
+                cooling_profile: None,
+                backend_hint: None,
+            },
+            hamiltonian: Hamiltonian {
+                terms: vec![PauliTerm {
+                    coefficient: 0.5,
+                    paulis: vec![
+                        PauliOpEntry { qubit: 0, axis: PauliOp::X },
+                        PauliOpEntry { qubit: 1, axis: PauliOp::X },
+                        PauliOpEntry { qubit: 2, axis: PauliOp::X },
+                    ],
+                }],
+                constant_offset: 0.0,
+            },
+            evolution: EvolutionTime {
+                total_us: 1.0,
+                steps: 1,
+                dt_us: 1.0,
+            },
+            observables: vec![Observable::SX { qubit: 0 }],
+            noise: NoiseConstraint {
+                t1_us: 100.0,
+                t2_us: 50.0,
+                gate_fidelity_min: None,
+                readout_fidelity_min: None,
+            },
+        };
+
+        let ast = trotterize(&program, TrotterOrder::First);
+
+        // XXX term should produce: H on all qubits (basis change), CNOT ladder,
+        // Rz on last qubit, undo CNOT ladder, undo H.
+        // Expected: H0, H1, H2, CX(0,1), CX(1,2), Rz(1.0) on q2, CX(1,2), CX(0,1), H2, H1, H0
+        assert_eq!(ast.gates.len(), 11, "XXX term should produce 11 gates");
+
+        // Verify basis change (H on all qubits for X→Z rotation)
+        assert_eq!(ast.gates[0].name, GateName::H);
+        assert_eq!(ast.gates[0].qubits, vec![0]);
+        assert_eq!(ast.gates[1].name, GateName::H);
+        assert_eq!(ast.gates[1].qubits, vec![1]);
+        assert_eq!(ast.gates[2].name, GateName::H);
+        assert_eq!(ast.gates[2].qubits, vec![2]);
+
+        // Verify CNOT ladder (entangling qubits)
+        assert_eq!(ast.gates[3].name, GateName::Cx);
+        assert_eq!(ast.gates[3].qubits, vec![0, 1]);
+        assert_eq!(ast.gates[4].name, GateName::Cx);
+        assert_eq!(ast.gates[4].qubits, vec![1, 2]);
+
+        // Verify Rz rotation with correct angle: 2 * coefficient * dt = 2 * 0.5 * 1.0 = 1.0
+        assert_eq!(ast.gates[5].name, GateName::Rz);
+        assert_eq!(ast.gates[5].qubits, vec![2]);
+        assert!(
+            (ast.gates[5].params[0] - 1.0).abs() < 1e-10,
+            "Rz angle should be 2*coeff*dt = 1.0, got {}",
+            ast.gates[5].params[0]
+        );
+
+        // Verify undo CNOT ladder (reverse order)
+        assert_eq!(ast.gates[6].name, GateName::Cx);
+        assert_eq!(ast.gates[6].qubits, vec![1, 2]);
+        assert_eq!(ast.gates[7].name, GateName::Cx);
+        assert_eq!(ast.gates[7].qubits, vec![0, 1]);
+
+        // Verify undo basis change (reverse order)
+        assert_eq!(ast.gates[8].name, GateName::H);
+        assert_eq!(ast.gates[8].qubits, vec![2]);
+        assert_eq!(ast.gates[9].name, GateName::H);
+        assert_eq!(ast.gates[9].qubits, vec![1]);
+        assert_eq!(ast.gates[10].name, GateName::H);
+        assert_eq!(ast.gates[10].qubits, vec![0]);
+
+        // Verify QASM emission works without panic
+        let qasm = emit_qasm(&ast, QasmVersion::V3).unwrap();
+        assert!(qasm.contains("cx"), "QASM should contain CNOT gates");
+        assert!(qasm.contains("rz"), "QASM should contain Rz rotation");
+    }
+
+    #[test]
     fn trotterize_single_x_produces_h_rz_h() {
         let program = EhrenfestProgram {
             version: 1,
