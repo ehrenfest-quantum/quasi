@@ -1,0 +1,43 @@
+# QPU Metrics Configuration for Solvayeur ATW Kernel
+#
+# This configuration enables real-time QPU metric ingestion from HAL Contract.
+# The ATW kernel uses these metrics to refine contention coupling coefficients
+# during task scheduling.
+
+[metrics]
+# Enable real-time QPU metric collection
+enabled = true
+
+# HAL Contract API base URL
+hal_base_url = "https://hal-contract.org/api"
+
+# Polling interval for metrics updates (seconds)
+poll_interval_seconds = 30
+
+# Metrics to collect
+[metrics.fields]
+queue_depth = true
+t1_us = true
+t2_us = true
+single_qubit_fidelity = true
+two_qubit_fidelity = true
+readout_fidelity = true
+calibration_version = true
+
+[contention_coupling]
+# How metrics affect ATW contention coefficients
+# Higher queue depth increases contention
+queue_weight = 0.4
+# Lower fidelity increases contention
+fidelity_weight = 0.3
+# Lower coherence (T2) increases contention
+coherence_weight = 0.3
+
+# Thresholds for warnings
+[thresholds]
+# Warn if queue depth exceeds this
+max_queue_depth = 50
+# Warn if T2 drops below this (microseconds)
+min_t2_us = 20
+# Warn if two-qubit fidelity drops below this
+min_two_qubit_fidelity = 0.95
