@@ -7,6 +7,7 @@
 
 use crate::bias::decode_backend;
 use crate::hamiltonian::{build_scheduling_program, AtwParams};
+use crate::metrics::get_qpu_metrics;
 
 /// The result of one ATW epoch.
 #[derive(Debug, Clone)]
