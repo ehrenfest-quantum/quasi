@@ -27,5 +27,6 @@ pub mod entanglement;
 pub mod error_budget;
 pub mod epoch;
 pub mod hamiltonian;
+pub mod metrics;
 pub mod partition;
 pub mod qubit_map;
