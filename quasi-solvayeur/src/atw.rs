@@ -91,6 +91,12 @@ impl Solvayeur {
         if self.params.exploration < 0.1 {
             self.params.exploration = 0.1;
         }
+        // Adaptive learning rate: adjust based on the observed reward.
+        // Increase learning rate when reward is high, decrease when low.
+        // Clamp to keep eta within reasonable bounds.
+        let reward_score = reward.score();
+        let new_eta = self.learning.eta * (1.0 + 0.2 * (reward_score - 0.5));
+        self.learning.eta = new_eta.clamp(0.01, 1.0);
 
         // Record
         let backend_name = if epoch_result.backend_index < self.backend_names.len() {
