@@ -11,3 +11,4 @@ pub mod plugin;
 pub mod profiler;
 pub mod profiles;
 pub mod scheduler;
+pub mod plugins;
