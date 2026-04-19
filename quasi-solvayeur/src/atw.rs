@@ -131,6 +131,29 @@ impl Solvayeur {
         self.history.len()
     }
 
+    /// Reconfigure the Solvayeur kernel with a new set of backends.
+    ///
+    /// This allows dynamic addition/removal of backends without restarting the kernel.
+    /// Bias fields are preserved for existing qubits and initialized to zero for new ones.
+    /// Contention couplings are recalculated for the new qubit count.
+    pub fn reconfigure_backends(&mut self, backends: &[quasi_scheduler::backend::Backend]) {
+        let new_params = AtwParams::from_backends(backends);
+        let new_backend_names: Vec<String> = backends.iter().map(|b| b.id().to_string()).collect();
+        
+        // Preserve existing bias fields where possible
+        let mut new_bias = vec![0.0; new_params.n_qubits];
+        let min_qubits = self.params.n_qubits.min(new_params.n_qubits);
+        for i in 0..min_qubits {
+            new_bias[i] = self.params.bias[i];
+        }
+        
+        self.params.n_qubits = new_params.n_qubits;
+        self.params.n_backends = new_params.n_backends;
+        self.params.contention = new_params.contention;
+        self.params.bias = new_bias;
+        self.backend_names = new_backend_names;
+    }
+
     /// Most frequently selected backend over all epochs.
     pub fn preferred_backend(&self) -> Option<&str> {
         if self.history.is_empty() {
