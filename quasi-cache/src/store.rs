@@ -22,6 +22,37 @@ pub struct CacheStats {
     pub misses: u64,
     pub entries: usize,
     pub evictions: u64,
+    /// Total lookup time in microseconds.
+    pub total_lookup_time_us: u64,
+    /// Number of lookups performed.
+    pub lookup_count: u64,
+}
+
+impl CacheStats {
+    /// Compute hit rate as a ratio (0.0 to 1.0).
+    pub fn hit_rate(&self) -> f64 {
+        let total = self.hits + self.misses;
+        if total == 0 {
+            0.0
+        } else {
+            self.hits as f64 / total as f64
+        }
+    }
+
+    /// Compute average lookup time in microseconds.
+    pub fn avg_lookup_time_us(&self) -> f64 {
+        if self.lookup_count == 0 {
+            0.0
+        } else {
+            self.total_lookup_time_us as f64 / self.lookup_count as f64
+        }
+    }
+
+    /// Memory usage estimate in bytes (entries * average entry size).
+    pub fn estimated_memory_bytes(&self) -> usize {
+        // Rough estimate: ~1KB per entry on average
+        self.entries * 1024
+    }
 }
 
 /// Configuration for the cache store.
