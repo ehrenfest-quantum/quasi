@@ -10,4 +10,5 @@ pub mod job;
 pub mod plugin;
 pub mod profiler;
 pub mod profiles;
+pub mod health_monitor;
 pub mod scheduler;
