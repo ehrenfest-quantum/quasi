@@ -184,8 +184,11 @@ fn jaccard_similarity(a: &[usize], b: &[usize]) -> f64 {
 
 /// Run the full commensurability analysis on the Zundel cation.
 pub fn analyse_zundel() -> Result<AnalysisResult, BridgeError> {
-    // Build Hamiltonian with 10 active orbitals to match IQM setup
-    let ham = zundel::build_zundel_hamiltonian(Some(10))?;
+    // Build Hamiltonian with 6 active orbitals (12 qubits) — feasible
+    // for dense exact diag. The coupling structure is qualitatively the
+    // same as at larger active spaces; sin(C/2) identifies the same
+    // strongly-coupled orbital pairs.
+    let ham = zundel::build_zundel_hamiltonian(Some(6))?;
 
     println!(
         "Zundel H5O2+ commensurability analysis ({} qubits, {} Pauli terms)",

@@ -62,15 +62,23 @@ pub struct ExtensionResult {
 pub fn extend_active_space() -> Result<ExtensionResult, BridgeError> {
     // Active-space sizes to scan.
     // STO-3G Zundel has 15 spatial orbitals.
-    // Exact diag limit: 20 qubits = 10 orbitals.
-    let sizes: Vec<usize> = vec![4, 6, 8, 10];
+    // Dense exact diag builds a 2^(2N) × 2^(2N) matrix:
+    //   4 orbitals →  8 qubits →    256×256    (512 KB)
+    //   5 orbitals → 10 qubits →   1024×1024   (8 MB)
+    //   6 orbitals → 12 qubits →   4096×4096   (128 MB)
+    //   7 orbitals → 14 qubits →  16384×16384  (2 GB)
+    // Beyond 7 orbitals requires iterative eigensolver or MPS.
+    let sizes: Vec<usize> = vec![4, 5, 6, 7];
 
     println!(
         "Active space extension: scanning {} sizes",
         sizes.len()
     );
     println!(
-        "  Exact diag limit: 20 qubits (10 active orbitals)"
+        "  Dense exact diag limit: ~14 qubits (7 active orbitals, 2 GB)"
+    );
+    println!(
+        "  IQM QExa20 equivalent (10 orbitals, 20 qubits) requires iterative solver"
     );
     println!();
 
@@ -87,18 +95,19 @@ pub fn extend_active_space() -> Result<ExtensionResult, BridgeError> {
         let n_qubits = ham.n_qubits;
         let n_pauli_terms = ham.pauli_terms.len();
 
-        let (energy, method) = if n_qubits <= 20 {
+        let (energy, method) = if n_qubits <= 14 {
             let e = postprocess::ground_state_energy(
                 &ham.pauli_terms,
                 ham.n_qubits,
             )?;
             (e, "exact".to_string())
         } else {
-            // Beyond exact diag limit — note as future MPS capability.
-            // For now, report RHF energy as a lower bound on what MPS would give.
+            // Beyond dense diag limit — at 16 qubits the matrix is 32 GB.
+            // Report RHF energy as a placeholder; iterative eigensolver or
+            // MPS would capture correlation at this scale.
             eprintln!(
-                "  N_active={}: {} qubits exceeds exact diag limit (20). \
-                 MPS required (future Huoma capability).",
+                "  N_active={}: {} qubits exceeds dense diag limit (14). \
+                 Iterative solver / MPS required.",
                 n_active, n_qubits
             );
             (ham.rhf_energy, "mps_future".to_string())
@@ -111,7 +120,8 @@ pub fn extend_active_space() -> Result<ExtensionResult, BridgeError> {
             n_active, n_qubits, energy, method, time, n_pauli_terms
         );
 
-        if n_active == 10 {
+        // The largest exact-diag result serves as our best energy
+        if method == "exact" {
             energy_at_qpu_limit = Some(energy);
         }
 
