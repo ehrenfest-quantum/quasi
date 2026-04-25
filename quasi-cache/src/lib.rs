@@ -4,4 +4,4 @@ pub mod store;
 
 pub use entry::CacheEntry;
 pub use key::CacheKey;
-pub use store::{CacheConfig, CacheMetrics, CacheStats, CacheStore};
+pub use store::{CacheConfig, CacheStats, CacheStore};
