@@ -36,6 +36,12 @@ struct ChatRequest<'a> {
     messages: Vec<ChatMessage>,
     max_tokens: u32,
     temperature: f32,
+    /// OpenAI-compatible structured-output hint. Most hosted providers either
+    /// support it or ignore unknown fields. We only attach it for self-hosted
+    /// backends where we have explicitly verified compatibility (currently
+    /// Ollama via the `/v1/chat/completions` shim).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    response_format: Option<&'a Value>,
 }
 
 // ── Public interface ──────────────────────────────────────────────────────────
@@ -95,6 +101,21 @@ pub async fn call_model(
     temperature: f32,
     max_tokens: u32,
 ) -> Result<CallResult> {
+    call_model_with_format(entry, system_prompt, user_prompt, temperature, max_tokens, None).await
+}
+
+/// Variant of [`call_model`] that lets the caller pin a `response_format`
+/// (OpenAI-compatible structured-output hint). The hint is only forwarded to
+/// providers we have verified accept it — currently `ollama` only — and is
+/// silently dropped for everyone else. Existing call sites need no changes.
+pub async fn call_model_with_format(
+    entry: &RotationEntry,
+    system_prompt: &str,
+    user_prompt: &str,
+    temperature: f32,
+    max_tokens: u32,
+    response_format: Option<Value>,
+) -> Result<CallResult> {
     // 1. Resolve provider config.
     let provider = get_provider(&entry.provider)
         .ok_or_else(|| anyhow!("Unknown provider '{}' for model '{}'", entry.provider, entry.id))?;
@@ -136,7 +157,12 @@ pub async fn call_model(
 
     let input_len = (system_prompt.len() + user_prompt_truncated.len()) as u64;
 
-    // 4. Build the request body.
+    // 4. Build the request body. Forward `response_format` only to providers
+    //    we've verified accept it; other providers may HTTP-400 on unknown fields.
+    let response_format_ref: Option<&Value> = match entry.provider.as_str() {
+        "ollama" => response_format.as_ref(),
+        _ => None,
+    };
     let request_body = ChatRequest {
         model: &entry.model,
         messages: vec![
@@ -151,6 +177,7 @@ pub async fn call_model(
         ],
         max_tokens,
         temperature,
+        response_format: response_format_ref,
     };
 
     let request_json =
