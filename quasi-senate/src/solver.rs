@@ -195,11 +195,14 @@ pub async fn solve_issue(
     //    schema. Other providers ignore the hint via the gate in `provider.rs`.
     let system = crate::prompts::solver_system_prompt();
     let max_tokens = entry.max_tokens.unwrap_or(8192);
+    // strict=false: schema guides the structure but doesn't constrain string
+    // content token-by-token. Strict mode caused Ollama to truncate outputs
+    // mid-string when generating long CBOR-hex values (issue #942 toric code).
     let response_format = serde_json::json!({
         "type": "json_schema",
         "json_schema": {
             "name": "solve_result",
-            "strict": true,
+            "strict": false,
             "schema": {
                 "type": "object",
                 "additionalProperties": false,
