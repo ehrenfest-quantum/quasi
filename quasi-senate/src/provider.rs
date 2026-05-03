@@ -99,20 +99,26 @@ pub async fn call_model(
     let provider = get_provider(&entry.provider)
         .ok_or_else(|| anyhow!("Unknown provider '{}' for model '{}'", entry.provider, entry.id))?;
 
-    // 2. Read API key from environment.
-    let api_key = std::env::var(provider.env_var).with_context(|| {
-        format!(
-            "Environment variable '{}' is not set (required for provider '{}')",
-            provider.env_var, entry.provider
-        )
-    })?;
-    if api_key.trim().is_empty() {
-        return Err(anyhow!(
-            "Environment variable '{}' is empty (required for provider '{}')",
-            provider.env_var,
-            entry.provider
-        ));
-    }
+    // 2. Read API key from environment. Providers with empty `env_var`
+    //    (currently: self-hosted Ollama on a tailnet) skip authentication.
+    let api_key: String = if provider.env_var.is_empty() {
+        String::new()
+    } else {
+        let key = std::env::var(provider.env_var).with_context(|| {
+            format!(
+                "Environment variable '{}' is not set (required for provider '{}')",
+                provider.env_var, entry.provider
+            )
+        })?;
+        if key.trim().is_empty() {
+            return Err(anyhow!(
+                "Environment variable '{}' is empty (required for provider '{}')",
+                provider.env_var,
+                entry.provider
+            ));
+        }
+        key
+    };
 
     // 3. Apply context-window truncation.
     let user_prompt_truncated: String = match entry.max_context {
@@ -150,13 +156,15 @@ pub async fn call_model(
     let request_json =
         serde_json::to_string(&request_body).context("Failed to serialize chat request")?;
 
-    // 5. Build headers.
+    // 5. Build headers. Authorization is omitted when no API key is required.
     let mut headers = HeaderMap::new();
-    headers.insert(
-        AUTHORIZATION,
-        HeaderValue::from_str(&format!("Bearer {}", api_key))
-            .context("Invalid API key — cannot build Authorization header")?,
-    );
+    if !api_key.is_empty() {
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_str(&format!("Bearer {}", api_key))
+                .context("Invalid API key — cannot build Authorization header")?,
+        );
+    }
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
     for (name, value) in provider.extra_headers {
@@ -167,8 +175,23 @@ pub async fn call_model(
         headers.insert(header_name, header_value);
     }
 
-    // 6. Execute the HTTP call with retry.
-    let url = provider.url;
+    // 6. Execute the HTTP call with retry. URL may be configured statically
+    //    or read from an environment variable (used for self-hosted endpoints).
+    let url: String = match provider.url_env_var {
+        Some(var) => std::env::var(var).with_context(|| {
+            format!(
+                "Environment variable '{}' is not set (required for provider '{}')",
+                var, entry.provider
+            )
+        })?,
+        None => provider.url.to_string(),
+    };
+    if url.trim().is_empty() {
+        return Err(anyhow!(
+            "Provider '{}' has no chat-completions URL configured",
+            entry.provider
+        ));
+    }
     let timeout_secs = provider.timeout_secs;
     let verify_header = provider.verify_header;
     let expected_model: &str = &entry.model;
@@ -186,6 +209,7 @@ pub async fn call_model(
         let headers = headers.clone();
         let request_json = request_json.clone();
         let attempt_count = attempt_count.clone();
+        let url = url.clone();
 
         async move {
             let attempt = attempt_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -199,14 +223,14 @@ pub async fn call_model(
             info!(
                 model = model_id,
                 provider = entry.provider.as_str(),
-                url = url,
+                url = %url,
                 request_bytes = request_json.len(),
                 attempt = attempt,
                 "Calling LLM"
             );
 
             let response = client
-                .post(url)
+                .post(&url)
                 .headers(headers)
                 .body(request_json)
                 .send()

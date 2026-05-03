@@ -8,15 +8,34 @@ use std::collections::HashMap;
 use crate::config::{get_provider, rotation};
 use crate::types::{Role, RotationEntry};
 
-/// Return `true` if the given provider has its API key set in the environment.
+/// Return `true` if the given provider is usable in the current environment.
+///
+/// A provider is "available" when:
+///   - its `env_var` (API key) is set and non-empty (or empty `env_var` means
+///     no key required, e.g. self-hosted Ollama on a private tailnet);
+///   - if the provider resolves its URL from the environment, that URL var
+///     is also set and non-empty.
 pub fn provider_has_key(provider_id: &str) -> bool {
-    match get_provider(provider_id) {
-        Some(p) => {
-            let val = std::env::var(p.env_var).unwrap_or_default();
-            !val.is_empty()
+    let p = match get_provider(provider_id) {
+        Some(p) => p,
+        None => return false,
+    };
+
+    if !p.env_var.is_empty() {
+        let val = std::env::var(p.env_var).unwrap_or_default();
+        if val.trim().is_empty() {
+            return false;
         }
-        None => false,
     }
+
+    if let Some(url_var) = p.url_env_var {
+        let val = std::env::var(url_var).unwrap_or_default();
+        if val.trim().is_empty() {
+            return false;
+        }
+    }
+
+    true
 }
 
 /// Return all `RotationEntry` items whose provider's API key is available
