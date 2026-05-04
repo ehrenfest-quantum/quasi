@@ -2,8 +2,12 @@
 """Collect LOC stats per component and roadmap progress, write to Postgres."""
 
 import argparse
+import json
 import os
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -38,56 +42,88 @@ EXCLUDE_FILES = {
 }
 
 # ---------------------------------------------------------------------------
-# Roadmap (manually maintained)
+# Roadmap — names + themes are human-curated; pct is computed from GitHub.
 # ---------------------------------------------------------------------------
 
-ROADMAP = [
-    (1, "To All the Girls", "Ehrenfest v0.1 schema + examples", 100,
-     "CDDL schema, CBOR examples (.paul), FORMAT.md, LANGUAGE.md, serde/CDDL alignment, integration tests",
-     ""),
-    (2, "Shake Your Rump", "Ehrenfest v0.2 operator algebra", 70,
-     "Fermionic/bosonic ops, time-dependent H, Pauli decomposition",
-     "v0.2 schema finalization, forward-compat validation"),
-    (3, "Johnny Ryall", "Ehrenfest parser (CBOR deserializer)", 60,
-     "CBOR parser, schema validator, typed AST",
-     "Negative tests, round-trip validation, 1000-term stress test"),
-    (4, "Egg Man", "Afana compiler bootstrap", 75,
-     "Build system, IR, lowering pass, stub QASM3 emitter",
-     "Semantic QASM3 output, IR completeness"),
-    (5, "High Plains Drifter", "ZX-IR intermediate representation", 65,
-     "ZX graph definition, phase arithmetic, Ehrenfest-to-ZX lowering",
-     "Full Pauli-term ZX gadget coverage, validation pass"),
-    (6, "The Sounds of Science", "ZX-calculus rewriting rules", 70,
-     "Spider fusion, identity removal, Hadamard cancellation",
-     "Termination proof, benchmark baselines"),
-    (7, "3-Minute Rule", "QASM3 codegen from ZX-IR", 55,
-     "Gate set mapping, Euler decomposition, CI gate counting",
-     "Full universal gate set, regression CI job"),
-    (8, "Hey Ladies", "Qubit type checker", 40,
-     "Qubit environment, entanglement lattice",
-     "Use-after-measure detection, dimension mismatch errors"),
-    (9, "5-Piece Chicken Dinner", "Hardware-aware compilation", 50,
-     "Backend descriptors, SWAP routing, native gate rebase",
-     "IBM Torino + IQM Garnet backends, SWAP overhead tracking"),
-    (10, "Looking Down the Barrel of a Gun", "Noise-aware compilation", 45,
-     "Decoherence budget tracker, fidelity threshold",
-     "Per-qubit noise report, fidelity-floor enforcement"),
-    (11, "Car Thief", "Full ZX-calculus optimization", 55,
-     "Multi-pass rewriter, local complementation, pivot rewriting",
-     "10% gate reduction on all benchmarks, semantic equivalence tests"),
-    (12, "What Comes Around", "Variational parameter support", 30,
-     "Ehrenfest v0.3, param declarations, parametric QASM3",
-     "VQE/QAOA examples, optimizer-safe param slots"),
-    (13, "Shadrach", "Classical control flow", 25,
-     "Mid-circuit measurement, conditionals, loops, CFG builder",
-     "Teleportation example, loop unrolling, type consumption"),
-    (14, "Ask for Janice", "Ehrenfest v1.0 memory model", 15,
-     "Qubit alloc/free, lexical scoping, lifetime analysis",
-     "Conformance test corpus, no-leak static analysis"),
-    (15, "B-Boy Bouillabaisse", "Quantum OS: Shor end-to-end", 20,
-     "Unified pipeline, Shor's algorithm, Turing-completeness proof",
-     "All CI levels, deterministic output, conformance pass"),
+ROADMAP_META: list[tuple[int, str, str]] = [
+    (1, "To All the Girls", "Ehrenfest v0.1 schema + examples"),
+    (2, "Shake Your Rump", "Ehrenfest v0.2 operator algebra"),
+    (3, "Johnny Ryall", "Ehrenfest parser (CBOR deserializer)"),
+    (4, "Egg Man", "Afana compiler bootstrap"),
+    (5, "High Plains Drifter", "ZX-IR intermediate representation"),
+    (6, "The Sounds of Science", "ZX-calculus rewriting rules"),
+    (7, "3-Minute Rule", "QASM3 codegen from ZX-IR"),
+    (8, "Hey Ladies", "Qubit type checker"),
+    (9, "5-Piece Chicken Dinner", "Hardware-aware compilation"),
+    (10, "Looking Down the Barrel of a Gun", "Noise-aware compilation"),
+    (11, "Car Thief", "Full ZX-calculus optimization"),
+    (12, "What Comes Around", "Variational parameter support"),
+    (13, "Shadrach", "Classical control flow"),
+    (14, "Ask for Janice", "Ehrenfest v1.0 memory model"),
+    (15, "B-Boy Bouillabaisse", "Quantum OS: Shor end-to-end"),
 ]
+
+# Phases that the maintainer has explicitly declared complete. Closed-state
+# of individual issues isn't sufficient because phases also include open
+# follow-up issues; this set forces 100% regardless of issue counts.
+MANUALLY_COMPLETED: frozenset[int] = frozenset({1})
+
+GITHUB_REPO_DEFAULT = "ehrenfest-quantum/quasi"
+
+
+def _gh_search_count(repo: str, token: str | None, query: str) -> int:
+    """Return total_count for a GitHub Search-API issue query.
+
+    Uses Search API because issue_search supports body matching and is
+    paginated by total_count, which is exactly what we need for ratios.
+    """
+    url = "https://api.github.com/search/issues?per_page=1&q=" + urllib.parse.quote(
+        f"repo:{repo} is:issue {query}"
+    )
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        payload = json.load(resp)
+    return int(payload.get("total_count", 0))
+
+
+def compute_roadmap_progress(
+    repo: str, token: str | None
+) -> list[tuple[int, str, str, int, str, str]]:
+    """Compute (phase, name, theme, pct, done, missing) per phase from issues.
+
+    pct is closed / (closed + open) for issues whose body contains
+    "PHASE-{NNN}". Phases in MANUALLY_COMPLETED report 100% regardless.
+    Phases with no issues report 0%.
+    """
+    rows: list[tuple[int, str, str, int, str, str]] = []
+    for phase, name, theme in ROADMAP_META:
+        if phase in MANUALLY_COMPLETED:
+            rows.append((phase, name, theme, 100, "phase declared complete", ""))
+            continue
+
+        token_str = f"PHASE-{phase:03d}"
+        try:
+            closed = _gh_search_count(repo, token, f'"{token_str}" in:body is:closed')
+            open_ = _gh_search_count(repo, token, f'"{token_str}" in:body is:open')
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as exc:
+            print(
+                f"warning: GitHub query failed for {token_str}: {exc}; pct=0",
+                file=sys.stderr,
+            )
+            closed, open_ = 0, 0
+
+        total = closed + open_
+        pct = round(closed / total * 100) if total > 0 else 0
+        done = f"{closed}/{total} issues closed" if total else ""
+        missing = f"{open_} open" if open_ else ""
+        rows.append((phase, name, theme, pct, done, missing))
+    return rows
 
 # ---------------------------------------------------------------------------
 # LOC counting
@@ -177,7 +213,7 @@ def scan_component(component_path):
 # ---------------------------------------------------------------------------
 
 
-def write_to_db(db_url, repo_root, retention_days=30):
+def write_to_db(db_url, repo_root, retention_days=30, github_repo=GITHUB_REPO_DEFAULT, github_token=None):
     """Scan repo components and write stats to Postgres."""
     conn = psycopg2.connect(db_url)
     conn.autocommit = False
@@ -240,22 +276,23 @@ def write_to_db(db_url, repo_root, retention_days=30):
     print("-" * 92)
     print(f"{'TOTAL':<28} {'':<15} {'':<12} {total_source:>8} {total_tests:>8} {total_docs:>8}")
 
-    # Roadmap progress
-    print(f"\n{'Phase':<5} {'Name':<30} {'%':>4}")
-    print("-" * 42)
-    for phase, name, theme, pct, done, missing in ROADMAP:
+    # Roadmap progress — computed live from GitHub issue counts per PHASE-NNN
+    print(f"\n{'Phase':<5} {'Name':<30} {'%':>4}  {'Done':<25} {'Missing':<15}")
+    print("-" * 90)
+    roadmap_rows = compute_roadmap_progress(github_repo, github_token)
+    for phase, name, theme, pct, done, missing in roadmap_rows:
         cur.execute(
             """INSERT INTO roadmap_progress
                (snapshot_at, phase, phase_name, theme, pct, done, missing)
                VALUES (%s, %s, %s, %s, %s, %s, %s)""",
             (now, phase, name, theme, pct, done, missing),
         )
-        print(f"{phase:<5} {name:<30} {pct:>4}%")
+        print(f"{phase:<5} {name:<30} {pct:>4}%  {done:<25} {missing:<15}")
 
     conn.commit()
     cur.close()
     conn.close()
-    print(f"\nInserted {rows_inserted} project_stats rows + {len(ROADMAP)} roadmap rows.")
+    print(f"\nInserted {rows_inserted} project_stats rows + {len(roadmap_rows)} roadmap rows.")
 
 
 # ---------------------------------------------------------------------------
@@ -281,7 +318,13 @@ def main():
         default=30,
         help="Keep snapshots for N days (default: 30)",
     )
+    parser.add_argument(
+        "--github-repo",
+        default=os.environ.get("GITHUB_REPO", GITHUB_REPO_DEFAULT),
+        help=f"owner/name for roadmap issue queries (default: {GITHUB_REPO_DEFAULT})",
+    )
     args = parser.parse_args()
+    github_token = os.environ.get("GITHUB_TOKEN")
 
     if not args.db_url:
         print("Error: --db-url or DATABASE_URL required", file=sys.stderr)
@@ -293,7 +336,13 @@ def main():
         sys.exit(1)
 
     print(f"Scanning {repo_root} ...")
-    write_to_db(args.db_url, repo_root, args.retention_days)
+    write_to_db(
+        args.db_url,
+        repo_root,
+        args.retention_days,
+        github_repo=args.github_repo,
+        github_token=github_token,
+    )
 
 
 if __name__ == "__main__":
