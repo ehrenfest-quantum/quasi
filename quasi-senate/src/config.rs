@@ -19,9 +19,12 @@ use crate::types::RotationEntry;
 
 #[derive(Debug, Clone)]
 pub struct Provider {
-    /// Chat completions endpoint (OpenAI-compatible /v1/chat/completions)
+    /// Chat completions endpoint (OpenAI-compatible /v1/chat/completions).
+    /// Empty string is allowed only when `url_env_var` is `Some(_)` — the
+    /// effective URL is then read from the environment at call time.
     pub url: &'static str,
-    /// Environment variable holding the API key
+    /// Environment variable holding the API key. Empty string means the
+    /// provider needs no API key (e.g. local Ollama on a private tailnet).
     pub env_var: &'static str,
     /// Extra headers beyond Authorization and Content-Type
     pub extra_headers: &'static [(&'static str, &'static str)],
@@ -29,6 +32,10 @@ pub struct Provider {
     pub verify_header: Option<&'static str>,
     /// Timeout in seconds (HuggingFace needs 600s; others 120s)
     pub timeout_secs: u64,
+    /// Optional environment variable holding a runtime-resolved chat
+    /// completions URL. Used for self-hosted backends whose endpoint is
+    /// not known at compile time (e.g. Ollama on a tailnet hostname).
+    pub url_env_var: Option<&'static str>,
 }
 
 pub const PROVIDERS: &[(&str, Provider)] = &[
@@ -43,6 +50,7 @@ pub const PROVIDERS: &[(&str, Provider)] = &[
             ],
             verify_header: Some("x-finalized-model"),
             timeout_secs: 120,
+            url_env_var: None,
         },
     ),
     (
@@ -53,6 +61,7 @@ pub const PROVIDERS: &[(&str, Provider)] = &[
             extra_headers: &[],
             verify_header: None,
             timeout_secs: 120,
+            url_env_var: None,
         },
     ),
     (
@@ -63,6 +72,7 @@ pub const PROVIDERS: &[(&str, Provider)] = &[
             extra_headers: &[],
             verify_header: None,
             timeout_secs: 120,
+            url_env_var: None,
         },
     ),
     (
@@ -75,6 +85,7 @@ pub const PROVIDERS: &[(&str, Provider)] = &[
             extra_headers: &[("User-Agent", "quasi-agent/1.0 (https://quasi.arvak.io)")],
             verify_header: None,
             timeout_secs: 600,
+            url_env_var: None,
         },
     ),
     (
@@ -86,6 +97,7 @@ pub const PROVIDERS: &[(&str, Provider)] = &[
             extra_headers: &[("User-Agent", "quasi-agent/1.0 (https://quasi.arvak.io)")],
             verify_header: None,
             timeout_secs: 120,
+            url_env_var: None,
         },
     ),
     (
@@ -96,6 +108,7 @@ pub const PROVIDERS: &[(&str, Provider)] = &[
             extra_headers: &[],
             verify_header: None,
             timeout_secs: 120,
+            url_env_var: None,
         },
     ),
     (
@@ -106,6 +119,7 @@ pub const PROVIDERS: &[(&str, Provider)] = &[
             extra_headers: &[],
             verify_header: None,
             timeout_secs: 120,
+            url_env_var: None,
         },
     ),
     (
@@ -116,6 +130,7 @@ pub const PROVIDERS: &[(&str, Provider)] = &[
             extra_headers: &[],
             verify_header: None,
             timeout_secs: 120,
+            url_env_var: None,
         },
     ),
     (
@@ -127,6 +142,7 @@ pub const PROVIDERS: &[(&str, Provider)] = &[
             extra_headers: &[],
             verify_header: None,
             timeout_secs: 60,
+            url_env_var: None,
         },
     ),
     (
@@ -137,6 +153,22 @@ pub const PROVIDERS: &[(&str, Provider)] = &[
             extra_headers: &[],
             verify_header: None,
             timeout_secs: 120,
+            url_env_var: None,
+        },
+    ),
+    (
+        // Self-hosted Ollama backend reachable on a private tailnet.
+        // The endpoint is read from $OLLAMA_URL at call time (e.g.
+        // http://mac-studio:11434/v1/chat/completions). No API key.
+        "ollama",
+        Provider {
+            url: "",
+            env_var: "",
+            extra_headers: &[],
+            verify_header: None,
+            // Local 30B-class models stream slowly; allow long generations.
+            timeout_secs: 900,
+            url_env_var: Some("OLLAMA_URL"),
         },
     ),
 ];

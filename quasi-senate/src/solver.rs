@@ -190,10 +190,55 @@ pub async fn solve_issue(
         return Ok((placeholder, entry, dummy_call, repo_context));
     }
 
-    // 7. Call the LLM
+    // 7. Call the LLM. For self-hosted backends (Ollama) we attach a
+    //    response_format hint so generation is constrained to the SolveResult
+    //    schema. Other providers ignore the hint via the gate in `provider.rs`.
     let system = crate::prompts::solver_system_prompt();
     let max_tokens = entry.max_tokens.unwrap_or(8192);
-    let call_result = crate::provider::call_model(entry, system, &user, 0.2, max_tokens).await?;
+    // strict=false: schema guides the structure but doesn't constrain string
+    // content token-by-token. Strict mode caused Ollama to truncate outputs
+    // mid-string when generating long CBOR-hex values (issue #942 toric code).
+    let response_format = serde_json::json!({
+        "type": "json_schema",
+        "json_schema": {
+            "name": "solve_result",
+            "strict": false,
+            "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "reasoning": { "type": "string" },
+                    "edits": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                                "file": { "type": "string" },
+                                "find": { "type": "string" },
+                                "replace": { "type": "string" }
+                            },
+                            "required": ["file", "find", "replace"]
+                        }
+                    },
+                    "new_files": {
+                        "type": "object",
+                        "additionalProperties": { "type": "string" }
+                    }
+                },
+                "required": ["reasoning", "edits", "new_files"]
+            }
+        }
+    });
+    let call_result = crate::provider::call_model_with_format(
+        entry,
+        system,
+        &user,
+        0.2,
+        max_tokens,
+        Some(response_format),
+    )
+    .await?;
     let raw = call_result.content.clone();
 
     // 8. Parse raw response — map failure to ParseFailure so pipeline can write telemetry.

@@ -58,16 +58,34 @@ async fn probe_model(entry: &'static RotationEntry, timeout_secs: u64) -> ProbeR
         }
     };
 
-    match std::env::var(provider_cfg.env_var) {
-        Ok(v) if !v.trim().is_empty() => {}
-        _ => {
-            return ProbeResult {
-                model_id: entry.id.to_string(),
-                provider: entry.provider.to_string(),
-                status: ProbeStatus::Skipped,
-                latency_ms: None,
-                error: Some(format!("{} not set", provider_cfg.env_var)),
-            };
+    if !provider_cfg.env_var.is_empty() {
+        match std::env::var(provider_cfg.env_var) {
+            Ok(v) if !v.trim().is_empty() => {}
+            _ => {
+                return ProbeResult {
+                    model_id: entry.id.to_string(),
+                    provider: entry.provider.to_string(),
+                    status: ProbeStatus::Skipped,
+                    latency_ms: None,
+                    error: Some(format!("{} not set", provider_cfg.env_var)),
+                };
+            }
+        }
+    }
+    // For providers that resolve their URL from the environment, require
+    // that variable to be set — otherwise call_model would fail at request time.
+    if let Some(url_var) = provider_cfg.url_env_var {
+        match std::env::var(url_var) {
+            Ok(v) if !v.trim().is_empty() => {}
+            _ => {
+                return ProbeResult {
+                    model_id: entry.id.to_string(),
+                    provider: entry.provider.to_string(),
+                    status: ProbeStatus::Skipped,
+                    latency_ms: None,
+                    error: Some(format!("{} not set", url_var)),
+                };
+            }
         }
     }
 
