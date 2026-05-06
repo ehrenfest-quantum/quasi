@@ -11,6 +11,8 @@ members = [
     "quasi-scheduler",
     "quasi-senate",
     "quasi-solvayeur",
+    "sword-classical-adapter",
+    "sword-ml-adapter",
 ]
 resolver = "2"
 
