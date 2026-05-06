@@ -4,9 +4,12 @@
 //! ```text
 //! quasi-bridge run --smiles "O" --basis sto-3g --accuracy chemical
 //! quasi-bridge analyze --smiles "[H][H]"
+//! quasi-bridge serve --port 9090
 //! ```
 
 use clap::{Parser, Subcommand};
+
+use quasi_bridge::server::{router, AppState};
 
 #[derive(Parser)]
 #[command(name = "quasi-bridge", about = "Garm → QUASI molecular pipeline")]
@@ -43,6 +46,13 @@ enum Command {
         /// Basis set
         #[arg(long, default_value = "sto-3g")]
         basis: String,
+    },
+    /// Run as an HTTP server (matches Garm's quasi_client.rs contract).
+    Serve {
+        #[arg(long, default_value_t = 9090)]
+        port: u16,
+        #[arg(long, default_value = "127.0.0.1")]
+        host: String,
     },
 }
 
@@ -103,6 +113,23 @@ fn main() {
                     std::process::exit(1);
                 }
             }
+        }
+        Command::Serve { port, host } => {
+            let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+            runtime.block_on(async move {
+                tracing_subscriber::fmt()
+                    .with_env_filter(
+                        tracing_subscriber::EnvFilter::try_from_default_env()
+                            .unwrap_or_else(|_| "info".parse().unwrap()),
+                    )
+                    .init();
+                let addr: std::net::SocketAddr =
+                    format!("{host}:{port}").parse().expect("addr");
+                let app = router(AppState::new());
+                tracing::info!("quasi-bridge HTTP listening on {addr}");
+                let listener = tokio::net::TcpListener::bind(&addr).await.expect("bind");
+                axum::serve(listener, app).await.expect("serve");
+            });
         }
         Command::Analyze { smiles, basis } => {
             // Just RHF + partition analysis

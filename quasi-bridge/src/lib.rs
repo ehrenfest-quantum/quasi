@@ -21,3 +21,4 @@ pub mod partition;
 pub mod pipeline;
 pub mod postprocess;
 pub mod rhf;
+pub mod server;

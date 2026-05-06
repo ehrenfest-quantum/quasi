@@ -20,6 +20,16 @@ quasi-solvayeur = { path = "../quasi-solvayeur" }
 quasi-scheduler = { path = "../quasi-scheduler" }
 quasi-cache = { path = "../quasi-cache" }
 
+# HTTP server (matches Garm-engine's quasi_client.rs contract)
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
 # CBOR serialization (same as Afana)
 ciborium = "0.2"
 
