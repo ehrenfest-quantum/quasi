@@ -1765,16 +1765,12 @@ dependencies = [
 
 [[package]]
 name = "quasi-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "afana",
  "anyhow",
  "ciborium",
- "clap",
  "nalgebra",
- "quasi-cache",
- "quasi-scheduler",
- "quasi-solvayeur",
  "serde",
  "serde_json",
  "tempfile",
