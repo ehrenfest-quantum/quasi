@@ -1,37 +1,28 @@
 [package]
 name = "quasi-bridge"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "AGPL-3.0-or-later"
-description = "Garm → QUASI bridge: molecular Hamiltonian pipeline (SMILES → Ehrenfest → Afana → energy)"
+description = "Chemistry primitives library: JW transform, exact-diag, Ehrenfest CBOR build. Library only — the SMILES→energy service that used to live here was abandoned in favour of the smiles_energy kata in Arn (consolidation roadmap, 2026-05-07)."
 repository = "https://github.com/ehrenfest-quantum/quasi"
-
-[[bin]]
-name = "quasi-bridge"
-path = "src/main.rs"
 
 [lib]
 name = "quasi_bridge"
 path = "src/lib.rs"
 
 [dependencies]
+# Afana types — needed by ehrenfest_mol (PauliTerm, EhrenfestProgram).
 afana = { path = "../afana" }
-quasi-solvayeur = { path = "../quasi-solvayeur" }
-quasi-scheduler = { path = "../quasi-scheduler" }
-quasi-cache = { path = "../quasi-cache" }
 
-# CBOR serialization (same as Afana)
+# CBOR serialization (matches Afana's wire format).
 ciborium = "0.2"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-# Linear algebra for RHF solver
+# Linear algebra for the RHF solver and exact diag.
 nalgebra = "0.33"
-
-# CLI
-clap = { version = "4", features = ["derive"] }
 
 # Error handling
 anyhow = "1"
