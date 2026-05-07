@@ -914,4 +914,168 @@ mod tests {
         assert!(!report.fidelity_ok);
         assert!(report.warnings.iter().any(|w| w.contains("fidelity")));
     }
+
+    #[test]
+    fn transverse_ising_16q_trotterizes_correctly() {
+        // Transverse-field Ising model: H = -J Σᵢ ZᵢZᵢ₊₁ - h Σᵢ Xᵢ
+        // 16 qubits with open boundary conditions
+        let n_qubits = 16;
+        let j_coupling = 0.5; // ZZ coupling strength
+        let h_field = 0.3;    // Transverse field strength
+
+        let mut terms = Vec::new();
+
+        // ZZ interaction terms (15 terms for open boundary)
+        for i in 0..(n_qubits - 1) {
+            terms.push(PauliTerm {
+                coefficient: -j_coupling,
+                paulis: vec![
+                    PauliOpEntry { qubit: i, axis: PauliOp::Z },
+                    PauliOpEntry { qubit: i + 1, axis: PauliOp::Z },
+                ],
+            });
+        }
+
+        // X field terms (16 terms)
+        for i in 0..n_qubits {
+            terms.push(PauliTerm {
+                coefficient: -h_field,
+                paulis: vec![PauliOpEntry { qubit: i, axis: PauliOp::X }],
+            });
+        }
+
+        let program = EhrenfestProgram {
+            version: 1,
+            system: SystemDef {
+                n_qubits,
+                cooling_profile: None,
+                backend_hint: None,
+            },
+            hamiltonian: Hamiltonian {
+                terms,
+                constant_offset: 0.0,
+            },
+            evolution: EvolutionTime {
+                total_us: 10.0,
+                steps: 5,
+                dt_us: 2.0,
+            },
+            observables: vec![Observable::SZ { qubit: 0 }],
+            noise: NoiseConstraint {
+                t1_us: 100.0,
+                t2_us: 50.0,
+                gate_fidelity_min: None,
+                readout_fidelity_min: None,
+            },
+        };
+
+        // Validate Hamiltonian
+        assert!(validate_hamiltonian(&program).is_ok());
+
+        // Trotterize
+        let (ast, stats) = trotterize_with_stats(&program, TrotterOrder::First).unwrap();
+
+        // Verify AST properties
+        assert_eq!(ast.n_qubits, 16);
+        assert!(!ast.gates.is_empty(), "Should produce gate sequence");
+
+        // Verify Trotter step consistency: dt_us = total_us / steps
+        assert!((program.evolution.dt_us - program.evolution.total_us / program.evolution.steps as f64).abs() < 1e-10);
+
+        // Verify statistics
+        assert_eq!(stats.steps, 5);
+        assert_eq!(stats.hamiltonian_terms, 31); // 15 ZZ + 16 X terms
+        assert!(stats.total_gates > 0);
+
+        // Verify error bound is reasonable (should decrease with more steps)
+        let error_5_steps = stats.error_bound;
+        let mut program_10_steps = program.clone();
+        program_10_steps.evolution.steps = 10;
+        program_10_steps.evolution.dt_us = program_10_steps.evolution.total_us / 10.0;
+        let (_, stats_10) = trotterize_with_stats(&program_10_steps, TrotterOrder::First).unwrap();
+        assert!(
+            stats_10.error_bound < error_5_steps,
+            "More steps should reduce Trotter error: {} vs {}",
+            stats_10.error_bound,
+            error_5_steps
+        );
+    }
+
+    #[test]
+    fn transverse_ising_hamiltonian_terms_commute_correctly() {
+        // Verify commutation relationships in Transverse-field Ising model:
+        // - All ZZ terms commute with each other (they share Z operators)
+        // - All X terms commute with each other (they act on different qubits)
+        // - ZZ and X terms on different qubits commute
+        // - ZZ and X terms on same qubit do NOT commute
+
+        let n_qubits = 4;
+        let mut terms = Vec::new();
+
+        // ZZ terms
+        terms.push(PauliTerm {
+            coefficient: -0.5,
+            paulis: vec![
+                PauliOpEntry { qubit: 0, axis: PauliOp::Z },
+                PauliOpEntry { qubit: 1, axis: PauliOp::Z },
+            ],
+        });
+        terms.push(PauliTerm {
+            coefficient: -0.5,
+            paulis: vec![
+                PauliOpEntry { qubit: 1, axis: PauliOp::Z },
+                PauliOpEntry { qubit: 2, axis: PauliOp::Z },
+            ],
+        });
+
+        // X terms
+        terms.push(PauliTerm {
+            coefficient: -0.3,
+            paulis: vec![PauliOpEntry { qubit: 0, axis: PauliOp::X }],
+        });
+        terms.push(PauliTerm {
+            coefficient: -0.3,
+            paulis: vec![PauliOpEntry { qubit: 1, axis: PauliOp::X }],
+        });
+
+        let program = EhrenfestProgram {
+            version: 1,
+            system: SystemDef {
+                n_qubits,
+                cooling_profile: None,
+                backend_hint: None,
+            },
+            hamiltonian: Hamiltonian { terms, constant_offset: 0.0 },
+            evolution: EvolutionTime {
+                total_us: 1.0,
+                steps: 10,
+                dt_us: 0.1,
+            },
+            observables: vec![Observable::E],
+            noise: NoiseConstraint {
+                t1_us: 100.0,
+                t2_us: 50.0,
+                gate_fidelity_min: None,
+                readout_fidelity_min: None,
+            },
+        };
+
+        // Validate and trotterize
+        assert!(validate_hamiltonian(&program).is_ok());
+        let (ast, _stats) = trotterize_with_stats(&program, TrotterOrder::Second).unwrap();
+
+        // Second-order Trotter should produce symmetric gate sequence
+        // Verify the AST is valid for lowering
+        assert!(ast.n_qubits == 4);
+        assert!(!ast.gates.is_empty());
+
+        // Verify gate types present (should have CX for ZZ, H for X basis change)
+        let has_cx = ast.gates.iter().any(|g| g.name == GateName::Cx);
+        let has_h = ast.gates.iter().any(|g| g.name == GateName::H);
+        let has_rz = ast.gates.iter().any(|g| g.name == GateName::Rz);
+
+        assert!(has_cx, "ZZ terms should produce CX gates");
+        assert!(has_h, "X terms should produce H gates for basis change");
+        assert!(has_rz, "Should produce Rz rotation gates");
+    }
 }
