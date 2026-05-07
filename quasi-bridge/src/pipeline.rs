@@ -126,53 +126,17 @@ pub fn run_molecule(smiles: &str, config: &PipelineConfig) -> Result<MolecularRe
         );
     }
 
-    // 8. Build Ehrenfest program and compile through Afana
-    let program =
-        ehrenfest_mol::build_ehrenfest_program(&pauli_terms, n_qubits, config.accuracy);
-    let cbor_bytes = ehrenfest_mol::to_cbor(&program);
-
-    // Verify Afana can parse and compile
-    let parsed = afana::cbor::from_cbor(&cbor_bytes)
-        .map_err(|e| BridgeError::AfanaCompile(e.to_string()))?;
-    let (ast, trotter_stats) = afana::trotter::trotterize_with_stats(
-        &parsed,
-        afana::trotter::TrotterOrder::Second,
-    )
-    .map_err(|e| BridgeError::AfanaCompile(e.to_string()))?;
-
-    let _qasm = afana::emit::emit_qasm(&ast, afana::emit::QasmVersion::V3)
-        .map_err(|e| BridgeError::AfanaCompile(e.to_string()))?;
-
-    if config.verbose {
-        eprintln!(
-            "Afana: {} gates, Trotter S2 {} steps, error bound {:.4} mHa",
-            trotter_stats.total_gates,
-            trotter_stats.steps,
-            trotter_stats.error_bound * 1000.0
-        );
-    }
-
-    // 9. Solvayeur backend selection (classical fallback)
-    let backends = make_simulator_backends();
-    let solvayeur = quasi_solvayeur::atw::Solvayeur::new(&backends);
-    let epoch_result = solvayeur
-        .decide()
-        .map_err(|e| BridgeError::Solvayeur(e.to_string()))?;
-    let backend_name = if epoch_result.backend_index < backends.len() {
-        backends[epoch_result.backend_index].id().to_string()
-    } else {
-        "huoma_statevector".into()
-    };
-    if config.verbose {
-        eprintln!(
-            "Solvayeur: epoch 0, exploration {:.2}, selected {} (index {})",
-            solvayeur.exploration(),
-            backend_name,
-            epoch_result.backend_index
-        );
-    }
-
-    // 10. Execute: exact diagonalization (equivalent to Huoma statevector)
+    // 8. Execute: exact diagonalization (equivalent to Huoma statevector).
+    //
+    // The afana Trotterization + solvayeur backend selection that used to
+    // sit between JW and execution were vestigial — their outputs were
+    // never consumed (the QASM3 was discarded; solvayeur always picked
+    // huoma_statevector). Removed in the consolidation cleanup
+    // (docs/CONSOLIDATION_ROADMAP_2026_05.md, Phase 1).
+    //
+    // Real-backend dispatch (Trotter compile + arvak submit + counts → energy)
+    // belongs in the kata's `execute` stage downstream, going through the
+    // garm-broker path. quasi-bridge stays purely classical.
     let energy = postprocess::ground_state_energy(&pauli_terms, n_qubits)?;
     if config.verbose {
         let elapsed = start.elapsed();
@@ -185,25 +149,17 @@ pub fn run_molecule(smiles: &str, config: &PipelineConfig) -> Result<MolecularRe
         eprintln!("Wall time: {:.1}s", elapsed.as_secs_f64());
     }
 
-    // 11. Build cache key (for future caching)
-    let _cache_key = quasi_cache::CacheKey::build(
-        &cbor_bytes,
-        &backend_name,
-        &BTreeMap::new(),
-        "v1",
-    );
-
     Ok(MolecularResult {
         energy,
-        trotter_error_bound_mha: trotter_stats.error_bound * 1000.0,
-        backend: backend_name,
+        trotter_error_bound_mha: 0.0,
+        backend: "huoma_statevector".into(),
         n_pauli_terms: pauli_terms.len(),
         n_qubits,
         smiles: smiles.into(),
         basis: config.basis.clone(),
+        trotter_steps: 0,
+        gate_count: 0,
         rhf_energy: rhf_result.energy,
-        trotter_steps: trotter_stats.steps,
-        gate_count: trotter_stats.total_gates,
     })
 }
 
