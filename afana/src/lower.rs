@@ -533,4 +533,49 @@ mod tests {
         assert!(zx.spider_count() > 6); // at least inputs + outputs
         assert!(zx.edge_count() > 3);
     }
+
+    #[test]
+    fn lower_transverse_ising_16q_validates() {
+        // Transverse-field Ising model on 16 qubits:
+        // H = -J Σᵢ ZᵢZᵢ₊₁ - h Σᵢ Xᵢ
+        // This test verifies the ZX-IR lowering works for a realistic 16-qubit model.
+        let n_qubits = 16;
+        let mut gates = Vec::new();
+
+        // ZZ interaction terms (open boundary conditions: 15 terms)
+        for i in 0..(n_qubits - 1) {
+            // ZZ term decomposition: CX(i,i+1), Rz(θ), CX(i,i+1)
+            // For testing, we use a simple pattern
+            gates.push(Gate { name: GateName::Cx, qubits: vec![i, i + 1], params: vec![] });
+            gates.push(Gate { name: GateName::Rz, qubits: vec![i + 1], params: vec![0.1] });
+            gates.push(Gate { name: GateName::Cx, qubits: vec![i, i + 1], params: vec![] });
+        }
+
+        // X field terms (16 terms)
+        for i in 0..n_qubits {
+            // X term decomposition: H, Rz(θ), H
+            gates.push(Gate { name: GateName::H, qubits: vec![i], params: vec![] });
+            gates.push(Gate { name: GateName::Rz, qubits: vec![i], params: vec![0.05] });
+            gates.push(Gate { name: GateName::H, qubits: vec![i], params: vec![] });
+        }
+
+        let ast = make_ast(n_qubits, gates);
+        let zx = lower_ast_to_zx(&ast).unwrap();
+
+        // Verify the ZX graph is valid
+        assert!(zx.validate().is_ok(), "ZX-IR validation failed for 16-qubit Transverse-field Ising model");
+
+        // Verify reasonable graph size
+        // 16 inputs + 16 outputs = 32 boundary spiders
+        // Each ZZ term: 2 CX gates × 2 spiders = 4 spiders × 15 terms = 60
+        // Each X term: 3 gates (H-Rz-H) × ~4 spiders = 12 spiders × 16 terms = 192
+        // Total should be well over 100 spiders
+        assert!(zx.spider_count() > 100, "ZX graph should have many spiders, got {}", zx.spider_count());
+        assert!(zx.edge_count() > 50, "ZX graph should have many edges, got {}", zx.edge_count());
+
+        // Verify all 16 qubits are represented in inputs and outputs
+        assert_eq!(zx.spider_count(), zx.inputs.len() + zx.outputs.len() + (zx.spider_count() - 32));
+        assert_eq!(zx.inputs.len(), 16, "Should have 16 input boundaries");
+        assert_eq!(zx.outputs.len(), 16, "Should have 16 output boundaries");
+    }
 }
