@@ -28,5 +28,5 @@ pub mod trotter;
 pub mod type_check;
 pub mod sword_ingest;
 pub mod zx_ir;
-pub mod validate;
+
 pub mod zx_to_qasm;
