@@ -554,6 +554,54 @@ mod tests {
         }
     }
 
+    /// Floquet Hamiltonian with time-dependent driving field (12 qubits).
+    /// H = J Σᵢ ZᵢZᵢ₊₁ + Ω Σᵢ Xᵢ — periodic driving captured via Trotter steps.
+    fn floquet_12q_program() -> EhrenfestProgram {
+        // ZZ interaction terms for 12-qubit chain (11 bonds)
+        let zz_terms: Vec<PauliTerm> = (0..11)
+            .map(|i| PauliTerm {
+                coefficient: 0.5,
+                paulis: vec![
+                    PauliOpEntry { qubit: i, axis: PauliOp::Z },
+                    PauliOpEntry { qubit: i + 1, axis: PauliOp::Z },
+                ],
+            })
+            .collect();
+
+        // X driving field on all 12 qubits
+        let x_terms: Vec<PauliTerm> = (0..12)
+            .map(|i| PauliTerm {
+                coefficient: 0.3,
+                paulis: vec![PauliOpEntry { qubit: i, axis: PauliOp::X }],
+            })
+            .collect();
+
+        EhrenfestProgram {
+            version: 1,
+            system: SystemDef {
+                n_qubits: 12,
+                cooling_profile: None,
+                backend_hint: None,
+            },
+            hamiltonian: Hamiltonian {
+                terms: [zz_terms, x_terms].concat(),
+                constant_offset: 0.0,
+            },
+            evolution: EvolutionTime {
+                total_us: 10.0,
+                steps: 20,
+                dt_us: 0.5,
+            },
+            observables: vec![Observable::SZ { qubit: 0 }, Observable::E],
+            noise: NoiseConstraint {
+                t1_us: 100.0,
+                t2_us: 50.0,
+                gate_fidelity_min: Some(0.99),
+                readout_fidelity_min: None,
+            },
+        }
+    }
+
     fn two_term_program() -> EhrenfestProgram {
         EhrenfestProgram {
             version: 1,
