@@ -290,4 +290,122 @@ mod tests {
         let decoded: Vec<Observable> = ciborium::from_reader(&buf[..]).unwrap();
         assert_eq!(decoded, obs);
     }
+
+    #[test]
+    fn quantum_random_walk_2d_8x8_cborm_roundtrip_and_zx_ir() {
+        use crate::trotter::{trotterize, TrotterOrder};
+        use crate::lower::lower_ast_to_zx;
+
+        // Build a 2D quantum random walk Hamiltonian on an 8x8 grid (64 qubits).
+        // Uses XX + YY couplings between adjacent sites (tight-binding model).
+        let n = 8;
+        let n_qubits = n * n; // 64 qubits
+
+        let mut terms = Vec::new();
+        let coeff = 0.5;
+
+        // Horizontal couplings: (i,j) <-> (i,j+1)
+        for row in 0..n {
+            for col in 0..n - 1 {
+                let q1 = row * n + col;
+                let q2 = row * n + col + 1;
+                // XX term
+                terms.push(PauliTerm {
+                    coefficient: coeff,
+                    paulis: vec![
+                        PauliOpEntry { qubit: q1, axis: PauliOp::X },
+                        PauliOpEntry { qubit: q2, axis: PauliOp::X },
+                    ],
+                });
+                // YY term
+                terms.push(PauliTerm {
+                    coefficient: coeff,
+                    paulis: vec![
+                        PauliOpEntry { qubit: q1, axis: PauliOp::Y },
+                        PauliOpEntry { qubit: q2, axis: PauliOp::Y },
+                    ],
+                });
+            }
+        }
+
+        // Vertical couplings: (i,j) <-> (i+1,j)
+        for row in 0..n - 1 {
+            for col in 0..n {
+                let q1 = row * n + col;
+                let q2 = (row + 1) * n + col;
+                // XX term
+                terms.push(PauliTerm {
+                    coefficient: coeff,
+                    paulis: vec![
+                        PauliOpEntry { qubit: q1, axis: PauliOp::X },
+                        PauliOpEntry { qubit: q2, axis: PauliOp::X },
+                    ],
+                });
+                // YY term
+                terms.push(PauliTerm {
+                    coefficient: coeff,
+                    paulis: vec![
+                        PauliOpEntry { qubit: q1, axis: PauliOp::Y },
+                        PauliOpEntry { qubit: q2, axis: PauliOp::Y },
+                    ],
+                });
+            }
+        }
+
+        let program = EhrenfestProgram {
+            version: 1,
+            system: SystemDef {
+                n_qubits,
+                cooling_profile: None,
+                backend_hint: None,
+            },
+            hamiltonian: Hamiltonian {
+                terms,
+                constant_offset: 0.0,
+            },
+            evolution: EvolutionTime {
+                total_us: 100.0,
+                steps: 10,
+                dt_us: 10.0,
+            },
+            observables: vec![Observable::SZ { qubit: 0 }],
+            noise: NoiseConstraint {
+                t1_us: 100.0,
+                t2_us: 50.0,
+                gate_fidelity_min: None,
+                readout_fidelity_min: None,
+            },
+        };
+
+        // Serialize to CBOR.
+        let mut buf = Vec::new();
+        ciborium::into_writer(&program, &mut buf).unwrap();
+
+        // Deserialize and verify roundtrip.
+        let decoded = from_cbor(&buf).unwrap();
+        assert_eq!(decoded.version, 1);
+        assert_eq!(decoded.system.n_qubits, 64);
+        // 8*7*2 + 7*8*2 = 112 + 112 = 224 terms (XX+YY for each edge)
+        assert_eq!(decoded.hamiltonian.terms.len(), 224);
+        assert_eq!(decoded.evolution.steps, 10);
+        assert_eq!(decoded.evolution.total_us, 100.0);
+
+        // Trotterize to AST.
+        let ast = trotterize(&decoded, TrotterOrder::First);
+        assert_eq!(ast.n_qubits, 64);
+        assert!(!ast.gates.is_empty(), "should produce gate sequence for 2D walk");
+
+        // Lower to ZX-IR and validate.
+        let zx = lower_ast_to_zx(&ast).expect("ZX-IR lowering should succeed for 2D quantum walk");
+        zx.validate().expect("ZX-IR should be valid");
+
+        // Verify ZX graph has substantial structure (64 inputs + 64 outputs + many gate spiders).
+        assert!(zx.spider_count() > 128, "ZX graph should have many spiders for 2D walk");
+        assert!(zx.edge_count() > 128, "ZX graph should have many edges for 2D walk");
+
+        // Verify hex encoding roundtrip.
+        let hex = hex::encode(&buf);
+        let decoded_bytes = hex::decode(&hex).unwrap();
+        assert_eq!(decoded_bytes, buf);
+    }
 }
