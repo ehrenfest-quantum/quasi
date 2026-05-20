@@ -157,6 +157,20 @@ pub const PROVIDERS: &[(&str, Provider)] = &[
         },
     ),
     (
+        // NVIDIA NIM (build.nvidia.com) — OpenAI-compatible /v1/chat/completions.
+        // Free-tier credits per model with rate limits; hosts NVIDIA's own
+        // Nemotron line plus DeepSeek, Meta, Mistral, Qwen and gpt-oss models.
+        "nvidia",
+        Provider {
+            url: "https://integrate.api.nvidia.com/v1/chat/completions",
+            env_var: "NVIDIA_API_KEY",
+            extra_headers: &[("User-Agent", "quasi-agent/1.0 (https://quasi.arvak.io)")],
+            verify_header: None,
+            timeout_secs: 120,
+            url_env_var: None,
+        },
+    ),
+    (
         // Self-hosted Ollama backend reachable on a private tailnet.
         // The endpoint is read from $OLLAMA_URL at call time (e.g.
         // http://mac-studio:11434/v1/chat/completions). No API key.

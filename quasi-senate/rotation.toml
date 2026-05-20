@@ -393,3 +393,29 @@ provider = "cerebras"
 license = "Apache-2.0"
 origin = "China / Alibaba"
 roles = ["a2_drafter", "b1_solver"]
+
+# ── NVIDIA NIM (build.nvidia.com — free-tier credits, rate-limited) ──────────
+
+[[rotation]]
+id = "nemotron-super-49b-nim"
+model = "nvidia/llama-3.3-nemotron-super-49b-v1"
+provider = "nvidia"
+license = "NVIDIA Open Model"
+origin = "US / NVIDIA"
+roles = ["a1_council", "a3_gate", "b2_reviewer"]
+
+[[rotation]]
+id = "llama3.3-70b-nim"
+model = "meta/llama-3.3-70b-instruct"
+provider = "nvidia"
+license = "Llama Community"
+origin = "US / Meta"
+roles = ["a2_drafter", "b1_solver"]
+
+[[rotation]]
+id = "gpt-oss-120b-nim"
+model = "openai/gpt-oss-120b"
+provider = "nvidia"
+license = "Open"
+origin = "US / OpenAI"
+roles = ["a2_drafter", "b1_solver"]
