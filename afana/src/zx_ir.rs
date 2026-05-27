@@ -56,6 +56,9 @@ pub enum ZxValidationError {
     #[error("invalid phase at node {node}: {phase} is not finite")]
     InvalidPhase { node: NodeId, phase: f64 },
 
+    #[error("phase out of range at node {node}: {phase} not in [0, 2) (multiples of π)")]
+    PhaseOutOfRange { node: NodeId, phase: f64 },
+
     #[error("invalid boundary node {node}: {reason}")]
     InvalidBoundary { node: NodeId, reason: String },
 
@@ -216,6 +219,58 @@ impl ZxGraph {
             Err(errors)
         }
     }
+
+    /// Stricter variant of [`Self::validate`] that additionally rejects
+    /// spider phases outside the canonical range `[0, 2)` (in units of π).
+    ///
+    /// Used as the final gate before QASM emission: after [`Self::normalize_phases`]
+    /// has run, any phase still outside `[0, 2)` indicates an upstream bug.
+    /// Lowering passes routinely produce un-normalised phases (e.g. `-0.5`
+    /// for `Sdg`, or `theta / π` for `Rx(θ)`), so [`Self::validate`] must
+    /// stay permissive — call this method only after normalization.
+    pub fn validate_normalized(&self) -> Result<(), Vec<ZxValidationError>> {
+        let mut errors = match self.validate() {
+            Ok(()) => Vec::new(),
+            Err(e) => e,
+        };
+
+        for (i, spider) in self.spiders.iter().enumerate() {
+            if !spider.phase.is_finite() {
+                // Already reported by validate(); skip to avoid duplicate noise.
+                continue;
+            }
+            if !(0.0..2.0).contains(&spider.phase) {
+                errors.push(ZxValidationError::PhaseOutOfRange {
+                    node: i,
+                    phase: spider.phase,
+                });
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+
+    /// Reduce every spider phase to its canonical representative in
+    /// `[0, 2)` (in units of π). ZX-calculus phases are equivalent modulo
+    /// 2π, so normalisation is semantics-preserving.
+    ///
+    /// No-op for spiders whose phase is non-finite — those are caught by
+    /// [`Self::validate`].
+    pub fn normalize_phases(&mut self) {
+        for spider in self.spiders.iter_mut() {
+            if !spider.phase.is_finite() {
+                continue;
+            }
+            // Rust's `%` keeps the sign of the dividend: ((-0.5) % 2.0) == -0.5.
+            // The (x % 2 + 2) % 2 idiom guarantees a result in [0, 2).
+            let p = spider.phase.rem_euclid(2.0);
+            spider.phase = p;
+        }
+    }
 }
 
 impl Default for ZxGraph {
@@ -338,5 +393,75 @@ mod tests {
         let mut n = g.neighbors(a);
         n.sort();
         assert_eq!(n, vec![b, c]);
+    }
+
+    // ── Phase normalization + strict validation ────────────────────────────
+
+    #[test]
+    fn validate_normalized_accepts_in_range() {
+        let mut g = ZxGraph::new();
+        g.add_spider(SpiderColor::Z, 0.0, None);
+        g.add_spider(SpiderColor::X, 0.5, None);
+        g.add_spider(SpiderColor::Z, 1.9999, None);
+        assert!(g.validate_normalized().is_ok());
+    }
+
+    #[test]
+    fn validate_normalized_rejects_negative_phase() {
+        let mut g = ZxGraph::new();
+        g.add_spider(SpiderColor::Z, -0.5, None);
+        let errs = g.validate_normalized().unwrap_err();
+        assert!(errs.iter().any(|e| matches!(
+            e,
+            ZxValidationError::PhaseOutOfRange { phase, .. } if *phase == -0.5
+        )));
+    }
+
+    #[test]
+    fn validate_normalized_rejects_phase_at_or_above_two() {
+        let mut g = ZxGraph::new();
+        g.add_spider(SpiderColor::Z, 2.0, None);
+        g.add_spider(SpiderColor::X, 7.0, None);
+        let errs = g.validate_normalized().unwrap_err();
+        let out_of_range: Vec<_> = errs
+            .iter()
+            .filter(|e| matches!(e, ZxValidationError::PhaseOutOfRange { .. }))
+            .collect();
+        assert_eq!(out_of_range.len(), 2);
+    }
+
+    #[test]
+    fn normalize_phases_brings_negative_into_range() {
+        let mut g = ZxGraph::new();
+        g.add_spider(SpiderColor::Z, -0.5, None);
+        g.normalize_phases();
+        assert!((g.spider(0).phase - 1.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn normalize_phases_brings_large_into_range() {
+        let mut g = ZxGraph::new();
+        g.add_spider(SpiderColor::Z, 7.0, None);
+        g.normalize_phases();
+        // 7.0 mod 2 = 1.0
+        assert!((g.spider(0).phase - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn normalize_then_validate_succeeds() {
+        let mut g = ZxGraph::new();
+        g.add_spider(SpiderColor::Z, -0.5, None);
+        g.add_spider(SpiderColor::X, 7.0, None);
+        g.add_spider(SpiderColor::Z, 100.25, None);
+        g.normalize_phases();
+        assert!(g.validate_normalized().is_ok());
+    }
+
+    #[test]
+    fn normalize_phases_leaves_nan_alone() {
+        let mut g = ZxGraph::new();
+        g.add_spider(SpiderColor::Z, f64::NAN, None);
+        g.normalize_phases();
+        assert!(g.spider(0).phase.is_nan());
     }
 }
