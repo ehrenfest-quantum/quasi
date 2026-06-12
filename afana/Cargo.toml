@@ -38,3 +38,4 @@ regex = "1"
 [dev-dependencies]
 tempfile = "3"
 pretty_assertions = "1"
+proptest = "1"

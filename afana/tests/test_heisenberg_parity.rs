@@ -1,7 +1,6 @@
 // Integration test for Heisenberg model parity validation.
 // Confirms that all benchmark Heisenberg model programs pass parity validation.
 
-use afana::ast::Gate;
 use afana::cbor::*;
 use afana::trotter::{trotterize, TrotterOrder};
 use afana::validate::{validate_gate_parity, ParityValidationResult};
