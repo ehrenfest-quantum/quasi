@@ -4,7 +4,7 @@
 
 use afana::ast::{EhrenfestAst, Gate, GateName, Measure};
 use afana::emit::{emit_qasm, QasmVersion};
-use afana::zx_to_qasm::{decompose_spider_pair, Graph, Node, Type};
+use afana::zx_to_qasm::{decompose_spider_pair, Graph, Type};
 
 /// Build a ZX graph representing two adjacent Z-spiders with phase π.
 fn cz_spider_graph() -> Graph {
