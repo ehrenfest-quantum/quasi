@@ -25,10 +25,6 @@ pub struct CacheStats {
     pub misses: u64,
     pub entries: usize,
     pub evictions: u64,
-    /// Total lookup time in microseconds.
-    pub total_lookup_time_us: u64,
-    /// Number of lookups performed.
-    pub lookup_count: u64,
 }
 
 impl CacheStats {
@@ -39,15 +35,6 @@ impl CacheStats {
             0.0
         } else {
             self.hits as f64 / total as f64
-        }
-    }
-
-    /// Compute average lookup time in microseconds.
-    pub fn avg_lookup_time_us(&self) -> f64 {
-        if self.lookup_count == 0 {
-            0.0
-        } else {
-            self.total_lookup_time_us as f64 / self.lookup_count as f64
         }
     }
 
@@ -186,8 +173,6 @@ impl CacheStore {
             misses: self.misses.load(Ordering::Relaxed),
             entries: self.l1.entry_count() as usize,
             evictions: self.evictions.load(Ordering::Relaxed),
-            total_lookup_time_us: 0,
-            lookup_count: 0,
         }
     }
 
