@@ -501,7 +501,6 @@ mod tests {
         assert_eq!(n, vec![b, c]);
     }
 
-<<<<<<< HEAD
     // ── Phase normalization + strict validation ────────────────────────────
 
     #[test]
