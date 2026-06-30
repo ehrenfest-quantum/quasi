@@ -7,6 +7,7 @@ description = "Content-addressed result cache for QUASI quantum computations"
 
 [dependencies]
 blake3 = "1"
+moka = { version = "0.12", features = ["sync"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"

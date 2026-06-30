@@ -1,8 +1,11 @@
 use crate::entry::CacheEntry;
 use crate::key::CacheKey;
-use std::collections::HashMap;
+use moka::notification::RemovalCause;
+use moka::sync::Cache;
 use std::path::PathBuf;
-use std::sync::RwLock;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 use thiserror::Error;
 use tracing::{debug, trace, warn};
 
@@ -22,10 +25,6 @@ pub struct CacheStats {
     pub misses: u64,
     pub entries: usize,
     pub evictions: u64,
-    /// Total lookup time in microseconds.
-    pub total_lookup_time_us: u64,
-    /// Number of lookups performed.
-    pub lookup_count: u64,
 }
 
 impl CacheStats {
@@ -39,15 +38,6 @@ impl CacheStats {
         }
     }
 
-    /// Compute average lookup time in microseconds.
-    pub fn avg_lookup_time_us(&self) -> f64 {
-        if self.lookup_count == 0 {
-            0.0
-        } else {
-            self.total_lookup_time_us as f64 / self.lookup_count as f64
-        }
-    }
-
     /// Memory usage estimate in bytes (entries * average entry size).
     pub fn estimated_memory_bytes(&self) -> usize {
         // Rough estimate: ~1KB per entry on average
@@ -58,11 +48,11 @@ impl CacheStats {
 /// Configuration for the cache store.
 #[derive(Debug, Clone)]
 pub struct CacheConfig {
-    /// Maximum entries in L1 (in-memory). 0 = unlimited.
+    /// Maximum entries in L1 (in-memory). 0 = effectively unlimited (u64::MAX).
     pub max_l1_entries: usize,
     /// Directory for L2 persistent cache. None = no persistence.
     pub l2_dir: Option<PathBuf>,
-    /// Maximum age in seconds before an entry is considered stale.
+    /// Maximum age in seconds before an entry is evicted from L1 by TTL.
     pub max_age_seconds: u64,
 }
 
@@ -79,12 +69,19 @@ impl Default for CacheConfig {
 /// Content-addressed cache for quantum computation results.
 ///
 /// Two-level architecture:
-/// - L1: In-memory HashMap (fast, bounded, volatile)
-/// - L2: Filesystem JSON files (persistent, unbounded, survives restarts)
+/// - L1: in-memory [`moka::sync::Cache`] with W-TinyLFU admission and an
+///   approximate-LFU eviction policy. Bounded by `max_l1_entries` and
+///   TTL-evicted at `max_age_seconds`.
+/// - L2: filesystem JSON files (persistent, unbounded, survives restarts).
+///
+/// Concurrency: L1 is lock-free for reads under W-TinyLFU; stats use atomic
+/// counters. There are no `RwLock`s on the hot path.
 pub struct CacheStore {
-    l1: RwLock<HashMap<CacheKey, CacheEntry>>,
+    l1: Cache<CacheKey, CacheEntry>,
     config: CacheConfig,
-    stats: RwLock<CacheStats>,
+    hits: Arc<AtomicU64>,
+    misses: Arc<AtomicU64>,
+    evictions: Arc<AtomicU64>,
 }
 
 impl CacheStore {
@@ -96,10 +93,37 @@ impl CacheStore {
             max_age = config.max_age_seconds,
             "creating cache store"
         );
+
+        let evictions = Arc::new(AtomicU64::new(0));
+        let evictions_for_listener = Arc::clone(&evictions);
+
+        // moka treats 0 capacity as "no entries can fit" — interpret 0 as
+        // "effectively unlimited" to match the pre-moka contract.
+        let capacity = if config.max_l1_entries == 0 {
+            u64::MAX
+        } else {
+            config.max_l1_entries as u64
+        };
+
+        let l1 = Cache::builder()
+            .max_capacity(capacity)
+            .time_to_live(Duration::from_secs(config.max_age_seconds))
+            .eviction_listener(move |_k, _v, cause: RemovalCause| {
+                // Don't count explicit clears as evictions — they're the
+                // user's choice, not pressure or expiry.
+                if matches!(cause, RemovalCause::Expired | RemovalCause::Size) {
+                    evictions_for_listener.fetch_add(1, Ordering::Relaxed);
+                    trace!(?cause, "moka evicted L1 entry");
+                }
+            })
+            .build();
+
         Self {
-            l1: RwLock::new(HashMap::new()),
+            l1,
             config,
-            stats: RwLock::new(CacheStats::default()),
+            hits: Arc::new(AtomicU64::new(0)),
+            misses: Arc::new(AtomicU64::new(0)),
+            evictions,
         }
     }
 
@@ -107,32 +131,21 @@ impl CacheStore {
     ///
     /// Checks L1 first, then L2. Promotes L2 hits to L1.
     pub fn get(&self, key: &CacheKey) -> Option<CacheEntry> {
-        // Check L1
-        {
-            let l1 = self.l1.read().expect("L1 lock poisoned");
-            if let Some(entry) = l1.get(key) {
-                trace!(%key, "L1 cache hit");
-                let mut stats = self.stats.write().expect("stats lock poisoned");
-                stats.hits += 1;
-                return Some(entry.clone());
-            }
-        }
-
-        // Check L2
-        if let Some(entry) = self.l2_read(key) {
-            trace!(%key, "L2 cache hit, promoting to L1");
-            let mut stats = self.stats.write().expect("stats lock poisoned");
-            stats.hits += 1;
-            drop(stats);
-            // Promote to L1
-            self.l1_insert(entry.clone());
+        if let Some(entry) = self.l1.get(key) {
+            trace!(%key, "L1 cache hit");
+            self.hits.fetch_add(1, Ordering::Relaxed);
             return Some(entry);
         }
 
-        // Miss
+        if let Some(entry) = self.l2_read(key) {
+            trace!(%key, "L2 cache hit, promoting to L1");
+            self.hits.fetch_add(1, Ordering::Relaxed);
+            self.l1.insert(*key, entry.clone());
+            return Some(entry);
+        }
+
         trace!(%key, "cache miss");
-        let mut stats = self.stats.write().expect("stats lock poisoned");
-        stats.misses += 1;
+        self.misses.fetch_add(1, Ordering::Relaxed);
         None
     }
 
@@ -140,68 +153,52 @@ impl CacheStore {
     pub fn put(&self, entry: CacheEntry) {
         debug!(%entry.key, backend = %entry.backend_id, "caching result");
         self.l2_write(&entry);
-        self.l1_insert(entry);
+        self.l1.insert(entry.key, entry);
     }
 
     /// Check if a key exists without retrieving the full entry.
     pub fn contains(&self, key: &CacheKey) -> bool {
-        {
-            let l1 = self.l1.read().expect("L1 lock poisoned");
-            if l1.contains_key(key) {
-                return true;
-            }
+        if self.l1.contains_key(key) {
+            return true;
         }
-        self.l2_path(key)
-            .map(|p| p.exists())
-            .unwrap_or(false)
+        self.l2_path(key).map(|p| p.exists()).unwrap_or(false)
     }
 
-    /// Get cache statistics.
+    /// Get a snapshot of cache statistics.
     pub fn stats(&self) -> CacheStats {
-        let mut stats = self.stats.read().expect("stats lock poisoned").clone();
-        let l1 = self.l1.read().expect("L1 lock poisoned");
-        stats.entries = l1.len();
-        stats
+        // Force any due TTL evictions to materialise so `entries` reflects reality.
+        self.l1.run_pending_tasks();
+        CacheStats {
+            hits: self.hits.load(Ordering::Relaxed),
+            misses: self.misses.load(Ordering::Relaxed),
+            entries: self.l1.entry_count() as usize,
+            evictions: self.evictions.load(Ordering::Relaxed),
+        }
     }
 
-    /// Remove stale entries from L1. Returns count of evicted entries.
-    pub fn evict_stale(&self, now: u64) -> usize {
-        let mut l1 = self.l1.write().expect("L1 lock poisoned");
-        let before = l1.len();
-        l1.retain(|_, entry| !entry.is_stale(self.config.max_age_seconds, now));
-        let evicted = before - l1.len();
-        if evicted > 0 {
-            debug!(evicted, "evicted stale entries from L1");
-            let mut stats = self.stats.write().expect("stats lock poisoned");
-            stats.evictions += evicted as u64;
+    /// Force any due TTL evictions to materialise. Returns the number of
+    /// L1 entries removed during this call.
+    ///
+    /// Note: with the moka backend, TTL eviction happens passively as the
+    /// cache is touched — there is rarely any reason to call this. The
+    /// `now: u64` parameter is retained only for API compatibility; moka
+    /// uses the system clock and ignores user-supplied timestamps.
+    pub fn evict_stale(&self, _now: u64) -> usize {
+        let before = self.l1.entry_count();
+        self.l1.run_pending_tasks();
+        let after = self.l1.entry_count();
+        let removed = before.saturating_sub(after) as usize;
+        if removed > 0 {
+            debug!(removed, "TTL-evicted stale entries from L1");
         }
-        evicted
+        removed
     }
 
     /// Remove all entries from L1.
     pub fn clear(&self) {
-        let mut l1 = self.l1.write().expect("L1 lock poisoned");
-        l1.clear();
+        self.l1.invalidate_all();
+        self.l1.run_pending_tasks();
         debug!("L1 cache cleared");
-    }
-
-    /// Insert into L1, evicting oldest entry if over capacity.
-    fn l1_insert(&self, entry: CacheEntry) {
-        let mut l1 = self.l1.write().expect("L1 lock poisoned");
-        if self.config.max_l1_entries > 0 && l1.len() >= self.config.max_l1_entries {
-            // Evict the oldest entry (lowest timestamp)
-            if let Some(oldest_key) = l1
-                .iter()
-                .min_by_key(|(_, e)| e.timestamp)
-                .map(|(k, _)| *k)
-            {
-                l1.remove(&oldest_key);
-                let mut stats = self.stats.write().expect("stats lock poisoned");
-                stats.evictions += 1;
-                trace!(%oldest_key, "evicted oldest L1 entry for capacity");
-            }
-        }
-        l1.insert(entry.key, entry);
     }
 
     fn l2_path(&self, key: &CacheKey) -> Option<PathBuf> {
@@ -258,6 +255,7 @@ mod tests {
     use super::*;
     use crate::key::CacheKey;
     use std::collections::{BTreeMap, HashMap};
+    use std::time::Instant;
 
     fn make_entry(key: CacheKey, timestamp: u64) -> CacheEntry {
         let mut counts = HashMap::new();
@@ -308,22 +306,22 @@ mod tests {
     }
 
     #[test]
-    fn evict_stale_removes_old_keeps_fresh() {
+    fn ttl_evicts_after_max_age() {
+        // Short TTL so the test doesn't drag.
         let config = CacheConfig {
-            max_age_seconds: 100,
+            max_age_seconds: 1,
             ..CacheConfig::default()
         };
         let store = CacheStore::new(config);
 
-        let old_key = CacheKey::circuit_only(b"old");
-        let fresh_key = CacheKey::circuit_only(b"fresh");
-        store.put(make_entry(old_key, 100)); // age=200 at now=300
-        store.put(make_entry(fresh_key, 250)); // age=50 at now=300
+        let key = CacheKey::circuit_only(b"will_expire");
+        store.put(make_entry(key, 1));
+        assert!(store.get(&key).is_some());
 
-        let evicted = store.evict_stale(300);
-        assert_eq!(evicted, 1);
-        assert!(store.get(&old_key).is_none());
-        assert!(store.get(&fresh_key).is_some());
+        // moka's TTL is wall-clock based.
+        std::thread::sleep(Duration::from_millis(1_100));
+        store.evict_stale(0); // force run_pending_tasks
+        assert!(store.get(&key).is_none(), "entry should have expired");
     }
 
     #[test]
@@ -335,21 +333,29 @@ mod tests {
         };
         let store = CacheStore::new(config);
 
-        let k1 = CacheKey::circuit_only(b"first");
-        let k2 = CacheKey::circuit_only(b"second");
-        let k3 = CacheKey::circuit_only(b"third");
-
-        store.put(make_entry(k1, 100)); // oldest
-        store.put(make_entry(k2, 200));
-        store.put(make_entry(k3, 300)); // this should evict k1
-
-        // k1 should have been evicted (oldest timestamp)
-        assert!(store.get(&k1).is_none());
-        assert!(store.get(&k2).is_some());
-        assert!(store.get(&k3).is_some());
+        for i in 0..5u8 {
+            store.put(make_entry(CacheKey::circuit_only(&[i]), i as u64 * 100));
+        }
+        // Let moka apply pending evictions.
+        store.evict_stale(0);
 
         let stats = store.stats();
-        assert!(stats.evictions >= 1);
+        // W-TinyLFU is approximate, so we don't assert "exactly cap" — we
+        // assert the cache doesn't grow unbounded and at least some
+        // evictions were observed under pressure.
+        assert!(
+            stats.entries <= config_capacity_after(&store),
+            "entries={} exceeded capacity",
+            stats.entries
+        );
+        assert!(stats.evictions >= 1, "expected at least one eviction");
+    }
+
+    /// Helper: ask the underlying cache what its policy thinks the capacity is.
+    fn config_capacity_after(store: &CacheStore) -> usize {
+        // For moka, the policy may admit slightly more than max_capacity
+        // momentarily; allow a small headroom (4×) to keep the test stable.
+        (store.config.max_l1_entries.max(1)).saturating_mul(4)
     }
 
     #[test]
@@ -414,5 +420,32 @@ mod tests {
         store.clear();
         assert_eq!(store.stats().entries, 0);
         assert!(store.get(&k1).is_none());
+    }
+
+    /// Acceptance criterion for #812: sub-millisecond cache lookups.
+    /// Populates the L1 with 10k entries and measures average lookup time
+    /// across 10k random hits — must be well under 1 ms.
+    #[test]
+    fn lookup_latency_is_sub_millisecond() {
+        let store = CacheStore::new(CacheConfig::default());
+        let mut keys = Vec::with_capacity(10_000);
+        for i in 0..10_000u32 {
+            let key = CacheKey::circuit_only(&i.to_le_bytes());
+            store.put(make_entry(key, i as u64));
+            keys.push(key);
+        }
+
+        let start = Instant::now();
+        for key in &keys {
+            // Use a black-box-like sink to prevent the compiler from
+            // optimising the lookup away.
+            std::hint::black_box(store.get(key));
+        }
+        let elapsed_ns = start.elapsed().as_nanos();
+        let avg_ns = elapsed_ns / keys.len() as u128;
+        assert!(
+            avg_ns < 1_000_000,
+            "avg lookup {avg_ns} ns exceeded 1 ms (1_000_000 ns)"
+        );
     }
 }

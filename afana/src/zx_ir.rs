@@ -56,6 +56,16 @@ pub enum ZxValidationError {
     #[error("invalid phase at node {node}: {phase} is not finite")]
     InvalidPhase { node: NodeId, phase: f64 },
 
+    #[error("phase out of range at node {node}: {phase} not in [0, 2) (multiples of π)")]
+    PhaseOutOfRange { node: NodeId, phase: f64 },
+
+    #[error("nodes {a} and {b} are an unfused same-color pair on qubit {qubit}")]
+    UnfusedAdjacentSpiders {
+        a: NodeId,
+        b: NodeId,
+        qubit: usize,
+    },
+
     #[error("invalid boundary node {node}: {reason}")]
     InvalidBoundary { node: NodeId, reason: String },
 
@@ -216,6 +226,133 @@ impl ZxGraph {
             Err(errors)
         }
     }
+
+    /// Stricter variant of [`Self::validate`] that additionally rejects
+    /// spider phases outside the canonical range `[0, 2)` (in units of π).
+    ///
+    /// Used as the final gate before QASM emission: after [`Self::normalize_phases`]
+    /// has run, any phase still outside `[0, 2)` indicates an upstream bug.
+    /// Lowering passes routinely produce un-normalised phases (e.g. `-0.5`
+    /// for `Sdg`, or `theta / π` for `Rx(θ)`), so [`Self::validate`] must
+    /// stay permissive — call this method only after normalization.
+    pub fn validate_normalized(&self) -> Result<(), Vec<ZxValidationError>> {
+        let mut errors = match self.validate() {
+            Ok(()) => Vec::new(),
+            Err(e) => e,
+        };
+
+        for (i, spider) in self.spiders.iter().enumerate() {
+            if !spider.phase.is_finite() {
+                // Already reported by validate(); skip to avoid duplicate noise.
+                continue;
+            }
+            if !(0.0..2.0).contains(&spider.phase) {
+                errors.push(ZxValidationError::PhaseOutOfRange {
+                    node: i,
+                    phase: spider.phase,
+                });
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+
+    /// Reduce every spider phase to its canonical representative in
+    /// `[0, 2)` (in units of π). ZX-calculus phases are equivalent modulo
+    /// 2π, so normalisation is semantics-preserving.
+    ///
+    /// No-op for spiders whose phase is non-finite — those are caught by
+    /// [`Self::validate`].
+    pub fn normalize_phases(&mut self) {
+        for spider in self.spiders.iter_mut() {
+            if !spider.phase.is_finite() {
+                continue;
+            }
+            // Rust's `%` keeps the sign of the dividend: ((-0.5) % 2.0) == -0.5.
+            // The (x % 2 + 2) % 2 idiom guarantees a result in [0, 2).
+            let p = spider.phase.rem_euclid(2.0);
+            spider.phase = p;
+        }
+    }
+
+    /// Find all pairs of spiders that should fuse under the ZX-calculus
+    /// spider-fusion rule: two spiders connected by an edge, sharing the
+    /// same color, both tagged with the same qubit-wire. Such a pair
+    /// composes to a single spider with summed phase — leaving them
+    /// un-fused on a canonical graph is a bug in the optimiser.
+    ///
+    /// The check captures the "parity" property of single-qubit gate
+    /// sequences: an un-fused pair of phase-1 X-spiders represents X²
+    /// (identity), an un-fused pair of phase-0 Z-spiders is also the
+    /// identity, etc. Validation surfaces these residual sequences so a
+    /// downstream pass can collapse them.
+    ///
+    /// Returns `(a, b)` pairs with `a < b`. Each pair appears at most once
+    /// regardless of how many edges connect the two nodes.
+    pub fn find_fusible_pairs(&self) -> Vec<(NodeId, NodeId)> {
+        let mut seen: std::collections::HashSet<(NodeId, NodeId)> =
+            std::collections::HashSet::new();
+
+        for &(raw_a, raw_b) in &self.edges {
+            if raw_a == raw_b {
+                continue; // self-loop, already flagged by validate()
+            }
+            let (a, b) = if raw_a < raw_b {
+                (raw_a, raw_b)
+            } else {
+                (raw_b, raw_a)
+            };
+            if a >= self.spiders.len() || b >= self.spiders.len() {
+                continue; // out-of-range, already flagged by validate()
+            }
+
+            let sa = &self.spiders[a];
+            let sb = &self.spiders[b];
+
+            if sa.color != sb.color {
+                continue;
+            }
+            match (sa.qubit, sb.qubit) {
+                (Some(qa), Some(qb)) if qa == qb => {
+                    seen.insert((a, b));
+                }
+                _ => {}
+            }
+        }
+
+        let mut out: Vec<(NodeId, NodeId)> = seen.into_iter().collect();
+        out.sort();
+        out
+    }
+
+    /// Strict validator for the post-optimisation canonical form: every
+    /// check in [`Self::validate_normalized`] plus a guarantee that no
+    /// fusible spider pairs remain (see [`Self::find_fusible_pairs`]).
+    ///
+    /// Intended call site: immediately before QASM emission, after all
+    /// optimisation passes have run.
+    pub fn validate_fully_fused(&self) -> Result<(), Vec<ZxValidationError>> {
+        let mut errors = match self.validate_normalized() {
+            Ok(()) => Vec::new(),
+            Err(e) => e,
+        };
+
+        for (a, b) in self.find_fusible_pairs() {
+            // qubit is guaranteed present and equal by find_fusible_pairs.
+            let qubit = self.spiders[a].qubit.expect("checked in find_fusible_pairs");
+            errors.push(ZxValidationError::UnfusedAdjacentSpiders { a, b, qubit });
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for ZxGraph {
@@ -338,5 +475,150 @@ mod tests {
         let mut n = g.neighbors(a);
         n.sort();
         assert_eq!(n, vec![b, c]);
+    }
+
+    // ── Phase normalization + strict validation ────────────────────────────
+
+    #[test]
+    fn validate_normalized_accepts_in_range() {
+        let mut g = ZxGraph::new();
+        g.add_spider(SpiderColor::Z, 0.0, None);
+        g.add_spider(SpiderColor::X, 0.5, None);
+        g.add_spider(SpiderColor::Z, 1.9999, None);
+        assert!(g.validate_normalized().is_ok());
+    }
+
+    #[test]
+    fn validate_normalized_rejects_negative_phase() {
+        let mut g = ZxGraph::new();
+        g.add_spider(SpiderColor::Z, -0.5, None);
+        let errs = g.validate_normalized().unwrap_err();
+        assert!(errs.iter().any(|e| matches!(
+            e,
+            ZxValidationError::PhaseOutOfRange { phase, .. } if *phase == -0.5
+        )));
+    }
+
+    #[test]
+    fn validate_normalized_rejects_phase_at_or_above_two() {
+        let mut g = ZxGraph::new();
+        g.add_spider(SpiderColor::Z, 2.0, None);
+        g.add_spider(SpiderColor::X, 7.0, None);
+        let errs = g.validate_normalized().unwrap_err();
+        let out_of_range: Vec<_> = errs
+            .iter()
+            .filter(|e| matches!(e, ZxValidationError::PhaseOutOfRange { .. }))
+            .collect();
+        assert_eq!(out_of_range.len(), 2);
+    }
+
+    #[test]
+    fn normalize_phases_brings_negative_into_range() {
+        let mut g = ZxGraph::new();
+        g.add_spider(SpiderColor::Z, -0.5, None);
+        g.normalize_phases();
+        assert!((g.spider(0).phase - 1.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn normalize_phases_brings_large_into_range() {
+        let mut g = ZxGraph::new();
+        g.add_spider(SpiderColor::Z, 7.0, None);
+        g.normalize_phases();
+        // 7.0 mod 2 = 1.0
+        assert!((g.spider(0).phase - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn normalize_then_validate_succeeds() {
+        let mut g = ZxGraph::new();
+        g.add_spider(SpiderColor::Z, -0.5, None);
+        g.add_spider(SpiderColor::X, 7.0, None);
+        g.add_spider(SpiderColor::Z, 100.25, None);
+        g.normalize_phases();
+        assert!(g.validate_normalized().is_ok());
+    }
+
+    #[test]
+    fn normalize_phases_leaves_nan_alone() {
+        let mut g = ZxGraph::new();
+        g.add_spider(SpiderColor::Z, f64::NAN, None);
+        g.normalize_phases();
+        assert!(g.spider(0).phase.is_nan());
+    }
+
+    // ── Fusible-pair detection (single-qubit "parity" invariant) ───────────
+
+    #[test]
+    fn find_fusible_pairs_on_canonical_h_chain_is_empty() {
+        // H lowers to Z-X-Z chain on a single qubit. No same-color
+        // adjacency, so nothing to fuse.
+        let mut g = ZxGraph::new();
+        let z1 = g.add_spider(SpiderColor::Z, 0.0, Some(0));
+        let x = g.add_spider(SpiderColor::X, 0.0, Some(0));
+        let z2 = g.add_spider(SpiderColor::Z, 0.0, Some(0));
+        g.add_edge(z1, x);
+        g.add_edge(x, z2);
+        assert!(g.find_fusible_pairs().is_empty());
+    }
+
+    #[test]
+    fn find_fusible_pairs_detects_z_z_chain() {
+        // Two Z gates back-to-back lower to two Z-spiders on the same
+        // qubit, edge-connected: a textbook fusible pair.
+        let mut g = ZxGraph::new();
+        let z1 = g.add_spider(SpiderColor::Z, 1.0, Some(0));
+        let z2 = g.add_spider(SpiderColor::Z, 1.0, Some(0));
+        g.add_edge(z1, z2);
+        assert_eq!(g.find_fusible_pairs(), vec![(z1, z2)]);
+    }
+
+    #[test]
+    fn find_fusible_pairs_ignores_cross_qubit_same_color() {
+        // Z-spider on qubit 0 and Z-spider on qubit 1, connected by an
+        // edge (e.g. a CZ entangler): same color but DIFFERENT qubits,
+        // not fusible.
+        let mut g = ZxGraph::new();
+        let z0 = g.add_spider(SpiderColor::Z, 0.0, Some(0));
+        let z1 = g.add_spider(SpiderColor::Z, 0.0, Some(1));
+        g.add_edge(z0, z1);
+        assert!(g.find_fusible_pairs().is_empty());
+    }
+
+    #[test]
+    fn find_fusible_pairs_ignores_untagged_spiders() {
+        // Boundary nodes (qubit = None) are never fusible — they're
+        // structural anchors.
+        let mut g = ZxGraph::new();
+        let a = g.add_spider(SpiderColor::Z, 0.0, None);
+        let b = g.add_spider(SpiderColor::Z, 0.0, None);
+        g.add_edge(a, b);
+        assert!(g.find_fusible_pairs().is_empty());
+    }
+
+    #[test]
+    fn validate_fully_fused_rejects_unfused_x_x_pair() {
+        // Two X-spiders on the same qubit: X² = I. Parity-2 single-qubit
+        // sequence that should have collapsed.
+        let mut g = ZxGraph::new();
+        let x1 = g.add_spider(SpiderColor::X, 1.0, Some(0));
+        let x2 = g.add_spider(SpiderColor::X, 1.0, Some(0));
+        g.add_edge(x1, x2);
+        let errs = g.validate_fully_fused().unwrap_err();
+        assert!(errs.iter().any(|e| matches!(
+            e,
+            ZxValidationError::UnfusedAdjacentSpiders { qubit: 0, .. }
+        )));
+    }
+
+    #[test]
+    fn validate_fully_fused_accepts_canonical_h() {
+        let mut g = ZxGraph::new();
+        let z1 = g.add_spider(SpiderColor::Z, 0.5, Some(0));
+        let x = g.add_spider(SpiderColor::X, 0.5, Some(0));
+        let z2 = g.add_spider(SpiderColor::Z, 0.5, Some(0));
+        g.add_edge(z1, x);
+        g.add_edge(x, z2);
+        assert!(g.validate_fully_fused().is_ok());
     }
 }
