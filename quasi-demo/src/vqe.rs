@@ -17,7 +17,6 @@
 //!   quasi-vqe --max-iter 50 --skip-qpu   # classical-only mode
 
 use std::collections::{BTreeMap, HashMap};
-use std::f64::consts::PI;
 
 use anyhow::{Context, Result};
 use clap::Parser;
