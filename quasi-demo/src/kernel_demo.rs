@@ -12,12 +12,9 @@
 //!
 //! The scheduling circuit runs on IBM Strasbourg (or mock).
 
-use std::collections::BTreeMap;
-
 use anyhow::Result;
 use clap::Parser;
 
-use quasi_scheduler::backend::*;
 use quasi_scheduler::profiles;
 use quasi_solvayeur::atw::Solvayeur;
 use quasi_solvayeur::bias::Reward;
