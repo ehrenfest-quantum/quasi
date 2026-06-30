@@ -131,6 +131,11 @@ impl ZxGraph {
         &self.spiders[id]
     }
 
+    /// Get an iterator over all spiders in insertion order.
+    pub fn spiders(&self) -> impl Iterator<Item = &Spider> + '_ {
+        self.spiders.iter()
+    }
+
     /// Get all neighbors of a node (via undirected edges).
     pub fn neighbors(&self, id: NodeId) -> Vec<NodeId> {
         let mut result = Vec::new();
@@ -149,9 +154,28 @@ impl ZxGraph {
         self.spiders.len()
     }
 
+    /// Check if the graph has no spiders.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the graph contains zero spiders.
+    pub fn is_empty(&self) -> bool {
+        self.spider_count() == 0
+    }
+
     /// Number of edges in the graph.
     pub fn edge_count(&self) -> usize {
         self.edges.len()
+    }
+
+    /// Returns the number of spiders whose color is `SpiderColor::Z`.
+    pub fn count_z_spiders(&self) -> usize {
+        self.spiders.iter().filter(|s| s.color == SpiderColor::Z).count()
+    }
+
+    /// Returns the number of spiders whose color is `SpiderColor::X`.
+    pub fn count_x_spiders(&self) -> usize {
+        self.spiders.iter().filter(|s| s.color == SpiderColor::X).count()
     }
 
     /// Validate the structural integrity of the graph.
@@ -477,6 +501,7 @@ mod tests {
         assert_eq!(n, vec![b, c]);
     }
 
+<<<<<<< HEAD
     // ── Phase normalization + strict validation ────────────────────────────
 
     #[test]
@@ -620,5 +645,16 @@ mod tests {
         g.add_edge(z1, x);
         g.add_edge(x, z2);
         assert!(g.validate_fully_fused().is_ok());
+    }
+
+    #[test]
+    fn count_z_and_x_spiders() {
+        let mut g = ZxGraph::new();
+        let _z1 = g.add_spider(SpiderColor::Z, 0.0, Some(0));
+        let _z2 = g.add_spider(SpiderColor::Z, 0.0, Some(0));
+        let _x1 = g.add_spider(SpiderColor::X, 0.0, Some(0));
+
+        assert_eq!(g.count_z_spiders(), 2);
+        assert_eq!(g.count_x_spiders(), 1);
     }
 }
