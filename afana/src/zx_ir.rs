@@ -46,6 +46,9 @@ pub struct Spider {
 /// Validation errors for ZX graphs.
 #[derive(Debug, Error)]
 pub enum ZxValidationError {
+    #[error("ZX_IR_SPIDER_DEGREE_EXCEEDED")]
+    DegreeExceeded,
+
     #[error("invalid edge ({from}, {to}): {reason}")]
     InvalidEdge {
         from: NodeId,
@@ -377,6 +380,32 @@ impl ZxGraph {
             Err(errors)
         }
     }
+
+    /// Strict variant of [`Self::validate`] that additionally enforces the
+    /// max-degree-2 spider constraint required for direct circuit emission.
+    ///
+    /// Use this as the final gate before QASM emission. Internal pre-fusion
+    /// graphs may legitimately contain higher-degree spiders; this method
+    /// is opt-in via the call site.
+    pub fn validate_circuit_emittable(&self) -> Result<(), Vec<ZxValidationError>> {
+        let mut errors = match self.validate() {
+            Ok(()) => Vec::new(),
+            Err(e) => e,
+        };
+
+        for i in 0..self.spiders.len() {
+            let degree = self.neighbors(i).len();
+            if degree > 2 {
+                errors.push(ZxValidationError::DegreeExceeded);
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for ZxGraph {
@@ -655,5 +684,24 @@ mod tests {
 
         assert_eq!(g.count_z_spiders(), 2);
         assert_eq!(g.count_x_spiders(), 1);
+    }
+
+    #[test]
+    fn zx_ir_spider_degree_validation() {
+        let mut g = ZxGraph::new();
+        let z_spider = g.add_spider(SpiderColor::Z, 0.0, Some(0));
+        let x1 = g.add_spider(SpiderColor::X, 0.0, Some(0));
+        let x2 = g.add_spider(SpiderColor::X, 0.0, Some(0));
+        let x3 = g.add_spider(SpiderColor::X, 0.0, Some(0));
+        g.add_edge(z_spider, x1);
+        g.add_edge(z_spider, x2);
+        g.add_edge(z_spider, x3);
+
+        let result = g.validate_circuit_emittable();
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .iter()
+            .any(|e| matches!(e, ZxValidationError::DegreeExceeded)));
     }
 }
