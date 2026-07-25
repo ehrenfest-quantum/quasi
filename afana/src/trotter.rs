@@ -914,4 +914,58 @@ mod tests {
         assert!(!report.fidelity_ok);
         assert!(report.warnings.iter().any(|w| w.contains("fidelity")));
     }
+
+    // ── Display rendering tests ───────────────────────────────────────────
+
+    #[test]
+    fn empty_hamiltonian_renders_message() {
+        let err = TrotterError::EmptyHamiltonian;
+        assert_eq!(
+            err.to_string(),
+            "empty Hamiltonian: at least one Pauli term is required"
+        );
+    }
+
+    #[test]
+    fn non_finite_coefficient_renders_term_and_coefficient() {
+        let err = TrotterError::NonFiniteCoefficient {
+            term_index: 7,
+            coefficient: f64::NAN,
+        };
+        assert_eq!(
+            err.to_string(),
+            "non-finite coefficient NaN in Hamiltonian term 7"
+        );
+    }
+
+    #[test]
+    fn qubit_out_of_range_renders_indices() {
+        let err = TrotterError::QubitOutOfRange {
+            term_index: 2,
+            qubit: 9,
+            n_qubits: 4,
+        };
+        assert_eq!(
+            err.to_string(),
+            "qubit index 9 in Hamiltonian term 2 out of range (n_qubits=4)"
+        );
+    }
+
+    #[test]
+    fn non_finite_evolution_renders_parameters() {
+        let err = TrotterError::NonFiniteEvolution {
+            dt_us: f64::INFINITY,
+            total_us: f64::NAN,
+        };
+        assert_eq!(
+            err.to_string(),
+            "non-finite evolution parameter: dt_us=inf, total_us=NaN"
+        );
+    }
+
+    #[test]
+    fn zero_steps_renders_message() {
+        let err = TrotterError::ZeroSteps;
+        assert_eq!(err.to_string(), "zero Trotter steps");
+    }
 }

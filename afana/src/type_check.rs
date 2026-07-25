@@ -1039,4 +1039,57 @@ mod tests {
             errors
         );
     }
+
+    // ── Display rendering tests ───────────────────────────────────────────
+
+    #[test]
+    fn qubit_type_renders_name() {
+        assert_eq!(EhrenfestType::Qubit.to_string(), "qubit");
+    }
+
+    #[test]
+    fn classical_int_renders_name() {
+        assert_eq!(EhrenfestType::ClassicalInt.to_string(), "int");
+    }
+
+    #[test]
+    fn classical_float_renders_name() {
+        assert_eq!(EhrenfestType::ClassicalFloat.to_string(), "float");
+    }
+
+    #[test]
+    fn classical_bool_renders_name() {
+        assert_eq!(EhrenfestType::ClassicalBool.to_string(), "bool");
+    }
+
+    #[test]
+    fn hamiltonian_type_renders_name() {
+        assert_eq!(EhrenfestType::Hamiltonian.to_string(), "hamiltonian");
+    }
+
+    #[test]
+    fn observable_type_renders_name() {
+        assert_eq!(EhrenfestType::Observable.to_string(), "observable");
+    }
+
+    #[test]
+    fn noise_constraint_type_renders_name() {
+        assert_eq!(
+            EhrenfestType::NoiseConstraint.to_string(),
+            "noise_constraint"
+        );
+    }
+
+    #[test]
+    fn variational_parameter_type_renders_name() {
+        assert_eq!(
+            EhrenfestType::VariationalParameter.to_string(),
+            "variational_parameter"
+        );
+    }
+
+    #[test]
+    fn unknown_type_renders_name() {
+        assert_eq!(EhrenfestType::Unknown.to_string(), "unknown");
+    }
 }
