@@ -181,6 +181,26 @@ impl ZxGraph {
         self.spiders.iter().filter(|s| s.color == SpiderColor::X).count()
     }
 
+    /// The input boundary nodes.
+    pub fn inputs(&self) -> &[NodeId] {
+        &self.inputs
+    }
+
+    /// The output boundary nodes.
+    pub fn outputs(&self) -> &[NodeId] {
+        &self.outputs
+    }
+
+    /// Number of input boundary nodes.
+    pub fn input_count(&self) -> usize {
+        self.inputs.len()
+    }
+
+    /// Number of output boundary nodes.
+    pub fn output_count(&self) -> usize {
+        self.outputs.len()
+    }
+
     /// Validate the structural integrity of the graph.
     ///
     /// Checks:
@@ -703,5 +723,58 @@ mod tests {
             .unwrap_err()
             .iter()
             .any(|e| matches!(e, ZxValidationError::DegreeExceeded)));
+    }
+
+    #[test]
+    fn empty_graph_has_empty_boundaries() {
+        let g = ZxGraph::new();
+        assert!(g.inputs().is_empty());
+        assert!(g.outputs().is_empty());
+        assert_eq!(g.input_count(), 0);
+        assert_eq!(g.output_count(), 0);
+    }
+
+    #[test]
+    fn inputs_and_outputs_are_readable() {
+        let mut g = ZxGraph::new();
+        let a = g.add_spider(SpiderColor::Z, 0.0, Some(0));
+        let b = g.add_spider(SpiderColor::X, 0.0, Some(1));
+        let c = g.add_spider(SpiderColor::Z, 0.0, Some(2));
+        g.set_inputs(vec![a, b]);
+        g.set_outputs(vec![c]);
+
+        assert_eq!(g.inputs(), &[a, b]);
+        assert_eq!(g.outputs(), &[c]);
+        assert_eq!(g.input_count(), 2);
+        assert_eq!(g.output_count(), 1);
+    }
+
+    #[test]
+    fn input_and_output_counts_are_independent() {
+        let mut g = ZxGraph::new();
+        let in0 = g.add_spider(SpiderColor::Z, 0.0, Some(0));
+        let in1 = g.add_spider(SpiderColor::Z, 0.0, Some(1));
+        let in2 = g.add_spider(SpiderColor::Z, 0.0, Some(2));
+        let out0 = g.add_spider(SpiderColor::Z, 0.0, Some(0));
+        g.set_inputs(vec![in0, in1, in2]);
+        g.set_outputs(vec![out0]);
+
+        assert_eq!(g.input_count(), 3);
+        assert_eq!(g.output_count(), 1);
+        assert_eq!(g.inputs(), &[in0, in1, in2]);
+        assert_eq!(g.outputs(), &[out0]);
+    }
+
+    #[test]
+    fn set_inputs_replaces_existing_inputs() {
+        let mut g = ZxGraph::new();
+        let a = g.add_spider(SpiderColor::Z, 0.0, None);
+        let b = g.add_spider(SpiderColor::Z, 0.0, None);
+        let c = g.add_spider(SpiderColor::Z, 0.0, None);
+        g.set_inputs(vec![a, b]);
+        g.set_inputs(vec![c]);
+
+        assert_eq!(g.inputs(), &[c]);
+        assert_eq!(g.input_count(), 1);
     }
 }
