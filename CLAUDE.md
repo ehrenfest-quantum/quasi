@@ -66,9 +66,22 @@ Braket, etc.
 
 ### 3. quasi-board / quasi-agent own the task lifecycle
 
-ActivityPub activities (`quasi:Propose`, `quasi:Claim`, `quasi:Complete`)
-are the only way work enters and exits the system. Do not invent parallel
-task submission paths.
+There are exactly two sanctioned intake paths. Do not invent a third.
+
+**ActivityPub activities** (`quasi:Propose`, `quasi:Claim`, `quasi:Complete`)
+against quasi-board are the canonical path for proposing substantive new
+work, and the only path for claiming and completing federated work. The
+board enforces a minimum-complexity gate (`quasi-board/server.py`, and see
+CONTRIBUTING.md): `trivial` effort is rejected outright, `small` must affect
+≥2 components **or** list ≥3 success criteria, and at most two L0 proposals
+may be pending at once. Never inflate an effort estimate to clear that gate —
+it exists to keep small work out of the board.
+
+**GitHub issues** are the tracker for scoped implementation work and are what
+the quasi-senate loop consumes (`find_oldest_senate_issue`). Work below the
+board's complexity gate — single-file additive changes, test coverage, doc
+fixes — belongs here, not in a `quasi:Propose`. PRs reference the issue they
+close.
 
 ### 4. Ehrenfest programs are CBOR — no text form, no file extension
 
@@ -95,13 +108,29 @@ architectural decision: the human never sees an Ehrenfest program.
 
 ## Testing conventions
 
-### Rust crates (afana, quasi-senate)
-- `cargo test` from crate root or workspace root
+### Rust crates
+
+Workspace members (`Cargo.toml`): `afana`, `quasi-bridge`, `quasi-cache`,
+`quasi-cudaq-ffi`, `quasi-demo`, `quasi-scheduler`, `quasi-senate`,
+`quasi-solvayeur`, `sword-classical-adapter`, `sword-ml-adapter`.
+
+- `cargo test` from the workspace root, or `cargo test -p <crate>` for one crate
 - Use `#[cfg(test)]` modules for unit tests, `tests/` dir for integration tests
 - `cargo clippy -- -D warnings` must pass
+- **The workspace is not rustfmt-clean and CI does not run `cargo fmt --check`.**
+  A bare `cargo fmt -p afana` will reformat dozens of files unrelated to your
+  change. Use `cargo fmt -p <crate> -- --check` to inspect drift, and only
+  format the code you actually wrote.
 
-### Python packages (quasi-board, quasi-agent, quasi-mcp)
+### Python packages (quasi-board, quasi-agent)
+
 - quasi-board tests: `pytest quasi-board/tests/` — use `pytest-anyio`, mock
   `_load_proposals` / `_save_proposals` with `patch()`
-- Python 3.9 compat: use `Optional[X]` not `X | None`
-- Lint: `flake8 --max-line-length=120`
+- Version floor is **3.10**: CI runs quasi-board on 3.11, quasi-agent on
+  3.10 / 3.11 / 3.12. `X | None` is therefore available, but the codebase
+  consistently uses `Optional[X]` — match the surrounding style.
+- Lint: `flake8 quasi-board/ --max-line-length=120 --extend-ignore=E203,W503`
+
+`quasi-mcp` is a TypeScript package (see invariant 2), not a Python one. It
+carries two Python helper scripts under `quasi-mcp/scripts/` that shell out to
+`mqt.qcec` / `mqt.ddsim`; those are not covered by the lint or test commands above.
