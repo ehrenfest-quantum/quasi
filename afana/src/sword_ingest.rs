@@ -342,6 +342,34 @@ mod tests {
         })
     }
 
+    fn sword_with_stable_only_edge() -> Value {
+        let mut sword = minimal_sword();
+        sword["partition"]["graph"]["nodes"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"id": 3, "h_i": 0.0, "omega": 1.0}));
+        sword["partition"]["graph"]["nodes"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"id": 4, "h_i": 0.0, "omega": 1.0}));
+        let stable_edge = json!({
+            "i": 3,
+            "j": 4,
+            "j_ij": 0.4,
+            "sin_c_half": 0.1,
+            "classification": "stable"
+        });
+        sword["partition"]["graph"]["edges"]
+            .as_array_mut()
+            .unwrap()
+            .push(stable_edge);
+        sword["partition"]["stable_edges"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"i": 3, "j": 4, "j_ij": 0.4}));
+        sword
+    }
+
     #[test]
     fn converts_minimal_sword_to_ehrenfest() {
         let sword = minimal_sword();
@@ -409,6 +437,16 @@ mod tests {
             .collect();
 
         assert!(!boundary_terms.is_empty(), "expected boundary mean-field Z term");
+    }
+
+    #[test]
+    fn stable_only_edge_adds_constant_offset() {
+        // Edge (3,4) has both endpoints outside the volatile island [0,1].
+        // Its coupling should be folded into the Hamiltonian constant offset.
+        let sword = sword_with_stable_only_edge();
+        let program = sword_to_ehrenfest(&sword).unwrap();
+
+        assert!((program.hamiltonian.constant_offset - 0.4).abs() < 1e-10);
     }
 
     #[test]
