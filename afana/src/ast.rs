@@ -224,3 +224,288 @@ pub struct EhrenfestAst {
     pub type_decls: Vec<TypeDecl>,
     pub variational_loops: Vec<VariationalLoop>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+
+    fn all_gate_names() -> Vec<GateName> {
+        vec![
+            GateName::H,
+            GateName::X,
+            GateName::Y,
+            GateName::Z,
+            GateName::S,
+            GateName::T,
+            GateName::Sdg,
+            GateName::Tdg,
+            GateName::Cx,
+            GateName::Cz,
+            GateName::Swap,
+            GateName::Ccx,
+            GateName::Rx,
+            GateName::Ry,
+            GateName::Rz,
+        ]
+    }
+
+    #[test]
+    fn from_token_resolves_h() {
+        assert_eq!(GateName::from_token("h"), Some(GateName::H));
+    }
+
+    #[test]
+    fn from_token_resolves_x() {
+        assert_eq!(GateName::from_token("x"), Some(GateName::X));
+    }
+
+    #[test]
+    fn from_token_resolves_y() {
+        assert_eq!(GateName::from_token("y"), Some(GateName::Y));
+    }
+
+    #[test]
+    fn from_token_resolves_z() {
+        assert_eq!(GateName::from_token("z"), Some(GateName::Z));
+    }
+
+    #[test]
+    fn from_token_resolves_s() {
+        assert_eq!(GateName::from_token("s"), Some(GateName::S));
+    }
+
+    #[test]
+    fn from_token_resolves_t() {
+        assert_eq!(GateName::from_token("t"), Some(GateName::T));
+    }
+
+    #[test]
+    fn from_token_resolves_sdg() {
+        assert_eq!(GateName::from_token("sdg"), Some(GateName::Sdg));
+    }
+
+    #[test]
+    fn from_token_resolves_tdg() {
+        assert_eq!(GateName::from_token("tdg"), Some(GateName::Tdg));
+    }
+
+    #[test]
+    fn from_token_resolves_cx() {
+        assert_eq!(GateName::from_token("cx"), Some(GateName::Cx));
+    }
+
+    #[test]
+    fn from_token_resolves_cnot_alias_to_cx() {
+        assert_eq!(GateName::from_token("cnot"), Some(GateName::Cx));
+    }
+
+    #[test]
+    fn from_token_resolves_cz() {
+        assert_eq!(GateName::from_token("cz"), Some(GateName::Cz));
+    }
+
+    #[test]
+    fn from_token_resolves_swap() {
+        assert_eq!(GateName::from_token("swap"), Some(GateName::Swap));
+    }
+
+    #[test]
+    fn from_token_resolves_ccx() {
+        assert_eq!(GateName::from_token("ccx"), Some(GateName::Ccx));
+    }
+
+    #[test]
+    fn from_token_resolves_toffoli_alias_to_ccx() {
+        assert_eq!(GateName::from_token("toffoli"), Some(GateName::Ccx));
+    }
+
+    #[test]
+    fn from_token_resolves_rx() {
+        assert_eq!(GateName::from_token("rx"), Some(GateName::Rx));
+    }
+
+    #[test]
+    fn from_token_resolves_ry() {
+        assert_eq!(GateName::from_token("ry"), Some(GateName::Ry));
+    }
+
+    #[test]
+    fn from_token_resolves_rz() {
+        assert_eq!(GateName::from_token("rz"), Some(GateName::Rz));
+    }
+
+    #[test]
+    fn from_token_returns_none_for_unrecognised_token() {
+        assert_eq!(GateName::from_token("unknown"), None);
+        assert_eq!(GateName::from_token("CNOT"), None);
+        assert_eq!(GateName::from_token(""), None);
+    }
+
+    #[test]
+    fn as_str_returns_canonical_name_for_each_variant() {
+        let cases = [
+            (GateName::H, "h"),
+            (GateName::X, "x"),
+            (GateName::Y, "y"),
+            (GateName::Z, "z"),
+            (GateName::S, "s"),
+            (GateName::T, "t"),
+            (GateName::Sdg, "sdg"),
+            (GateName::Tdg, "tdg"),
+            (GateName::Cx, "cx"),
+            (GateName::Cz, "cz"),
+            (GateName::Swap, "swap"),
+            (GateName::Ccx, "ccx"),
+            (GateName::Rx, "rx"),
+            (GateName::Ry, "ry"),
+            (GateName::Rz, "rz"),
+        ];
+        for (gate, expected) in cases {
+            assert_eq!(gate.as_str(), expected);
+        }
+    }
+
+    #[test]
+    fn from_token_round_trips_as_str_for_every_variant() {
+        for gate in all_gate_names() {
+            assert_eq!(GateName::from_token(gate.as_str()), Some(gate.clone()));
+        }
+    }
+
+    #[test]
+    fn arity_groups_single_qubit_gates() {
+        let single = [
+            GateName::H,
+            GateName::X,
+            GateName::Y,
+            GateName::Z,
+            GateName::S,
+            GateName::T,
+            GateName::Sdg,
+            GateName::Tdg,
+            GateName::Rx,
+            GateName::Ry,
+            GateName::Rz,
+        ];
+        for gate in single {
+            assert_eq!(gate.arity(), 1, "expected {} to be single-qubit", gate);
+        }
+    }
+
+    #[test]
+    fn arity_groups_two_qubit_gates() {
+        let two = [GateName::Cx, GateName::Cz, GateName::Swap];
+        for gate in two {
+            assert_eq!(gate.arity(), 2, "expected {} to be two-qubit", gate);
+        }
+    }
+
+    #[test]
+    fn arity_groups_three_qubit_gates() {
+        assert_eq!(GateName::Ccx.arity(), 3);
+    }
+
+    #[test]
+    fn is_parametric_is_true_only_for_rotation_gates() {
+        assert!(GateName::Rx.is_parametric());
+        assert!(GateName::Ry.is_parametric());
+        assert!(GateName::Rz.is_parametric());
+        for gate in all_gate_names() {
+            if !matches!(gate, GateName::Rx | GateName::Ry | GateName::Rz) {
+                assert!(
+                    !gate.is_parametric(),
+                    "expected {} to be non-parametric",
+                    gate
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn is_clifford_is_true_for_documented_clifford_gates() {
+        let clifford = [
+            GateName::H,
+            GateName::X,
+            GateName::Y,
+            GateName::Z,
+            GateName::S,
+            GateName::Sdg,
+            GateName::Cx,
+            GateName::Cz,
+            GateName::Swap,
+        ];
+        for gate in clifford {
+            assert!(gate.is_clifford(), "expected {} to be Clifford", gate);
+        }
+    }
+
+    #[test]
+    fn is_clifford_is_false_for_non_clifford_gates() {
+        let non_clifford = [
+            GateName::T,
+            GateName::Tdg,
+            GateName::Ccx,
+            GateName::Rx,
+            GateName::Ry,
+            GateName::Rz,
+        ];
+        for gate in non_clifford {
+            assert!(!gate.is_clifford(), "expected {} not to be Clifford", gate);
+        }
+    }
+
+    #[test]
+    fn is_non_clifford_is_exact_negation_of_is_clifford_for_every_variant() {
+        for gate in all_gate_names() {
+            assert_eq!(
+                gate.is_non_clifford(),
+                !gate.is_clifford(),
+                "negation mismatch for {}",
+                gate
+            );
+        }
+    }
+
+    #[test]
+    fn display_matches_as_str_for_every_variant() {
+        for gate in all_gate_names() {
+            assert_eq!(format!("{}", gate), gate.as_str());
+        }
+    }
+
+    #[test]
+    fn is_clifford_angle_accepts_multiples_of_half_pi() {
+        assert!(is_clifford_angle(0.0));
+        assert!(is_clifford_angle(FRAC_PI_2));
+        assert!(is_clifford_angle(PI));
+        assert!(is_clifford_angle(-FRAC_PI_2));
+        assert!(is_clifford_angle(3.0 * FRAC_PI_2));
+        assert!(is_clifford_angle(2.0 * PI));
+    }
+
+    #[test]
+    fn is_clifford_angle_rejects_non_half_pi_multiples() {
+        assert!(!is_clifford_angle(FRAC_PI_4));
+        assert!(!is_clifford_angle(0.1));
+        assert!(!is_clifford_angle(PI / 3.0));
+    }
+
+    #[test]
+    fn is_t_angle_accepts_multiples_of_quarter_pi() {
+        assert!(is_t_angle(0.0));
+        assert!(is_t_angle(FRAC_PI_4));
+        assert!(is_t_angle(FRAC_PI_2));
+        assert!(is_t_angle(PI));
+        assert!(is_t_angle(-FRAC_PI_4));
+        assert!(is_t_angle(3.0 * FRAC_PI_4));
+        assert!(is_t_angle(2.0 * PI));
+    }
+
+    #[test]
+    fn is_t_angle_rejects_non_quarter_pi_multiples() {
+        assert!(!is_t_angle(PI / 3.0));
+        assert!(!is_t_angle(0.1));
+        assert!(!is_t_angle(FRAC_PI_2 + 0.01));
+    }
+}
