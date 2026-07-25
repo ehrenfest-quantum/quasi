@@ -7,7 +7,8 @@
 //! structs that represent the Hamiltonian, observables, and noise constraints.
 //!
 //! These structs are the input to Afana's Trotterization pass, which derives
-//! a gate sequence and produces an [`EhrenfestAst`] for QASM emission.
+//! a gate sequence and produces an [`EhrenfestAst`](crate::ast::EhrenfestAst)
+//! for QASM emission.
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

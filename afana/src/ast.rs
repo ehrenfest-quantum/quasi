@@ -103,7 +103,7 @@ impl GateName {
     /// non-Clifford angles.
     ///
     /// For parametric gates (Rx, Ry, Rz), this returns `false` since
-    /// the Clifford-ness depends on the angle. Use [`is_clifford_rotation`]
+    /// the Clifford-ness depends on the angle. Use [`is_clifford_angle`]
     /// to check a specific rotation angle.
     pub fn is_clifford(&self) -> bool {
         matches!(

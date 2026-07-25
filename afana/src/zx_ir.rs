@@ -4,7 +4,7 @@
 //!
 //! A proper ZX calculus graph representation where quantum gates are
 //! decomposed into Z- and X-spiders connected by edges. This IR sits
-//! between the gate-level [`EhrenfestAst`] and future ZX-based
+//! between the gate-level [`EhrenfestAst`](crate::ast::EhrenfestAst) and future ZX-based
 //! optimization / extraction passes.
 //!
 //! Each qubit is a "wire" through the graph: an input boundary node,
