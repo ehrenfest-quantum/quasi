@@ -156,8 +156,8 @@ pub fn validate_hamiltonian(program: &EhrenfestProgram) -> Result<(), TrotterErr
 /// Estimate the Trotter approximation error bound.
 ///
 /// For a Hamiltonian H = Σ Hₖ with L terms, the error per step is:
-/// - First-order:  ε ≤ L² · max|[Hⱼ,Hₖ]| · dt² / 2
-/// - Second-order: ε ≤ L³ · max|[[Hⱼ,Hₖ],Hₗ]| · dt³ / 12
+/// - First-order:  ε ≤ L² · max|\[Hⱼ,Hₖ\]| · dt² / 2
+/// - Second-order: ε ≤ L³ · max|\[\[Hⱼ,Hₖ\],Hₗ\]| · dt³ / 12
 /// - Fourth-order: ε ≤ C · L⁵ · ||H||⁵ · dt⁵
 ///
 /// We use the simplified bound based on the sum of absolute coefficients
