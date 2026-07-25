@@ -159,6 +159,34 @@ pub struct Gate {
     pub params: Vec<f64>,
 }
 
+impl Gate {
+    /// Whether this gate takes a rotation parameter.
+    pub fn is_parametric(&self) -> bool {
+        self.name.is_parametric()
+    }
+
+    /// Whether this specific gate application is Clifford, accounting for
+    /// its actual rotation angle.
+    ///
+    /// This differs from [`GateName::is_clifford`] in that it inspects the
+    /// concrete parameters of a [`Gate`] application. For example,
+    /// [`GateName::is_clifford`] returns `false` for `Rz` unconditionally
+    /// because a gate name alone cannot know the rotation angle, but
+    /// `Gate::is_effectively_clifford` returns `true` for `Rz(π/2)`.
+    pub fn is_effectively_clifford(&self) -> bool {
+        if !self.name.is_parametric() {
+            return self.name.is_clifford();
+        }
+
+        // Every parametric gate is a rotation, so Clifford-ness is decided by
+        // the angle. A parametric gate with no parameter is malformed and is
+        // reported as non-Clifford rather than panicking.
+        self.params
+            .first()
+            .is_some_and(|theta| is_clifford_angle(*theta))
+    }
+}
+
 /// A measurement directive: `measure qN -> cN`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Measure {
@@ -507,5 +535,115 @@ mod tests {
         assert!(!is_t_angle(PI / 3.0));
         assert!(!is_t_angle(0.1));
         assert!(!is_t_angle(FRAC_PI_2 + 0.01));
+    }
+
+    fn gate(name: &GateName, params: Vec<f64>) -> Gate {
+        Gate {
+            name: name.clone(),
+            qubits: vec![0],
+            params,
+        }
+    }
+
+    #[test]
+    fn gate_is_parametric_agrees_with_gate_name() {
+        for name in all_gate_names() {
+            assert_eq!(
+                gate(&name, vec![]).is_parametric(),
+                name.is_parametric(),
+                "is_parametric mismatch for {}",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn gate_is_effectively_clifford_for_non_parametric_clifford_gates() {
+        let clifford = [
+            GateName::H,
+            GateName::X,
+            GateName::Y,
+            GateName::Z,
+            GateName::S,
+            GateName::Sdg,
+            GateName::Cx,
+            GateName::Cz,
+            GateName::Swap,
+        ];
+        for name in clifford {
+            assert!(
+                gate(&name, vec![]).is_effectively_clifford(),
+                "expected {} to be effectively Clifford",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn gate_is_not_effectively_clifford_for_non_clifford_gates() {
+        let non_clifford = [GateName::T, GateName::Tdg, GateName::Ccx];
+        for name in non_clifford {
+            assert!(
+                !gate(&name, vec![]).is_effectively_clifford(),
+                "expected {} not to be effectively Clifford",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn gate_is_effectively_clifford_for_rz_at_clifford_angles() {
+        for theta in [0.0, FRAC_PI_2, PI, -FRAC_PI_2] {
+            assert!(
+                gate(&GateName::Rz, vec![theta]).is_effectively_clifford(),
+                "expected Rz({}) to be effectively Clifford",
+                theta
+            );
+        }
+    }
+
+    #[test]
+    fn gate_is_not_effectively_clifford_for_rz_at_non_clifford_angles() {
+        for theta in [0.7, FRAC_PI_4] {
+            assert!(
+                !gate(&GateName::Rz, vec![theta]).is_effectively_clifford(),
+                "expected Rz({}) not to be effectively Clifford",
+                theta
+            );
+        }
+    }
+
+    #[test]
+    fn gate_is_effectively_clifford_for_rx_at_clifford_angle() {
+        assert!(gate(&GateName::Rx, vec![FRAC_PI_2]).is_effectively_clifford());
+    }
+
+    #[test]
+    fn gate_is_not_effectively_clifford_for_rx_at_non_clifford_angle() {
+        assert!(!gate(&GateName::Rx, vec![0.7]).is_effectively_clifford());
+    }
+
+    #[test]
+    fn gate_is_effectively_clifford_for_ry_at_clifford_angle() {
+        assert!(gate(&GateName::Ry, vec![PI]).is_effectively_clifford());
+    }
+
+    #[test]
+    fn gate_is_not_effectively_clifford_for_ry_at_non_clifford_angle() {
+        assert!(!gate(&GateName::Ry, vec![PI / 3.0]).is_effectively_clifford());
+    }
+
+    #[test]
+    fn gate_effectively_clifford_rejects_parametric_gate_with_empty_params() {
+        assert!(!gate(&GateName::Rz, vec![]).is_effectively_clifford());
+        assert!(!gate(&GateName::Rx, vec![]).is_effectively_clifford());
+        assert!(!gate(&GateName::Ry, vec![]).is_effectively_clifford());
+    }
+
+    #[test]
+    fn gate_effectively_clifford_differs_from_gate_name_is_clifford_for_rz() {
+        let rz_half_pi = gate(&GateName::Rz, vec![FRAC_PI_2]);
+        assert!(!rz_half_pi.name.is_clifford());
+        assert!(rz_half_pi.is_effectively_clifford());
     }
 }
