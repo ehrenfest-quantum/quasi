@@ -828,4 +828,89 @@ mod tests {
         assert_eq!(g.edges(), &[(a, b), (a, b)]);
         assert_eq!(g.edge_count(), 2);
     }
+
+    // ── Display rendering tests ───────────────────────────────────────────
+
+    #[test]
+    fn degree_exceeded_renders_code() {
+        let err = ZxValidationError::DegreeExceeded;
+        assert_eq!(err.to_string(), "ZX_IR_SPIDER_DEGREE_EXCEEDED");
+    }
+
+    #[test]
+    fn invalid_edge_renders_endpoints_and_reason() {
+        let err = ZxValidationError::InvalidEdge {
+            from: 1,
+            to: 99,
+            reason: "endpoint out of range".to_string(),
+        };
+        assert_eq!(
+            err.to_string(),
+            "invalid edge (1, 99): endpoint out of range"
+        );
+    }
+
+    #[test]
+    fn invalid_phase_renders_node_and_phase() {
+        let err = ZxValidationError::InvalidPhase {
+            node: 3,
+            phase: f64::NAN,
+        };
+        assert_eq!(
+            err.to_string(),
+            "invalid phase at node 3: NaN is not finite"
+        );
+    }
+
+    #[test]
+    fn phase_out_of_range_renders_node_and_phase() {
+        let err = ZxValidationError::PhaseOutOfRange {
+            node: 4,
+            phase: -0.5,
+        };
+        assert_eq!(
+            err.to_string(),
+            "phase out of range at node 4: -0.5 not in [0, 2) (multiples of π)"
+        );
+    }
+
+    #[test]
+    fn unfused_adjacent_spiders_renders_nodes_and_qubit() {
+        let err = ZxValidationError::UnfusedAdjacentSpiders {
+            a: 2,
+            b: 5,
+            qubit: 7,
+        };
+        assert_eq!(
+            err.to_string(),
+            "nodes 2 and 5 are an unfused same-color pair on qubit 7"
+        );
+    }
+
+    #[test]
+    fn invalid_boundary_renders_node_and_reason() {
+        let err = ZxValidationError::InvalidBoundary {
+            node: 8,
+            reason: "output node out of range".to_string(),
+        };
+        assert_eq!(
+            err.to_string(),
+            "invalid boundary node 8: output node out of range"
+        );
+    }
+
+    #[test]
+    fn structural_error_renders_message() {
+        let err = ZxValidationError::StructuralError("cycle".to_string());
+        assert_eq!(err.to_string(), "structural error: cycle");
+    }
+
+    #[test]
+    fn disconnected_graph_renders_unvisited_count() {
+        let err = ZxValidationError::DisconnectedGraph { unvisited: 3 };
+        assert_eq!(
+            err.to_string(),
+            "graph is disconnected: 3 nodes unreachable"
+        );
+    }
 }

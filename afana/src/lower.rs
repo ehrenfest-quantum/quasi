@@ -533,4 +533,25 @@ mod tests {
         assert!(zx.spider_count() > 6); // at least inputs + outputs
         assert!(zx.edge_count() > 3);
     }
+
+    // ── Display rendering tests ───────────────────────────────────────────
+
+    #[test]
+    fn unsupported_gate_renders_name() {
+        let err = LowerError::UnsupportedGate("ccx".to_string());
+        assert_eq!(err.to_string(), "unsupported gate: ccx");
+    }
+
+    #[test]
+    fn qubit_out_of_range_renders_index_gate_and_total() {
+        let err = LowerError::QubitOutOfRange {
+            gate: "h".to_string(),
+            index: 5,
+            n_qubits: 2,
+        };
+        assert_eq!(
+            err.to_string(),
+            "qubit index 5 out of range in gate `h` (n_qubits=2)"
+        );
+    }
 }
