@@ -686,4 +686,64 @@ mod tests {
         assert!((val + PI / 2.0).abs() < 1e-10, "-π/2 should stay -π/2, got {val}");
         assert_eq!(format_float(-PI / 2.0), "-pi/2");
     }
+
+    // ── max_cbit_index tests ─────────────────────────────────────────────
+
+    fn ast_with_cbits(measures: Vec<usize>, conditionals: Vec<usize>) -> EhrenfestAst {
+        EhrenfestAst {
+            name: "cbits".into(),
+            n_qubits: 1,
+            prepare: None,
+            gates: Vec::new(),
+            measures: measures
+                .into_iter()
+                .map(|cbit| Measure { qubit: 0, cbit })
+                .collect(),
+            conditionals: conditionals
+                .into_iter()
+                .map(|cbit| ConditionalGate {
+                    cbit,
+                    cbit_value: 1,
+                    gate: Gate {
+                        name: GateName::X,
+                        qubits: vec![0],
+                        params: vec![],
+                    },
+                })
+                .collect(),
+            expects: Vec::new(),
+            type_decls: Vec::new(),
+            variational_loops: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn max_cbit_index_empty() {
+        let ast = ast_with_cbits(Vec::new(), Vec::new());
+        assert_eq!(max_cbit_index(&ast), 0);
+    }
+
+    #[test]
+    fn max_cbit_index_measures_only() {
+        let ast = ast_with_cbits(vec![0, 2, 1], Vec::new());
+        assert_eq!(max_cbit_index(&ast), 3);
+    }
+
+    #[test]
+    fn max_cbit_index_conditionals_only() {
+        let ast = ast_with_cbits(Vec::new(), vec![3, 1]);
+        assert_eq!(max_cbit_index(&ast), 4);
+    }
+
+    #[test]
+    fn max_cbit_index_mixed_measures_max() {
+        let ast = ast_with_cbits(vec![5], vec![2]);
+        assert_eq!(max_cbit_index(&ast), 6);
+    }
+
+    #[test]
+    fn max_cbit_index_mixed_conditionals_max() {
+        let ast = ast_with_cbits(vec![1], vec![4]);
+        assert_eq!(max_cbit_index(&ast), 5);
+    }
 }
