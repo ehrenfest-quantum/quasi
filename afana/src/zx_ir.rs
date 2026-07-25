@@ -171,6 +171,11 @@ impl ZxGraph {
         self.edges.len()
     }
 
+    /// All edges in the graph, in insertion order.
+    pub fn edges(&self) -> &[(NodeId, NodeId)] {
+        &self.edges
+    }
+
     /// Returns the number of spiders whose color is `SpiderColor::Z`.
     pub fn count_z_spiders(&self) -> usize {
         self.spiders.iter().filter(|s| s.color == SpiderColor::Z).count()
@@ -776,5 +781,51 @@ mod tests {
 
         assert_eq!(g.inputs(), &[c]);
         assert_eq!(g.input_count(), 1);
+    }
+
+    // ── Edge accessor ────────────────────────────────────────────────────────
+
+    #[test]
+    fn empty_graph_has_empty_edges() {
+        let g = ZxGraph::new();
+        assert!(g.edges().is_empty());
+        assert_eq!(g.edges().len(), 0);
+    }
+
+    #[test]
+    fn edges_are_in_insertion_order() {
+        let mut g = ZxGraph::new();
+        let a = g.add_spider(SpiderColor::Z, 0.0, None);
+        let b = g.add_spider(SpiderColor::X, 0.0, None);
+        let c = g.add_spider(SpiderColor::Z, 0.0, None);
+        g.add_edge(a, b);
+        g.add_edge(b, c);
+
+        assert_eq!(g.edges(), &[(a, b), (b, c)]);
+    }
+
+    #[test]
+    fn edges_len_matches_edge_count() {
+        let mut g = ZxGraph::new();
+        let a = g.add_spider(SpiderColor::Z, 0.0, None);
+        let b = g.add_spider(SpiderColor::X, 0.0, None);
+        g.add_edge(a, b);
+        g.add_edge(b, a);
+
+        assert_eq!(g.edges().len(), g.edge_count());
+        assert_eq!(g.edges().len(), 2);
+    }
+
+    #[test]
+    fn edges_keeps_duplicate_pairs() {
+        // add_edge appends to the internal Vec and does not deduplicate.
+        let mut g = ZxGraph::new();
+        let a = g.add_spider(SpiderColor::Z, 0.0, None);
+        let b = g.add_spider(SpiderColor::X, 0.0, None);
+        g.add_edge(a, b);
+        g.add_edge(a, b);
+
+        assert_eq!(g.edges(), &[(a, b), (a, b)]);
+        assert_eq!(g.edge_count(), 2);
     }
 }
