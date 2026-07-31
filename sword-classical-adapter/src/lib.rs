@@ -40,6 +40,14 @@ pub enum AdapterError {
 
 type Result<T> = std::result::Result<T, AdapterError>;
 
+/// Intermediate representation of a parsed SWORD document.
+type ParsedSword = (
+    HashMap<u64, f64>,
+    HashMap<(u64, u64), f64>,
+    Vec<u64>,
+    Vec<Value>,
+);
+
 // ── Output types ─────────────────────────────────────────────────────────────
 
 /// Dense QUBO matrix for SA, Gurobi, and D-Wave samplers.
@@ -95,12 +103,7 @@ const DEFAULT_SHOTS: u32 = 1024;
 
 /// Parse the graph nodes/edges and volatile islands from a SWORD document.
 /// Returns (node_h, edge_j, sorted_volatile_ids, stable_edges_array).
-fn parse_sword(sword: &Value) -> Result<(
-    HashMap<u64, f64>,
-    HashMap<(u64, u64), f64>,
-    Vec<u64>,
-    Vec<Value>,
-)> {
+fn parse_sword(sword: &Value) -> Result<ParsedSword> {
     let partition = sword
         .get("partition")
         .ok_or(AdapterError::MissingField("partition"))?;
@@ -297,7 +300,7 @@ pub fn sword_to_routing(sword: &Value) -> Result<RoutingSummary> {
     let mut volatile_segments: Vec<[u64; 2]> = Vec::new();
     let mut adjacency: HashMap<u64, Vec<u64>> = HashMap::new();
 
-    for (&(ni, nj), _) in &edge_j {
+    for &(ni, nj) in edge_j.keys() {
         if volatile_set.contains(&ni) && volatile_set.contains(&nj) {
             volatile_segments.push([ni, nj]);
             adjacency.entry(ni).or_default().push(nj);

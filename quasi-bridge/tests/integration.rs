@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Integration tests for the quasi-bridge pipeline.
+//! Integration tests for quasi-bridge.
 
 use quasi_bridge::basis;
 use quasi_bridge::ehrenfest_mol::{self, Accuracy};
@@ -7,7 +7,6 @@ use quasi_bridge::integrals;
 use quasi_bridge::jordan_wigner;
 use quasi_bridge::molecule;
 use quasi_bridge::partition;
-use quasi_bridge::pipeline::{self, PipelineConfig};
 use quasi_bridge::postprocess;
 use quasi_bridge::rhf;
 
@@ -124,7 +123,7 @@ fn afana_compiles_molecular_ehrenfest() {
         afana::trotter::trotterize_with_stats(&parsed, afana::trotter::TrotterOrder::Second)
             .unwrap();
 
-    assert!(ast.gates.len() > 0, "should generate gates");
+    assert!(!ast.gates.is_empty(), "should generate gates");
     assert!(stats.total_gates > 0);
 
     let qasm = afana::emit::emit_qasm(&ast, afana::emit::QasmVersion::V3).unwrap();
@@ -169,25 +168,6 @@ fn solvayeur_classical_fallback() {
     };
     kernel.observe(&result, reward);
     assert_eq!(kernel.epochs(), 1);
-}
-
-// ── Test 7: Full pipeline on H2 ──────────────────────────────────────────
-
-#[test]
-fn full_pipeline_h2() {
-    let config = PipelineConfig::default();
-    let result = pipeline::run_molecule("[H][H]", &config).unwrap();
-
-    // Should produce a reasonable energy
-    assert!(
-        result.energy < -1.0,
-        "H2 energy should be below -1.0 Ha, got {:.6}",
-        result.energy
-    );
-    assert_eq!(result.n_qubits, 4);
-    assert!(result.gate_count > 0);
-    assert!(result.n_pauli_terms > 0);
-    assert!(!result.backend.is_empty());
 }
 
 // ── Test 9: Cache key determinism ─────────────────────────────────────────

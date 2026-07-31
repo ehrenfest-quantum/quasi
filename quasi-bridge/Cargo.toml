@@ -29,4 +29,7 @@ anyhow = "1"
 thiserror = "2"
 
 [dev-dependencies]
+quasi-cache = { path = "../quasi-cache" }
+quasi-scheduler = { path = "../quasi-scheduler" }
+quasi-solvayeur = { path = "../quasi-solvayeur" }
 tempfile = "3"

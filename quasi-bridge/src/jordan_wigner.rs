@@ -195,9 +195,8 @@ pub fn jordan_wigner_transform(
 
     // One-body: Σ_{pq} h_{pq} a†_p a_q (spin-orbital basis)
     // h_{2i,2j} = h_{i,j} (alpha-alpha), h_{2i+1,2j+1} = h_{i,j} (beta-beta)
-    for p_spat in 0..n_spatial {
-        for q_spat in 0..n_spatial {
-            let h_pq = h_one[p_spat][q_spat];
+    for (p_spat, h_p_row) in h_one.iter().enumerate() {
+        for (q_spat, &h_pq) in h_p_row.iter().enumerate() {
             if h_pq.abs() < 1e-14 {
                 continue;
             }

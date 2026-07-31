@@ -277,7 +277,7 @@ rz(0.785) q[0];
         let circuit = parse_qasm(qasm).unwrap();
         assert_eq!(circuit.ops.len(), 3);
         match &circuit.ops[0] {
-            GateOp::Rx(angle, 0) => assert!((angle - 1.5707963).abs() < 1e-6),
+            GateOp::Rx(angle, 0) => assert!((angle - std::f64::consts::FRAC_PI_2).abs() < 1e-6),
             other => panic!("expected Rx, got {:?}", other),
         }
     }

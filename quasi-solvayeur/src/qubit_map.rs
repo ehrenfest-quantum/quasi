@@ -305,7 +305,7 @@ mod tests {
         // All selected qubits should be near the centre (high quality)
         for &q in &map.mapping {
             assert!(
-                q >= 10 && q <= 40,
+                (10..=40).contains(&q),
                 "qubit {q} is too far from centre: {:?}",
                 map.mapping
             );

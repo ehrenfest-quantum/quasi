@@ -1,21 +1,20 @@
-/// ONNX Training Specification output.
-///
-/// Instead of generating a PyTorch script, this emits a framework-agnostic
-/// ONNX-compatible training specification that describes:
-/// - Which graph nodes (layers) are frozen vs trainable
-/// - Per-island optimizer groups with LR recommendations
-/// - Parallel training structure
-///
-/// Output is a JSON document that can be consumed by:
-/// - onnxruntime TrainingSession (via training_info)
-/// - Nathan's existing ONNX pipeline (garm-analysis)
-/// - Any custom training loop that reads freeze maps
-///
-/// We deliberately do NOT generate an ONNX protobuf here — that requires
-/// the full onnx crate and a model file to modify. Instead we emit the
-/// SPECIFICATION that a thin wrapper (Python or Rust+ort) applies to a
-/// model. This keeps the adapter dependency-free.
-
+//! ONNX Training Specification output.
+//!
+//! Instead of generating a PyTorch script, this emits a framework-agnostic
+//! ONNX-compatible training specification that describes:
+//! - Which graph nodes (layers) are frozen vs trainable
+//! - Per-island optimizer groups with LR recommendations
+//! - Parallel training structure
+//!
+//! Output is a JSON document that can be consumed by:
+//! - onnxruntime TrainingSession (via training_info)
+//! - Nathan's existing ONNX pipeline (garm-analysis)
+//! - Any custom training loop that reads freeze maps
+//!
+//! We deliberately do NOT generate an ONNX protobuf here — that requires
+//! the full onnx crate and a model file to modify. Instead we emit the
+//! SPECIFICATION that a thin wrapper (Python or Rust+ort) applies to a
+//! model. This keeps the adapter dependency-free.
 use crate::config::TrainingConfig;
 use serde::{Deserialize, Serialize};
 
