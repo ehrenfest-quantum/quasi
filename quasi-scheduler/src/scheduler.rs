@@ -123,9 +123,9 @@ mod tests {
         gates: &[&str],
         queue_depth: u32,
         cost: f64,
-        t1: f64,
-        t2: f64,
+        noise: (f64, f64),
     ) -> Backend {
+        let (t1, t2) = noise;
         let single_qubit: Vec<String> = gates.iter().map(|s| s.to_string()).collect();
         let two_qubit: Vec<String> = gates.iter().map(|s| s.to_string()).collect();
         Backend {
@@ -189,8 +189,7 @@ mod tests {
                 &["h", "cx", "rz"],
                 2,
                 0.001,
-                100.0,
-                50.0,
+                (100.0, 50.0),
             ),
             // Worse QPU: long queue, expensive.
             make_backend_with(
@@ -200,8 +199,7 @@ mod tests {
                 &["h", "cx", "rz"],
                 100,
                 0.1,
-                100.0,
-                50.0,
+                (100.0, 50.0),
             ),
         ];
 
@@ -227,8 +225,7 @@ mod tests {
             &["h", "rz"],
             2,
             0.001,
-            100.0,
-            50.0,
+            (100.0, 50.0),
         )];
 
         match scheduler.schedule(&job, &backends) {
@@ -251,8 +248,7 @@ mod tests {
             &["h", "cx"],
             0,
             0.001,
-            100.0,
-            50.0,
+            (100.0, 50.0),
         );
         backend.status = BackendStatus::Offline;
 
@@ -282,8 +278,7 @@ mod tests {
                 &["h", "cx"],
                 5,
                 0.01,
-                100.0,
-                50.0,
+                (100.0, 50.0),
             ),
             // Bad noise: t1 too low.
             make_backend_with(
@@ -293,8 +288,7 @@ mod tests {
                 &["h", "cx"],
                 5,
                 0.01,
-                50.0,
-                50.0,
+                (50.0, 50.0),
             ),
         ];
 
@@ -321,8 +315,7 @@ mod tests {
                 &["h", "cx"],
                 5,
                 0.001,
-                100.0,
-                50.0,
+                (100.0, 50.0),
             ),
             // Expensive: 1.0 * 1000 = 1000.0.
             make_backend_with(
@@ -332,8 +325,7 @@ mod tests {
                 &["h", "cx"],
                 5,
                 1.0,
-                100.0,
-                50.0,
+                (100.0, 50.0),
             ),
         ];
 
@@ -360,8 +352,7 @@ mod tests {
                 &["h", "cx"],
                 5,
                 0.01,
-                100.0,
-                50.0,
+                (100.0, 50.0),
             ),
             // Simulator: same everything else, but type differs.
             make_backend_with(
@@ -371,8 +362,7 @@ mod tests {
                 &["h", "cx"],
                 5,
                 0.01,
-                100.0,
-                50.0,
+                (100.0, 50.0),
             ),
         ];
 
@@ -396,8 +386,7 @@ mod tests {
             &[],
             0,
             0.0,
-            10.0,
-            5.0,
+            (10.0, 5.0),
         )];
 
         match scheduler.schedule(&job, &backends) {
@@ -420,8 +409,7 @@ mod tests {
             &["h", "cx"],
             0,
             0.001,
-            100.0,
-            50.0,
+            (100.0, 50.0),
         );
         backend.status = BackendStatus::Maintenance;
 

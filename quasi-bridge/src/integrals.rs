@@ -153,6 +153,13 @@ fn gaussian_product(alpha: f64, a: [f64; 3], beta: f64, b: [f64; 3]) -> Gaussian
     }
 }
 
+/// One primitive Gaussian shell: exponent, centre, and angular momentum.
+struct PrimShell {
+    alpha: f64,
+    center: [f64; 3],
+    ang: [i32; 3],
+}
+
 /// Overlap integral between two unnormalised primitive Gaussians.
 fn overlap_prim(
     alpha: f64, a: [f64; 3], la: [i32; 3],
@@ -197,12 +204,8 @@ fn kinetic_prim(
 /// Nuclear attraction integral for one nucleus at C with charge Z.
 ///
 /// V(a,b|C) = -Z K (2π/p) Σ_{tuv} E_t E_u E_v R_{tuv}^0
-fn nuclear_prim(
-    alpha: f64, a: [f64; 3], la: [i32; 3],
-    beta: f64, b: [f64; 3], lb: [i32; 3],
-    c: [f64; 3], z_charge: f64,
-) -> f64 {
-    let gp = gaussian_product(alpha, a, beta, b);
+fn nuclear_prim(a: PrimShell, b: PrimShell, c: [f64; 3], z_charge: f64) -> f64 {
+    let gp = gaussian_product(a.alpha, a.center, b.alpha, b.center);
     let rpc = [
         gp.center[0] - c[0],
         gp.center[1] - c[1],
@@ -210,14 +213,14 @@ fn nuclear_prim(
     ];
     let pre = -z_charge * gp.k * 2.0 * std::f64::consts::PI / gp.p;
     let mut val = 0.0;
-    for t in 0..=(la[0] + lb[0]) {
-        let et = hermite_e(la[0], lb[0], t, gp.pa[0], gp.pb[0], gp.inv2p);
+    for t in 0..=(a.ang[0] + b.ang[0]) {
+        let et = hermite_e(a.ang[0], b.ang[0], t, gp.pa[0], gp.pb[0], gp.inv2p);
         if et.abs() < 1e-16 { continue; }
-        for u in 0..=(la[1] + lb[1]) {
-            let eu = hermite_e(la[1], lb[1], u, gp.pa[1], gp.pb[1], gp.inv2p);
+        for u in 0..=(a.ang[1] + b.ang[1]) {
+            let eu = hermite_e(a.ang[1], b.ang[1], u, gp.pa[1], gp.pb[1], gp.inv2p);
             if eu.abs() < 1e-16 { continue; }
-            for v in 0..=(la[2] + lb[2]) {
-                let ev = hermite_e(la[2], lb[2], v, gp.pa[2], gp.pb[2], gp.inv2p);
+            for v in 0..=(a.ang[2] + b.ang[2]) {
+                let ev = hermite_e(a.ang[2], b.ang[2], v, gp.pa[2], gp.pb[2], gp.inv2p);
                 if ev.abs() < 1e-16 { continue; }
                 val += et * eu * ev * r_aux(t, u, v, 0, gp.p, rpc);
             }
@@ -232,14 +235,9 @@ fn nuclear_prim(
 ///           × Σ_{tuv,τυφ} E^{ab}_t E^{ab}_u E^{ab}_v
 ///                          × E^{cd}_τ E^{cd}_υ E^{cd}_φ
 ///                          × (-1)^{τ+υ+φ} R_{t+τ, u+υ, v+φ}(α, P-Q)
-fn eri_prim(
-    alpha: f64, a: [f64; 3], la: [i32; 3],
-    beta: f64, b: [f64; 3], lb: [i32; 3],
-    gamma: f64, c: [f64; 3], lc: [i32; 3],
-    delta: f64, d: [f64; 3], ld: [i32; 3],
-) -> f64 {
-    let gp1 = gaussian_product(alpha, a, beta, b);
-    let gp2 = gaussian_product(gamma, c, delta, d);
+fn eri_prim(a: PrimShell, b: PrimShell, c: PrimShell, d: PrimShell) -> f64 {
+    let gp1 = gaussian_product(a.alpha, a.center, b.alpha, b.center);
+    let gp2 = gaussian_product(c.alpha, c.center, d.alpha, d.center);
     let p = gp1.p;
     let q = gp2.p;
     let alpha_g = p * q / (p + q);
@@ -252,23 +250,23 @@ fn eri_prim(
         / (p * q * (p + q).sqrt());
 
     let mut val = 0.0;
-    for t in 0..=(la[0] + lb[0]) {
-        let et = hermite_e(la[0], lb[0], t, gp1.pa[0], gp1.pb[0], gp1.inv2p);
+    for t in 0..=(a.ang[0] + b.ang[0]) {
+        let et = hermite_e(a.ang[0], b.ang[0], t, gp1.pa[0], gp1.pb[0], gp1.inv2p);
         if et.abs() < 1e-16 { continue; }
-        for u in 0..=(la[1] + lb[1]) {
-            let eu = hermite_e(la[1], lb[1], u, gp1.pa[1], gp1.pb[1], gp1.inv2p);
+        for u in 0..=(a.ang[1] + b.ang[1]) {
+            let eu = hermite_e(a.ang[1], b.ang[1], u, gp1.pa[1], gp1.pb[1], gp1.inv2p);
             if eu.abs() < 1e-16 { continue; }
-            for v in 0..=(la[2] + lb[2]) {
-                let ev = hermite_e(la[2], lb[2], v, gp1.pa[2], gp1.pb[2], gp1.inv2p);
+            for v in 0..=(a.ang[2] + b.ang[2]) {
+                let ev = hermite_e(a.ang[2], b.ang[2], v, gp1.pa[2], gp1.pb[2], gp1.inv2p);
                 if ev.abs() < 1e-16 { continue; }
-                for tau in 0..=(lc[0] + ld[0]) {
-                    let e_tau = hermite_e(lc[0], ld[0], tau, gp2.pa[0], gp2.pb[0], gp2.inv2p);
+                for tau in 0..=(c.ang[0] + d.ang[0]) {
+                    let e_tau = hermite_e(c.ang[0], d.ang[0], tau, gp2.pa[0], gp2.pb[0], gp2.inv2p);
                     if e_tau.abs() < 1e-16 { continue; }
-                    for nu in 0..=(lc[1] + ld[1]) {
-                        let e_nu = hermite_e(lc[1], ld[1], nu, gp2.pa[1], gp2.pb[1], gp2.inv2p);
+                    for nu in 0..=(c.ang[1] + d.ang[1]) {
+                        let e_nu = hermite_e(c.ang[1], d.ang[1], nu, gp2.pa[1], gp2.pb[1], gp2.inv2p);
                         if e_nu.abs() < 1e-16 { continue; }
-                        for phi in 0..=(lc[2] + ld[2]) {
-                            let e_phi = hermite_e(lc[2], ld[2], phi, gp2.pa[2], gp2.pb[2], gp2.inv2p);
+                        for phi in 0..=(c.ang[2] + d.ang[2]) {
+                            let e_phi = hermite_e(c.ang[2], d.ang[2], phi, gp2.pa[2], gp2.pb[2], gp2.inv2p);
                             if e_phi.abs() < 1e-16 { continue; }
                             let sign = if (tau + nu + phi) % 2 == 0 { 1.0 } else { -1.0 };
                             val += et * eu * ev * e_tau * e_nu * e_phi * sign
@@ -326,7 +324,12 @@ pub fn nuclear(a: &BasisFunction, b: &BasisFunction, nuclei: &[(u8, [f64; 3])]) 
         for (k, &alpha) in a.exponents.iter().enumerate() {
             for (l, &beta) in b.exponents.iter().enumerate() {
                 val += a.coefficients[k] * b.coefficients[l]
-                    * nuclear_prim(alpha, a.center, la, beta, b.center, lb, c, z_f);
+                    * nuclear_prim(
+                        PrimShell { alpha, center: a.center, ang: la },
+                        PrimShell { alpha: beta, center: b.center, ang: lb },
+                        c,
+                        z_f,
+                    );
             }
         }
     }
@@ -349,8 +352,10 @@ pub fn eri(a: &BasisFunction, b: &BasisFunction, c: &BasisFunction, d: &BasisFun
                         * c.coefficients[k]
                         * d.coefficients[l]
                         * eri_prim(
-                            ai, a.center, la, bj, b.center, lb,
-                            ck, c.center, lc, dl, d.center, ld,
+                            PrimShell { alpha: ai, center: a.center, ang: la },
+                            PrimShell { alpha: bj, center: b.center, ang: lb },
+                            PrimShell { alpha: ck, center: c.center, ang: lc },
+                            PrimShell { alpha: dl, center: d.center, ang: ld },
                         );
                 }
             }

@@ -322,7 +322,7 @@ mod tests {
         // log(0.90) / log(0.999) ≈ 105.36 → floor = 105
         let depth = max_feasible_depth(0.90, 0.999, 0.999, 0.0);
         assert!(
-            depth >= 100 && depth <= 110,
+            (100..=110).contains(&depth),
             "expected ~105, got {}",
             depth
         );

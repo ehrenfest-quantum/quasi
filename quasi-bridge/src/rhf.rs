@@ -56,6 +56,7 @@ pub fn rhf(ints: &MolecularIntegrals, n_electrons: usize) -> Result<RhfResult, B
     let mut e_old = 0.0;
     #[allow(unused_assignments)]
     let mut iterations = 0usize;
+    let mut last_delta = f64::INFINITY;
 
     for iter in 0..max_iter {
         iterations = iter + 1;
@@ -91,6 +92,7 @@ pub fn rhf(ints: &MolecularIntegrals, n_electrons: usize) -> Result<RhfResult, B
 
         // Convergence check
         let delta_e = (e_elec - e_old).abs();
+        last_delta = delta_e;
         e_old = e_elec;
 
         if delta_e < thresh && iter > 0 {
@@ -114,7 +116,7 @@ pub fn rhf(ints: &MolecularIntegrals, n_electrons: usize) -> Result<RhfResult, B
 
     Err(BridgeError::RhfNotConverged {
         iterations: max_iter,
-        delta_e: (e_old - e_old).abs(), // last delta
+        delta_e: last_delta,
     })
 }
 

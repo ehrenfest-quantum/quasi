@@ -143,9 +143,7 @@ impl Solvayeur {
         // Preserve existing bias fields where possible
         let mut new_bias = vec![0.0; new_params.n_qubits];
         let min_qubits = self.params.n_qubits.min(new_params.n_qubits);
-        for i in 0..min_qubits {
-            new_bias[i] = self.params.bias[i];
-        }
+        new_bias[..min_qubits].copy_from_slice(&self.params.bias[..min_qubits]);
         
         self.params.n_qubits = new_params.n_qubits;
         self.params.n_backends = new_params.n_backends;

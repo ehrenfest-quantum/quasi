@@ -292,8 +292,10 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
         let gate_result = crate::gate::gate_review(
             &charter,
             &draft,
-            &open_issues_str,
-            &recently_closed_str,
+            &crate::gate::IssueContext {
+                open_issues: &open_issues_str,
+                recently_closed: &recently_closed_str,
+            },
             &gate_exclude,
             &counts,
             last_provider,

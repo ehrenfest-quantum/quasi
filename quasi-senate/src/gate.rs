@@ -15,14 +15,22 @@ struct GateVerdictRaw {
     suggestions: Option<String>,
 }
 
+/// Context strings passed to a gate review.
+#[derive(Debug)]
+pub struct IssueContext<'a> {
+    /// Currently open issues, formatted as text.
+    pub open_issues: &'a str,
+    /// Recently closed issues, formatted as text.
+    pub recently_closed: &'a str,
+}
+
 /// Review a draft issue (A.3). Returns verdict and the rotation entry used.
 ///
 /// * `exclude` — model IDs to exclude (at minimum: the drafter's model id)
 pub async fn gate_review(
     charter: &Charter,
     draft: &IssueDraft,
-    open_issues: &str,
-    recently_closed: &str,
+    issue_ctx: &IssueContext<'_>,
     exclude: &[&str],
     counts: &HashMap<String, u32>,
     last_provider: Option<&str>,
@@ -33,7 +41,12 @@ pub async fn gate_review(
 
     // 2. Build prompts
     let system = crate::prompts::gate_system_prompt();
-    let user = crate::prompts::gate_user_prompt(charter, draft, open_issues, recently_closed);
+    let user = crate::prompts::gate_user_prompt(
+        charter,
+        draft,
+        issue_ctx.open_issues,
+        issue_ctx.recently_closed,
+    );
 
     // 3. Dry-run path — return an approving verdict
     if dry_run {

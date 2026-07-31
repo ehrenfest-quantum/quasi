@@ -65,7 +65,7 @@ pub fn to_pytorch_script(config: &TrainingConfig) -> String {
 
         if layer.param_indices_to_train.is_empty() {
             // All params in this layer are trainable
-            lines.push(format!("#   all parameters trainable"));
+            lines.push("#   all parameters trainable".to_string());
             lines.push("for name, param in model.named_parameters():".into());
             lines.push("    parts = name.split('.')".into());
             lines.push(format!("    if parts[0] == '{}':", layer.name));
