@@ -1,6 +1,9 @@
 # Pauli-Test Audit — Hard Review
 
-**Status:** Working document. Do not paper over inconsistencies.
+**Status:** Historical. Findings 1 and 2 were accepted and `BENCHMARK.md` was corrected; this
+document audits the superseded version and is retained as the record of why the text changed.
+Verified 2026-08-01: `BENCHMARK.md` no longer contains any reference to the Exclusion Principle,
+and the "occupy a capability level" axiom has been removed. See the resolution note in §1.
 **Method:** Each claim in `BENCHMARK.md` is examined individually. Where the claim holds, it is confirmed. Where it fails or is unsupported, the failure mode is named exactly.
 
 ---
@@ -23,6 +26,22 @@ If you invoke Wolfgang Pauli as the standard of rigour, the first thing he would
 **The axiom can be reworded to be defensible** ("a model cannot *claim* a level it has not traversed") but that is a policy statement, not a physical law. The physical law analogy fails.
 
 **This is the most serious error in the document. It is in the name.**
+
+### Resolution (2026-08-01) — accepted, and the scope of the verdict narrowed
+
+`BENCHMARK.md` was corrected and no longer claims descent from the Exclusion Principle. The
+physics above stands: sequential traversal is Aufbau, not exclusion, and the old wording was
+wrong to invoke it.
+
+What the verdict got wrong is its *scope*. It concluded the error was "in the name". It was not —
+it was in the stated rationale. **The benchmark is named after Wolfgang Pauli the critic, not
+after his Exclusion Principle**: Ehrenfest's student, the least tolerant reviewer in the history
+of physics, whose *"nicht einmal falsch"* is the standard the benchmark applies. On that reading
+the name needs no physical-law analogy to carry it, and it fits a harness whose defining
+behaviour is attempting to reject its own results.
+
+`BENCHMARK.md` now states this directly, and labels the three-Pauls table "a mnemonic, not a
+derivation" — which is precisely the concession §2 asks for.
 
 ---
 
