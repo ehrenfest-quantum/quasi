@@ -1692,7 +1692,7 @@ provider = "openrouter"
 license = "Unknown"
 origin = "Unknown"
 roles = ["a1_council", "a2_drafter", "a3_gate", "b1_solver", "b2_reviewer"]
-quarantined = true
+quarantined = false  # re-verified live 2026-08-01 after OpenRouter key renewal
 [[rotation]]
 id = "deepseek-v4-flash"
 model = "deepseek/deepseek-v4-flash"
@@ -1700,7 +1700,7 @@ provider = "openrouter"
 license = "Unknown"
 origin = "Unknown"
 roles = ["a1_council", "a2_drafter", "a3_gate", "b1_solver", "b2_reviewer"]
-quarantined = true
+quarantined = false  # re-verified live 2026-08-01 after OpenRouter key renewal
 [[rotation]]
 id = "qwen3.6-27b"
 model = "qwen/qwen3.6-27b"
@@ -1817,6 +1817,9 @@ roles = ["a2_drafter", "b1_solver", "b2_reviewer"]
 # deepseek-v4-flash omitted: the roster already carries
 # deepseek/deepseek-v4-flash with broader roles.
 max_tokens = 32768  # reasoning model: thinking tokens consume the budget before content
+quarantined = true  # parked on cost: $3/$15 per M tok vs deepseek-v4-flash
+                    # at $0.14/$0.28 for the same 1M context (54x output).
+                    # Un-quarantine if a task needs its reasoning depth.
 
 [[rotation]]
 id = "glm-5.2"
