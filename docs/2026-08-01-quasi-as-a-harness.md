@@ -69,7 +69,18 @@ decisions. Tasks therefore inherit OS-level constraints: hardware abstraction mu
 the compiler, and vendor SDKs are architecturally forbidden inside `afana`. Several architectural
 invariants are enforced by CI, not by convention.
 
-**6. Constrained model pool by policy.**
+**6. The verifier is structurally separated from the generator.**
+Review is not performed by "another model from the pool" — it is performed from a **declared
+disjoint pool**. A model holding the `werner_judge` role may hold no generator role, and the
+separation is enforced by test rather than by convention, including at model-family level so the
+same model served by two providers cannot sit on both sides. Alongside this runs **Werner**, an
+independent shadow judge whose integrity guarantee is *deliberate statelessness*: every verdict is
+a single context-free call with no history, no exemplars and no retrieval over prior verdicts, so
+the judge cannot drift toward the distribution it judges. Verdicts are sealed in a hash chain that
+is never read at judging time — audit only. Before this was declared, 61 of 93 reviewer-capable
+models were also generator-capable.
+
+**7. Constrained model pool by policy.**
 Open-weight models only — no closed commercial APIs — with rotation across ~9 providers, fair
 assignment by usage count, provider diversity to prevent collusion between drafter and reviewer,
 and cost-tier preference so a free local model is used when its host is reachable.
@@ -99,7 +110,14 @@ failure mode was in the *task supply*, not the solver.
 
 ## Current state (2026-08-01)
 
-Deployed and verified end-to-end: draft → proposal → human accept → issue. Solver pool spans 9
-models across 6 providers. **The timers are disabled** — the loop runs only when invoked
-manually. The ledger currently reports `valid: false` from a single lost entry caused by an
-unlocked read-modify-write, tracked separately.
+Deployed and verified end-to-end: draft → proposal → human accept → issue → Werner verdict. The
+last link was restored on 2026-08-01: Werner's collector keyed only on the legacy
+`issue_generated` ledger event, so when the senate timers stopped on 2026-05-10 it polled an empty
+queue for three months. It now also collects `proposal_accepted`, and issued verdict 602 — its
+first since May, and the first ever on an issue that reached GitHub through human approval rather
+than auto-publication.
+
+Solver pool spans 9 models across 6 providers; the judge pool is 7, disjoint by construction.
+**The timers are disabled** — the loop runs only when invoked manually. The ledger reports
+`valid: false` from a single lost entry caused by an unlocked read-modify-write, tracked
+separately.
