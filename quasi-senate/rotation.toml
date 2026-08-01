@@ -148,7 +148,7 @@ roles = ["a2_drafter", "b1_solver"]
 tier = 1
 
 # ── Tier 2 — EU / competitive coding ─────────────────────────────────────────
-quarantined = true
+quarantined = false
 
 [[rotation]]
 id = "mistral-small"
@@ -432,7 +432,7 @@ license = "Open"
 origin = "US / OpenAI"
 roles = ["a2_drafter", "b1_solver"]
 tier = 2
-quarantined = true
+quarantined = false
 
 [[rotation]]
 id = "deepseek-r1-together"
@@ -450,6 +450,7 @@ provider = "together"
 license = "MIT"
 origin = "China / DeepSeek"
 roles = ["a1_council", "a3_gate", "b2_reviewer"]
+quarantined = true  # non-serverless on together, verified 2026-08-01
 
 [[rotation]]
 id = "deepseek-v3-fireworks"
@@ -1563,7 +1564,7 @@ provider = "cerebras"
 license = "Unknown"
 origin = "Unknown"
 roles = ["a2_drafter", "a3_gate", "b2_reviewer"]
-quarantined = true
+quarantined = false
 [[rotation]]
 id = "mistral-vibe-cli-fast-mi"
 model = "mistral-vibe-cli-fast"
@@ -1811,10 +1812,11 @@ model = "moonshotai/kimi-k3"
 provider = "openrouter"
 license = "Modified MIT (weights public)"
 origin = "China / Moonshot AI"
-roles = ["a1_council", "a2_drafter", "a3_gate", "b1_solver", "b2_reviewer"]
+roles = ["a2_drafter", "b1_solver", "b2_reviewer"]
 
 # deepseek-v4-flash omitted: the roster already carries
 # deepseek/deepseek-v4-flash with broader roles.
+max_tokens = 32768  # reasoning model: thinking tokens consume the budget before content
 
 [[rotation]]
 id = "glm-5.2"
@@ -1847,3 +1849,21 @@ provider = "openrouter"
 license = "Apache-2.0"
 origin = "USA / OpenAI (open weights)"
 roles = ["a3_gate", "b2_reviewer"]
+
+[[rotation]]
+id = "glm-5.2-together"
+model = "zai-org/GLM-5.2"
+provider = "together"
+license = "MIT"
+origin = "China / Z.ai"
+roles = ["a2_drafter", "b1_solver"]
+max_tokens = 16384
+
+[[rotation]]
+id = "glm-5.2-fireworks"
+model = "accounts/fireworks/models/glm-5p2"
+provider = "fireworks"
+license = "MIT"
+origin = "China / Z.ai"
+roles = ["a2_drafter", "b1_solver"]
+max_tokens = 4096
