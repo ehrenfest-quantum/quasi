@@ -254,8 +254,9 @@ async fn find_oldest_senate_issue(ctx: &mut AppContext) -> Result<u32> {
     let issues_with_prs = ctx.github.issues_with_open_prs().await.unwrap_or_default();
 
     // Issues are returned newest-first; reverse to get oldest-first.
-    // Skip issues that have exhausted their solve retries (>= 2 attempts)
-    // or that already have an open PR.
+    // Skip issues that have exhausted their solve retries (>= 2 attempts),
+    // that already have an open PR, or that were flagged `already-done?` by
+    // the B-track pre-flight check (a human makes the final close call).
     let senate_issues: Vec<_> = issues
         .into_iter()
         .filter(|issue| {
@@ -271,7 +272,8 @@ async fn find_oldest_senate_issue(ctx: &mut AppContext) -> Result<u32> {
                 .copied()
                 .unwrap_or(0);
             let has_pr = issues_with_prs.contains(&issue.number);
-            is_senate && retries < 2 && !has_pr
+            let already_done = issue.labels.iter().any(|l| l.name == "already-done?");
+            is_senate && retries < 2 && !has_pr && !already_done
         })
         .collect();
 
