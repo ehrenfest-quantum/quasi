@@ -129,7 +129,9 @@ pub async fn draft_issue(
 
     // 9. Call the LLM
     let system = crate::prompts::drafter_system_prompt();
-    let call_result = crate::provider::call_model(entry, system, &user, 0.7, 2048).await?;
+    // Roster max_tokens overrides the role default (see council.rs).
+    let max_tokens = entry.max_tokens.unwrap_or(2048);
+    let call_result = crate::provider::call_model(entry, system, &user, 0.7, max_tokens).await?;
     let raw = call_result.content.clone();
 
     // 10. Parse raw response — map failure to ParseFailure so pipeline can write telemetry.

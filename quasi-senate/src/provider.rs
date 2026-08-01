@@ -378,6 +378,23 @@ pub async fn call_model_with_format(
     let latency_ms = start_time.elapsed().as_millis() as u64;
     let retries = attempt_count.load(std::sync::atomic::Ordering::SeqCst).saturating_sub(1);
 
+    // An empty body is indistinguishable from a slow failure in the logs, and it
+    // is the shape reasoning models produce when something goes wrong upstream
+    // (refusal, filtered content, or output emitted only as reasoning tokens).
+    // Log it loudly with the request parameters needed to reproduce it, so the
+    // cause is diagnosable without re-running the whole pipeline.
+    if content.trim().is_empty() {
+        warn!(
+            model = model_id,
+            latency_ms = latency_ms,
+            retries = retries,
+            http_status = http_status,
+            requested_max_tokens = max_tokens,
+            prompt_bytes = system_prompt.len() + user_prompt.len(),
+            "LLM returned EMPTY content — call succeeded but produced nothing usable"
+        );
+    }
+
     info!(
         model = model_id,
         response_chars = content.len(),

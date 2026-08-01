@@ -104,7 +104,10 @@ pub async fn run_council(
     }
 
     // 10. Call the LLM
-    let call_result = crate::provider::call_model(entry, system, &user, 0.2, 8192).await?;
+    // Roster max_tokens overrides the role default: reasoning models spend part
+    // of their budget on thinking tokens before emitting any content.
+    let max_tokens = entry.max_tokens.unwrap_or(8192);
+    let call_result = crate::provider::call_model(entry, system, &user, 0.2, max_tokens).await?;
 
     // 11. Parse response
     let charter =

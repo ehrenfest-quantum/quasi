@@ -73,7 +73,10 @@ pub async fn gate_review(
     }
 
     // 4. Call the LLM
-    let call_result = crate::provider::call_model(entry, system, &user, 0.2, 1024).await?;
+    // Roster max_tokens overrides the role default (see council.rs). The 1024
+    // default is especially tight for reasoning models.
+    let max_tokens = entry.max_tokens.unwrap_or(1024);
+    let call_result = crate::provider::call_model(entry, system, &user, 0.2, max_tokens).await?;
     let raw = call_result.content.clone();
 
     // 5. Parse raw response — map failure to ParseFailure so pipeline can write telemetry.
