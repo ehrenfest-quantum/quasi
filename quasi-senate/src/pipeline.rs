@@ -410,6 +410,17 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
                 // Route through the quasi-board proposal queue (CLAUDE.md
                 // invariant 3). Board rejections are the gate doing its job —
                 // never fall back to create_issue, never retry around them.
+                //
+                // A proposal POST mutates board state, so --dry-run must not
+                // send one: a dry run previously queued a real pending proposal
+                // on the production board.
+                if ctx.dry_run {
+                    println!(
+                        "[dry-run] would queue quasi-board proposal for \"{}\" (effort={}, components={:?})",
+                        draft.title, draft.estimated_effort, draft.affected_components
+                    );
+                    Publication::Proposal("dry-run-not-submitted".to_string())
+                } else {
                 match crate::ledger::submit_proposal(&draft, &verdict.reasoning).await {
                     ProposalOutcome::Queued(prop_id) => {
                         info!(
@@ -443,6 +454,7 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
                             draft.title
                         ));
                     }
+                }
                 }
             };
 
