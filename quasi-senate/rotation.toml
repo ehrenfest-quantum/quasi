@@ -393,3 +393,22 @@ provider = "cerebras"
 license = "Apache-2.0"
 origin = "China / Alibaba"
 roles = ["a2_drafter", "b1_solver"]
+
+# ── Self-hosted local model ───────────────────────────────────────────────────
+# Qwen3-235B on a Mac Studio (mlx-lm), reachable over Tailscale. Zero marginal
+# cost (cost_tier = 0) so it is preferred whenever it is up — but it is paused
+# whenever its owner needs the RAM. The availability probe (src/availability.rs)
+# checks the endpoint before selection and removes this entry automatically
+# when the host is down; the roster then falls back to the cloud models above
+# with no config change.
+# NOTE: OLLAMA_URL must point at the tailnet IP (not the MagicDNS hostname)
+# because the deployment host has no MagicDNS — hostname resolution fails there.
+
+[[rotation]]
+id = "qwen3-235b-local"
+model = "mlx-community/Qwen3-235B-A22B-Instruct-2507-3bit-DWQ"
+provider = "ollama"
+license = "Apache-2.0"
+origin = "Local / Mac Studio"
+roles = ["a2_drafter", "b1_solver"]
+cost_tier = 0

@@ -38,21 +38,32 @@ pub fn provider_has_key(provider_id: &str) -> bool {
     true
 }
 
-/// Return all `RotationEntry` items whose provider's API key is available
-/// and which support the given `role`.
+/// Return all `RotationEntry` items which support the given `role`, whose
+/// provider's API key is available, and whose provider is currently live
+/// (self-hosted endpoints are probed; see `availability`).
 pub fn eligible_for_role(role: &Role) -> Vec<&'static RotationEntry> {
-    rotation()
+    eligible_from(rotation(), role)
+}
+
+fn eligible_from<'a>(entries: &'a [RotationEntry], role: &Role) -> Vec<&'a RotationEntry> {
+    entries
         .iter()
-        .filter(|e| !e.quarantined && e.roles.contains(role) && provider_has_key(&e.provider))
+        .filter(|e| {
+            !e.quarantined
+                && e.roles.contains(role)
+                && provider_has_key(&e.provider)
+                && crate::availability::is_provider_live(&e.provider)
+        })
         .collect()
 }
 
 /// Pick the next model for a given role, respecting:
 /// 1. The model must support the requested role.
-/// 2. The model's provider must have its API key configured.
+/// 2. The model's provider must have its API key configured and be live.
 /// 3. The model must not appear in `exclude` (anti-collusion).
-/// 4. Prefer the model with fewest assignments for this role (fair rotation).
-/// 5. De-prioritise the provider used in the last call (load spreading).
+/// 4. Prefer the lowest cost tier (free self-hosted models first).
+/// 5. Prefer the model with fewest assignments for this role (fair rotation).
+/// 6. De-prioritise the provider used in the last call (load spreading).
 ///
 /// On success returns a `&'static RotationEntry`.
 pub fn pick_model(
@@ -61,8 +72,18 @@ pub fn pick_model(
     counts: &HashMap<String, u32>,
     last_provider: Option<&str>,
 ) -> Result<&'static RotationEntry> {
+    pick_from(rotation(), role, exclude, counts, last_provider)
+}
+
+fn pick_from<'a>(
+    entries: &'a [RotationEntry],
+    role: &Role,
+    exclude: &[&str],
+    counts: &HashMap<String, u32>,
+    last_provider: Option<&str>,
+) -> Result<&'a RotationEntry> {
     // Step 1: get all eligible candidates for this role.
-    let candidates: Vec<&'static RotationEntry> = eligible_for_role(role)
+    let candidates: Vec<&RotationEntry> = eligible_from(entries, role)
         .into_iter()
         .filter(|e| !exclude.contains(&e.id.as_str()))
         .collect();
@@ -73,18 +94,82 @@ pub fn pick_model(
         ));
     }
 
-    // Step 2: sort by (count, same_provider_penalty, rotation_index).
-    let rotation_index = |id: &str| -> usize {
-        rotation().iter().position(|e| e.id == id).unwrap_or(usize::MAX)
-    };
+    // Step 2: sort by (cost_tier, count, same_provider_penalty, rotation_index).
+    // Cost tier dominates: a live free model is always preferred, while the
+    // existing fairness/diversity behaviour applies within a tier.
+    let rotation_index =
+        |id: &str| -> usize { entries.iter().position(|e| e.id == id).unwrap_or(usize::MAX) };
 
     let mut sorted = candidates;
     sorted.sort_by_key(|e| {
         let count = counts.get(&e.id).copied().unwrap_or(0);
         let penalty: u32 = if last_provider == Some(e.provider.as_str()) { 1 } else { 0 };
         let idx = rotation_index(&e.id);
-        (count, penalty, idx)
+        (e.cost_tier, count, penalty, idx)
     });
 
     Ok(sorted[0])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_entry(id: &str, provider: &str, cost_tier: u8) -> RotationEntry {
+        RotationEntry {
+            id: id.to_string(),
+            model: format!("{id}-model"),
+            provider: provider.to_string(),
+            license: "test".to_string(),
+            origin: "test".to_string(),
+            roles: vec![Role::B1Solver],
+            quarantined: false,
+            max_tokens: None,
+            max_context: None,
+            cost_tier,
+        }
+    }
+
+    fn setup_env() {
+        // Port 1 is never listening; the actual probe result is overridden
+        // via the availability cache in each test.
+        std::env::set_var("OLLAMA_URL", "http://127.0.0.1:1/v1/chat/completions");
+        std::env::set_var("GROQ_API_KEY", "test-key");
+    }
+
+    #[test]
+    fn pick_prefers_free_tier_when_local_live() {
+        let _guard = crate::availability::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        setup_env();
+        crate::availability::force_provider_live("ollama");
+
+        let entries = vec![
+            test_entry("paid-model", "groq", 1),
+            test_entry("free-model", "ollama", 0),
+        ];
+        let counts: HashMap<String, u32> = HashMap::new();
+        let picked = pick_from(&entries, &Role::B1Solver, &[], &counts, None)
+            .expect("a model should be eligible");
+        assert_eq!(picked.id, "free-model");
+    }
+
+    #[test]
+    fn pick_falls_back_to_paid_when_local_down() {
+        let _guard = crate::availability::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        setup_env();
+        crate::availability::mark_provider_down("ollama");
+
+        let entries = vec![
+            test_entry("paid-model", "groq", 1),
+            test_entry("free-model", "ollama", 0),
+        ];
+        let counts: HashMap<String, u32> = HashMap::new();
+        let picked = pick_from(&entries, &Role::B1Solver, &[], &counts, None)
+            .expect("the paid model should still be eligible");
+        assert_eq!(picked.id, "paid-model");
+    }
 }

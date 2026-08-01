@@ -2,6 +2,7 @@
 // Copyright 2026 QUASI Contributors
 //! `quasi-senate` library root — re-exports all public modules for integration tests.
 
+pub mod availability;
 pub mod config;
 pub mod council;
 pub mod health_check;
