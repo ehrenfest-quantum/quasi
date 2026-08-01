@@ -256,13 +256,22 @@ pub async fn call_model_with_format(
                 "Calling LLM"
             );
 
-            let response = client
+            let response = match client
                 .post(&url)
                 .headers(headers)
                 .body(request_json)
                 .send()
                 .await
-                .context("HTTP request failed")?;
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    // Transport-level failure (connect refused, DNS, TLS,
+                    // timeout): take the provider out of selection so the
+                    // next `pick_model` fails over to another provider.
+                    crate::availability::mark_provider_down(&entry.provider);
+                    return Err(e).context("HTTP request failed");
+                }
+            };
 
             let status = response.status();
 
@@ -312,7 +321,7 @@ pub async fn call_model_with_format(
             let json: Value =
                 serde_json::from_str(&body_text).context("Provider response is not valid JSON")?;
 
-            let content = json
+            let content = strip_stop_token(json
                 .pointer("/choices/0/message/content")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| {
@@ -320,8 +329,7 @@ pub async fn call_model_with_format(
                         "Provider response missing choices[0].message.content: {}",
                         &body_text[..body_text.len().min(400)]
                     )
-                })?
-                .to_string();
+                })?);
 
             let status_code = status.as_u16();
 
@@ -387,6 +395,19 @@ pub async fn call_model_with_format(
         served_model,
         input_len,
     })
+}
+
+// ── Stop-token cleanup ───────────────────────────────────────────────────────
+
+/// Strip a trailing `<|im_end|>` stop token (plus any whitespace it leaves
+/// behind) from model output. Some local mlx-lm builds do not strip the token
+/// from `content`. Applied for all providers; a no-op when the token is absent.
+fn strip_stop_token(content: &str) -> String {
+    const TOKEN: &str = "<|im_end|>";
+    match content.trim_end().strip_suffix(TOKEN) {
+        Some(s) => s.trim().to_string(),
+        None => content.to_string(),
+    }
 }
 
 // ── JSON repair ───────────────────────────────────────────────────────────────
@@ -654,5 +675,28 @@ mod tests {
         assert!(fixed.contains("\\n"));
         // Outside of strings, real newlines should be preserved.
         assert!(!fixed.contains("\n") || fixed.find("\\n").is_some());
+    }
+
+    #[test]
+    fn strip_stop_token_removes_trailing_im_end() {
+        assert_eq!(
+            strip_stop_token("{\"key\": \"hi\"}<|im_end|>"),
+            "{\"key\": \"hi\"}"
+        );
+        // Whitespace before/after the token is cleaned up too.
+        assert_eq!(strip_stop_token("hello world  <|im_end|>\n"), "hello world");
+        assert_eq!(strip_stop_token("  padded <|im_end|>  "), "padded");
+    }
+
+    #[test]
+    fn strip_stop_token_leaves_other_content_untouched() {
+        assert_eq!(strip_stop_token("no token here"), "no token here");
+        // Only a trailing token is stripped.
+        assert_eq!(
+            strip_stop_token("<|im_end|> at the start stays"),
+            "<|im_end|> at the start stays"
+        );
+        // Trailing whitespace is preserved when there is no token.
+        assert_eq!(strip_stop_token("trailing space "), "trailing space ");
     }
 }

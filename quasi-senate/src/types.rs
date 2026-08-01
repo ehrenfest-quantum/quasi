@@ -54,6 +54,13 @@ pub struct RotationEntry {
     /// Override for models with small context windows
     #[serde(default)]
     pub max_context: Option<u32>,
+    /// 0 = free (self-hosted), 1 = paid. Lower is preferred.
+    #[serde(default = "default_cost_tier")]
+    pub cost_tier: u8,
+}
+
+fn default_cost_tier() -> u8 {
+    1
 }
 
 // ── Phase Charter ─────────────────────────────────────────────────────────────
