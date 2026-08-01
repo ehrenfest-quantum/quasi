@@ -36,6 +36,8 @@ fn dummy_draft() -> IssueDraft {
         label: "compiler".to_string(),
         drafter_model: "deepseek-v3".to_string(),
         phase_id: "PHASE-TEST".to_string(),
+        estimated_effort: "small".to_string(),
+        affected_components: vec!["afana".to_string()],
     }
 }
 
