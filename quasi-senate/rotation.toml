@@ -174,7 +174,7 @@ model = "mistralai/mistral-nemo"
 provider = "openrouter"
 license = "Apache-2.0"
 origin = "France / Mistral"
-roles = ["a1_council", "a3_gate", "b2_reviewer"]
+roles = ["a1_council", "a3_gate", "b2_reviewer", "werner_judge"]
 
 [[rotation]]
 id = "qwen2.5-coder-32b-hf"
@@ -252,7 +252,7 @@ model = "ai21/jamba-large-1.7"
 provider = "openrouter"
 license = "Jamba Open"
 origin = "Israel / AI21"
-roles = ["a1_council", "a3_gate", "b2_reviewer"]
+roles = ["a1_council", "a3_gate", "b2_reviewer", "werner_judge"]
 
 [[rotation]]
 id = "swallow-70b"
@@ -328,7 +328,7 @@ model = "google/gemma-3-27b-it"
 provider = "openrouter"
 license = "Gemma"
 origin = "US / Google DeepMind"
-roles = ["a1_council", "a3_gate", "b2_reviewer"]
+roles = ["a1_council", "a3_gate", "b2_reviewer", "werner_judge"]
 
 [[rotation]]
 id = "command-a"
@@ -346,7 +346,7 @@ model = "microsoft/phi-4"
 provider = "openrouter"
 license = "MIT"
 origin = "US / Microsoft Research"
-roles = ["a1_council", "a3_gate", "b2_reviewer"]
+roles = ["a1_council", "a3_gate", "b2_reviewer", "werner_judge"]
 max_context = 24000
 
 [[rotation]]
@@ -614,7 +614,7 @@ model = "mistralai/ministral-14b-2512"
 provider = "openrouter"
 license = "Unknown"
 origin = "Unknown"
-roles = ["b2_reviewer"]
+roles = ["b2_reviewer", "werner_judge"]
 quarantined = false
 [[rotation]]
 id = "ministral-8b-2512"
@@ -1402,7 +1402,7 @@ model = "mistral-vibe-cli-with-tools"
 provider = "mistral"
 license = "Unknown"
 origin = "Unknown"
-roles = ["a1_council", "b2_reviewer"]
+roles = ["a1_council", "b2_reviewer", "werner_judge"]
 quarantined = false
 [[rotation]]
 id = "open-mistral-nemo-mi"
@@ -1843,7 +1843,7 @@ model = "google/gemma-4-31b-it:free"
 provider = "openrouter"
 license = "Apache-2.0"
 origin = "USA / Google"
-roles = ["a1_council", "a3_gate", "b2_reviewer"]
+roles = ["a1_council", "a3_gate", "b2_reviewer", "werner_judge"]
 
 [[rotation]]
 id = "gpt-oss-20b-free"
