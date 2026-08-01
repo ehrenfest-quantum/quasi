@@ -103,6 +103,13 @@ pub struct IssueDraft {
     pub label: String,
     pub drafter_model: String,
     pub phase_id: String,
+    /// Effort estimate for the quasi-board complexity gate
+    /// (must contain one of trivial|small|medium|large|xlarge).
+    #[serde(default)]
+    pub estimated_effort: String,
+    /// Repo components the proposal touches (e.g. "afana", "quasi-senate").
+    #[serde(default)]
+    pub affected_components: Vec<String>,
 }
 
 // ── Gate Verdict ──────────────────────────────────────────────────────────────

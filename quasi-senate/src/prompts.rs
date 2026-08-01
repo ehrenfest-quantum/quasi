@@ -154,8 +154,25 @@ Output ONLY valid JSON in this exact structure — no prose before or after:
   "title": "...",
   "description": "...",
   "acceptance_criteria": ["...", "..."],
-  "label": "..."
+  "label": "...",
+  "estimated_effort": "small",
+  "affected_components": ["afana"]
 }
+
+## Effort estimate and affected components
+
+Approved drafts are queued on the quasi-board proposal queue, which enforces a
+complexity gate before a human accepts them. The gate reads these two fields:
+
+- "estimated_effort": exactly one of "trivial", "small", "medium", "large",
+  "xlarge". Estimate honestly. The board REJECTS "trivial" proposals outright —
+  if the work is genuinely trivial, say so (label it "trivial") rather than
+  inflating the estimate. Do NOT inflate an effort estimate just to clear the
+  gate; an inflated "small" that a human spots wastes the proposal slot and
+  undermines trust in the queue.
+- "affected_components": a non-empty list of REAL components of this repo,
+  e.g. "afana", "quasi-senate", "quasi-board", "quasi-scheduler",
+  "quasi-cache", "quasi-solvayeur", "spec". Never invent component names.
 
 ## Rules
 

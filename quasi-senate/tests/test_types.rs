@@ -42,6 +42,8 @@ fn dummy_issue_draft() -> IssueDraft {
         label: "compiler".to_string(),
         drafter_model: "deepseek-v3".to_string(),
         phase_id: "PHASE-42".to_string(),
+        estimated_effort: "medium".to_string(),
+        affected_components: vec!["afana".to_string()],
     }
 }
 
@@ -79,6 +81,45 @@ fn test_issue_draft_round_trip() {
     assert_eq!(restored.title, original.title);
     assert_eq!(restored.phase_id, original.phase_id);
     assert_eq!(restored.acceptance_criteria, original.acceptance_criteria);
+    assert_eq!(restored.estimated_effort, original.estimated_effort);
+    assert_eq!(restored.affected_components, original.affected_components);
+}
+
+/// The senate must not silently rewrite an honest "trivial" estimate — the
+/// quasi-board complexity gate is what decides to reject it (HTTP 400).
+#[test]
+fn test_issue_draft_trivial_effort_serialized_faithfully() {
+    let mut draft = dummy_issue_draft();
+    draft.estimated_effort = "trivial".to_string();
+    let json = serde_json::to_string(&draft).expect("IssueDraft serialization failed");
+    let value: serde_json::Value =
+        serde_json::from_str(&json).expect("IssueDraft JSON should parse");
+    assert_eq!(
+        value["estimated_effort"].as_str().unwrap(),
+        "trivial",
+        "estimated_effort must be serialised verbatim, not rewritten"
+    );
+    let restored: IssueDraft =
+        serde_json::from_str(&json).expect("IssueDraft deserialization failed");
+    assert_eq!(restored.estimated_effort, "trivial");
+}
+
+/// State persisted before the proposal fields existed must still deserialise.
+#[test]
+fn test_issue_draft_legacy_json_without_proposal_fields() {
+    let legacy = r#"{
+        "title": "Old draft",
+        "description": "From before the board gate.",
+        "acceptance_criteria": ["Tests pass"],
+        "label": "compiler",
+        "drafter_model": "deepseek-v3",
+        "phase_id": "PHASE-41"
+    }"#;
+    let restored: IssueDraft =
+        serde_json::from_str(legacy).expect("legacy IssueDraft should deserialise with defaults");
+    assert_eq!(restored.title, "Old draft");
+    assert_eq!(restored.estimated_effort, "");
+    assert!(restored.affected_components.is_empty());
 }
 
 #[test]

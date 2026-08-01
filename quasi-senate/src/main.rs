@@ -173,7 +173,16 @@ async fn main() -> Result<()> {
 
         Command::Draft => {
             let issue_number = run_draft_pipeline(&mut ctx).await?;
-            println!("Draft pipeline complete: opened issue #{issue_number}");
+            // The proposal path returns 0: no issue exists until a human accepts
+            // the queued quasi-board proposal. Only the SENATE_DIRECT_ISSUES
+            // rollback lever yields a real issue number here.
+            if issue_number == 0 {
+                println!(
+                    "Draft pipeline complete: proposal queued on quasi-board — awaits human acceptance"
+                );
+            } else {
+                println!("Draft pipeline complete: opened issue #{issue_number}");
+            }
         }
 
         Command::Solve { issue } => {

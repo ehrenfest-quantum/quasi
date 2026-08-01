@@ -15,6 +15,8 @@ struct IssueDraftRaw {
     description: String,
     acceptance_criteria: Vec<String>,
     label: String,
+    estimated_effort: String,
+    affected_components: Vec<String>,
 }
 
 /// Draft one issue (A.2). Returns the draft and the rotation entry used.
@@ -110,6 +112,8 @@ pub async fn draft_issue(
             label: "compiler".to_string(),
             drafter_model: entry.id.to_string(),
             phase_id: charter.phase_id.clone(),
+            estimated_effort: "small".to_string(),
+            affected_components: vec!["quasi-senate".to_string()],
         };
         let dummy_call = crate::provider::CallResult {
             content: "dry-run".to_string(),
@@ -144,6 +148,8 @@ pub async fn draft_issue(
         label: raw_draft.label,
         drafter_model: entry.id.to_string(),
         phase_id: charter.phase_id.clone(),
+        estimated_effort: raw_draft.estimated_effort,
+        affected_components: raw_draft.affected_components,
     };
 
     tracing::info!(
