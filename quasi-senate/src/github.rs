@@ -445,6 +445,85 @@ impl GitHubClient {
         Ok(prs)
     }
 
+    /// Search code in this repository via the GitHub code search API.
+    /// Returns the paths of matching files.
+    pub async fn search_code(&self, query: &str) -> Result<Vec<String>> {
+        let url = format!(
+            "https://api.github.com/search/code?q={}&per_page=10",
+            urlencode(&format!("{query} repo:{}", self.repo)),
+        );
+
+        let resp = self
+            .client
+            .get(&url)
+            .headers(self.default_headers())
+            .send()
+            .await
+            .context("search_code: network error")?;
+
+        if !resp.status().is_success() {
+            return Err(self.github_error(resp).await);
+        }
+
+        let body: Value = resp.json().await.context("search_code: deserialise")?;
+        let paths = body
+            .get("items")
+            .and_then(|items| items.as_array())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|it| it.get("path").and_then(|p| p.as_str()).map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(paths)
+    }
+
+    /// Post a comment on an issue.
+    pub async fn comment_on_issue(&self, number: u32, body: &str) -> Result<()> {
+        let url = format!("{}/issues/{number}/comments", self.base_url());
+        let payload = json!({ "body": body });
+
+        let resp = self
+            .client
+            .post(&url)
+            .headers(self.default_headers())
+            .json(&payload)
+            .send()
+            .await
+            .context("comment_on_issue: network error")?;
+
+        if !resp.status().is_success() {
+            return Err(self.github_error(resp).await);
+        }
+
+        info!("comment_on_issue: commented on #{number}");
+        Ok(())
+    }
+
+    /// Add labels to an issue.
+    pub async fn add_labels(&self, number: u32, labels: &[&str]) -> Result<()> {
+        let url = format!("{}/issues/{number}/labels", self.base_url());
+        let payload = json!({ "labels": labels });
+
+        let resp = self
+            .client
+            .post(&url)
+            .headers(self.default_headers())
+            .json(&payload)
+            .send()
+            .await
+            .context("add_labels: network error")?;
+
+        if !resp.status().is_success() {
+            return Err(self.github_error(resp).await);
+        }
+
+        info!("add_labels: added {labels:?} to #{number}");
+        Ok(())
+    }
+
     pub async fn get_default_branch_sha(&self) -> Result<String> {
         let url = format!("{}/git/refs/heads/main", self.base_url());
 
@@ -471,6 +550,19 @@ impl GitHubClient {
 
         Ok(sha)
     }
+}
+
+/// Percent-encode a string for use in a URL query parameter.
+fn urlencode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
 }
 
 /// Parse the `Link` response header and return the URL for `rel="next"`, if any.

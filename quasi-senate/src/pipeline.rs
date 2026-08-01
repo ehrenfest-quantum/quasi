@@ -589,7 +589,8 @@ pub async fn run_draft_pipeline(ctx: &mut AppContext) -> Result<u32> {
 
 /// Run the B-track pipeline for one issue: B.1 solve, B.2 review, retry up to 2×.
 ///
-/// On approval, opens the PR. Returns the PR URL.
+/// On approval, opens the PR. Returns the PR URL, or an `already-done:` marker
+/// when the pre-flight check finds the issue's deliverable has already landed.
 pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Result<String> {
     info!("pipeline: starting B-track solve pipeline for issue #{issue_number}");
 
@@ -603,6 +604,47 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
 
     // 2. Extract drafter model from issue body footer
     let drafter_model = extract_drafter_model(&issue_body);
+
+    // 2.5 Pre-flight: skip work that has already landed on main.
+    match crate::already_done::check_already_done(
+        &ctx.github,
+        &issue_title,
+        &issue_body,
+        &issue_labels,
+        ctx.dry_run,
+    )
+    .await
+    {
+        Ok(verdict) if verdict.already_done => {
+            info!(
+                "pipeline: issue #{issue_number} looks already done: {}",
+                verdict.reasoning
+            );
+            if !ctx.dry_run {
+                let mut comment = format!(
+                    "**Already-done check** (B-track pre-flight)\n\n{}\n\nEvidence:\n",
+                    verdict.reasoning
+                );
+                for e in &verdict.evidence {
+                    comment.push_str(&format!("- `{e}`\n"));
+                }
+                comment.push_str(
+                    "\nLabelled `already-done?` — a human makes the final close call.",
+                );
+                if let Err(e) = ctx.github.comment_on_issue(issue_number, &comment).await {
+                    warn!("pipeline: failed to comment already-done on #{issue_number}: {e}");
+                }
+                if let Err(e) = ctx.github.add_labels(issue_number, &["already-done?"]).await {
+                    warn!("pipeline: failed to label already-done on #{issue_number}: {e}");
+                }
+            }
+            return Ok(format!("already-done: issue #{issue_number} (no PR opened)"));
+        }
+        Ok(_) => {}
+        Err(e) => {
+            warn!("pipeline: already-done check failed, continuing with solve: {e:#}");
+        }
+    }
 
     // 3. Build repo context (via solver module which fetches README + label files)
     // We pass the issue to solver which handles context building internally
