@@ -37,10 +37,12 @@ jobs:
           key: ${{ runner.os }}-cargo-afana-${{ hashFiles('afana/Cargo.toml') }}
 
       - name: Clippy
-        run: cargo clippy -p afana -- -D warnings
+        # In CI clippy is blocking (unlike the senate pre-review gate, where it
+        # is advisory only), because a human sees the failure and can fix it.
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Test
-        run: cargo test -p afana --verbose
+        run: cargo test --workspace --all-targets --verbose
 
   quasi-board:
     name: "quasi-board tests (Python ${{ matrix.python-version }})"

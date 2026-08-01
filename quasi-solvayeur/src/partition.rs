@@ -75,7 +75,7 @@ pub fn partition_qpu(
 ) -> PartitionPlan {
     // Sort by priority descending (stable sort to preserve order for equal priority)
     let mut sorted: Vec<&ProgramRequest> = programs.iter().collect();
-    sorted.sort_by(|a, b| b.priority.cmp(&a.priority));
+    sorted.sort_by_key(|p| std::cmp::Reverse(p.priority));
 
     let mut allocated_qubits: HashSet<u32> = HashSet::new();
     let mut allocations: Vec<ProgramAllocation> = Vec::new();

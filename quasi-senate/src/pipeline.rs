@@ -632,7 +632,7 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
             ctx.dry_run,
         )
         .await;
-        let (solve_result, b1_entry, b1_call, repo_context) = match solve_result_r {
+        let (mut solve_result, b1_entry, b1_call, repo_context) = match solve_result_r {
             Ok(quad) => quad,
             Err(e) => {
                 if let Some(pf) = e.downcast_ref::<ParseFailure>() {
@@ -709,19 +709,29 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
         if has_rust_edits && !ctx.dry_run {
             info!("pipeline: pre-review cargo check for #{issue_number}");
             match pre_review_cargo_check(&solve_result).await {
-                Ok(()) => {
+                Ok(clippy_advisory) => {
                     info!("pipeline: pre-review cargo check passed for #{issue_number}");
+                    if !clippy_advisory.is_empty() {
+                        warn!(
+                            "pipeline: pre-review clippy advisory for #{issue_number}: {}",
+                            &clippy_advisory[..clippy_advisory.len().min(500)]
+                        );
+                        solve_result.reasoning.push_str(
+                            "\n\n[Pre-review clippy advisory (non-blocking)]:\n",
+                        );
+                        solve_result.reasoning.push_str(&clippy_advisory);
+                    }
                 }
                 Err(compiler_output) => {
                     warn!(
-                        "pipeline: pre-review cargo check FAILED for #{issue_number} (model={}): {}",
+                        "pipeline: pre-review test gate FAILED for #{issue_number} (model={}): {}",
                         b1_entry.id,
                         &compiler_output[..compiler_output.len().min(500)]
                     );
                     solver_exclude.push(b1_entry.id.to_string());
                     retry_feedback = Some(format!(
-                        "Your solution does not compile. Compiler output:\n{compiler_output}\n\n\
-                         Fix the compilation errors. If you create new `.rs` files in `afana/src/`, \
+                        "Your solution did not pass `cargo test --workspace --all-targets`. Output:\n{compiler_output}\n\n\
+                         Fix the failing tests or compilation errors. If you create new `.rs` files in `afana/src/`, \
                          add `pub mod <name>;` to `afana/src/lib.rs`. Do not reference types or \
                          functions that don't exist."
                     ));
@@ -1204,17 +1214,34 @@ async fn apply_and_pr(
     Ok((pr.html_url, pr.number))
 }
 
-/// Pre-review compilation gate: clone main, apply solver's edits locally,
-/// run `cargo check`. Returns Ok(()) if it compiles, Err(compiler_output)
-/// otherwise. This runs BEFORE the reviewer to avoid wasting reviewer API
-/// calls on non-compiling solutions.
+/// Pre-review verification gate: clone main, apply the solver's edits locally,
+/// then run the workspace test suite and clippy.
+///
+/// * `cargo test --workspace --all-targets` is BLOCKING. If it fails, the
+///   function returns `Err` with the captured output.
+/// * `cargo clippy --workspace --all-targets -- -D warnings` is ADVISORY ONLY.
+///   A solver cannot fix a pre-existing clippy warning in an unrelated crate, so
+///   a toolchain or dependency bump that introduces one would otherwise block
+///   every unrelated solve. Tests are the hard gate; clippy is signal. If
+///   clippy fails, its output is returned in the `Ok` payload so the caller can
+///   append it to the success feedback for the reviewer/model.
+///
+/// Both cargo invocations are wrapped with `timeout 1200` to avoid hanging the
+/// whole solve, and `CARGO_TARGET_DIR` points to a persistent cache so repeated
+/// runs are not cold rebuilds.
 async fn pre_review_cargo_check(
     solve_result: &crate::types::SolveResult,
-) -> std::result::Result<(), String> {
+) -> std::result::Result<String, String> {
     use std::process::Command;
 
     let repo_url = "https://github.com/ehrenfest-quantum/quasi.git";
     let tmp_dir = format!("/tmp/senate-precheck-{}", &Uuid::new_v4().to_string()[..8]);
+    let target_dir = "/home/vops/.cache/senate-target";
+
+    // Persistent target cache across temp clones.
+    if let Err(e) = std::fs::create_dir_all(target_dir) {
+        return Err(format!("Failed to create target cache dir '{target_dir}': {e}"));
+    }
 
     // 1. Shallow clone of main
     let clone = Command::new("git")
@@ -1266,35 +1293,83 @@ async fn pre_review_cargo_check(
         }
     }
 
-    // 4. Run cargo check
     // Ensure cargo + rustc are in PATH — vops user may not have /root/.cargo/bin.
     let mut path = std::env::var("PATH").unwrap_or_default();
     if !path.contains(".cargo/bin") {
         path = format!("/root/.cargo/bin:{path}");
     }
-    let check = Command::new("/root/.cargo/bin/cargo")
-        .args(["check", "--workspace"])
-        .current_dir(&tmp_dir)
-        .env("CARGO_TERM_COLOR", "never")
-        .env("PATH", &path)
-        .env("RUSTUP_HOME", "/root/.rustup")
-        .env("CARGO_HOME", "/root/.cargo")
-        .output();
 
-    let check_output = check.map_err(|e| format!("cargo check failed to run: {e}"))?;
+    // Helper to run a cargo subcommand under `timeout 1200` with the persistent target dir.
+    let run_cargo = |cmd: &str, extra: &[&str]| -> std::result::Result<std::process::Output, String> {
+        let mut command = Command::new("timeout");
+        command
+            .arg("1200")
+            .arg("/root/.cargo/bin/cargo")
+            .arg(cmd)
+            .current_dir(&tmp_dir)
+            .env("CARGO_TERM_COLOR", "never")
+            .env("PATH", &path)
+            .env("RUSTUP_HOME", "/root/.rustup")
+            .env("CARGO_HOME", "/root/.cargo")
+            .env("CARGO_TARGET_DIR", target_dir);
+        for arg in extra {
+            command.arg(*arg);
+        }
+        command
+            .output()
+            .map_err(|e| format!("cargo {cmd} failed to run: {e}"))
+    };
 
-    // 5. Clean up
+    // 4. Run cargo test — blocking.
+    let test_output = run_cargo("test", &["--workspace", "--all-targets"])?;
+    if test_output.status.code() == Some(124) {
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+        return Err(
+            "cargo test --workspace --all-targets timed out after 1200 seconds (timeout exit code 124)."
+                .to_string(),
+        );
+    }
+    if !test_output.status.success() {
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+        let combined = format!(
+            "{}\n{}",
+            String::from_utf8_lossy(&test_output.stdout),
+            String::from_utf8_lossy(&test_output.stderr)
+        );
+        let truncated: String = if combined.len() > 2000 {
+            format!("…{}", &combined[combined.len() - 2000..])
+        } else {
+            combined
+        };
+        return Err(format!("cargo test failed:\n{truncated}"));
+    }
+
+    // 5. Run cargo clippy — advisory only.
+    let clippy_output = run_cargo("clippy", &["--workspace", "--all-targets", "--", "-D", "warnings"])?;
+    let clippy_advisory = if clippy_output.status.success() {
+        String::new()
+    } else {
+        let combined = format!(
+            "{}\n{}",
+            String::from_utf8_lossy(&clippy_output.stdout),
+            String::from_utf8_lossy(&clippy_output.stderr)
+        );
+        let truncated: String = if combined.len() > 2000 {
+            format!("…{}", &combined[combined.len() - 2000..])
+        } else {
+            combined
+        };
+        if clippy_output.status.code() == Some(124) {
+            format!(
+                "cargo clippy --workspace --all-targets timed out after 1200 seconds (timeout exit code 124).\n{truncated}"
+            )
+        } else {
+            format!("cargo clippy produced warnings/errors (advisory only):\n{truncated}")
+        }
+    };
+
+    // 6. Clean up
     let _ = std::fs::remove_dir_all(&tmp_dir);
 
-    if check_output.status.success() {
-        Ok(())
-    } else {
-        let stderr = String::from_utf8_lossy(&check_output.stderr);
-        let truncated: String = if stderr.len() > 2000 {
-            format!("…{}", &stderr[stderr.len() - 2000..])
-        } else {
-            stderr.to_string()
-        };
-        Err(truncated)
-    }
+    Ok(clippy_advisory)
 }
