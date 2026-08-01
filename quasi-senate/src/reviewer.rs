@@ -31,8 +31,25 @@ pub async fn review_solution(
     last_provider: Option<&str>,
     dry_run: bool,
 ) -> Result<(ReviewVerdict, &'static RotationEntry, crate::provider::CallResult)> {
-    // 1. Pick model
-    let entry = crate::rotation::pick_model(&Role::B2Reviewer, exclude, counts, last_provider)?;
+    // 1. Pick model from the Werner judge pool.
+    //
+    // Judges are drawn from `werner_judge`, which is disjoint from the
+    // generator roles by construction and by test. The previous behaviour
+    // picked from `b2_reviewer` and relied on `exclude` to keep the drafter's
+    // own model out — anti-collusion for exactly one model, while 61 of 93
+    // reviewer-capable entries were also generator-capable.
+    //
+    // No fallback to `b2_reviewer`: if the judge pool is empty that is a roster
+    // misconfiguration, and failing loudly is better than silently reviewing
+    // with a model that also writes code.
+    let entry = crate::rotation::pick_model(&Role::WernerJudge, exclude, counts, last_provider)
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "no eligible Werner judge (the review pool is disjoint from the \
+                 generator pool by design; grant `werner_judge` to reviewer-only \
+                 models in rotation.toml): {e}"
+            )
+        })?;
 
     // 2. Build prompts
     let system = crate::prompts::reviewer_system_prompt();

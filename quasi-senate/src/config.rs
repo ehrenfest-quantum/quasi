@@ -305,6 +305,7 @@ pub const LABEL_TAXONOMY: &str =
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::Role;
 
     fn ensure_init() {
         init_rotation();
@@ -335,6 +336,98 @@ mod tests {
         for entry in rotation() {
             assert!(!entry.roles.is_empty(), "Model {} has no roles", entry.id);
         }
+    }
+
+    /// The Werner integrity guarantee, enforced rather than documented.
+    ///
+    /// A judge must be drawn from a pool the generator can never draw from, so
+    /// no model may hold `werner_judge` alongside a generator role. Without
+    /// this test the property erodes silently: before it existed, 61 of 93
+    /// reviewer-capable entries were also generator-capable, and the only
+    /// anti-collusion was excluding the drafter's own model by id.
+    #[test]
+    fn werner_judges_are_disjoint_from_generators() {
+        ensure_init();
+        const GENERATOR_ROLES: [Role; 2] = [Role::A2Drafter, Role::B1Solver];
+        let mut violations: Vec<String> = Vec::new();
+        for entry in rotation() {
+            if !entry.roles.contains(&Role::WernerJudge) {
+                continue;
+            }
+            let also: Vec<String> = GENERATOR_ROLES
+                .iter()
+                .filter(|r| entry.roles.contains(r))
+                .map(|r: &Role| r.to_string())
+                .collect();
+            if !also.is_empty() {
+                violations.push(format!("{} also holds {}", entry.id, also.join(" + ")));
+            }
+        }
+        assert!(
+            violations.is_empty(),
+            "werner_judge must be disjoint from generator roles, but: {}",
+            violations.join("; ")
+        );
+    }
+
+    /// Reduce a provider-qualified model string to a coarse family key.
+    ///
+    /// `zai-org/GLM-5.2`, `z-ai/glm-5.2` and
+    /// `accounts/fireworks/models/glm-5p2` are the same underlying model served
+    /// three ways; role-level disjointness alone would let it both judge and
+    /// generate.
+    fn model_family(model: &str) -> String {
+        let tail = model.rsplit('/').next().unwrap_or(model).to_lowercase();
+        let alnum: String = tail
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { ' ' })
+            .collect();
+        // First two whitespace-separated chunks are enough to identify a family
+        // ("glm 5 2" -> "glm5", "deepseek v4 flash" -> "deepseekv4").
+        alnum.split_whitespace().take(2).collect::<Vec<_>>().concat()
+    }
+
+    /// Role-level disjointness is necessary but not sufficient: the same model
+    /// served by two providers can sit on both sides under different ids.
+    #[test]
+    fn werner_judge_models_do_not_also_generate() {
+        ensure_init();
+        const GENERATOR_ROLES: [Role; 2] = [Role::A2Drafter, Role::B1Solver];
+        let gen_families: HashSet<String> = rotation()
+            .iter()
+            .filter(|e| !e.quarantined && GENERATOR_ROLES.iter().any(|r| e.roles.contains(r)))
+            .map(|e| model_family(&e.model))
+            .collect();
+        let mut violations: Vec<String> = Vec::new();
+        for entry in rotation() {
+            if entry.quarantined || !entry.roles.contains(&Role::WernerJudge) {
+                continue;
+            }
+            let fam = model_family(&entry.model);
+            if gen_families.contains(&fam) {
+                violations.push(format!("{} ({} -> family '{}')", entry.id, entry.model, fam));
+            }
+        }
+        assert!(
+            violations.is_empty(),
+            "these Werner judges share a model family with an active generator: {}",
+            violations.join("; ")
+        );
+    }
+
+    /// A judge pool that is empty in practice is the same failure as no pool at
+    /// all — the reviewer errors out and the B-track stalls.
+    #[test]
+    fn werner_judge_pool_is_not_empty() {
+        ensure_init();
+        let judges = rotation()
+            .iter()
+            .filter(|e| !e.quarantined && e.roles.contains(&Role::WernerJudge))
+            .count();
+        assert!(
+            judges > 0,
+            "no active model holds the werner_judge role; the B-track reviewer cannot run"
+        );
     }
 
     #[test]

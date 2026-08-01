@@ -15,6 +15,15 @@ pub enum Role {
     A3Gate,
     B1Solver,
     B2Reviewer,
+    /// Werner judge — the disjoint review pool.
+    ///
+    /// A model holding this role must NOT hold any generator role
+    /// (`a2_drafter`, `b1_solver`). The separation is the integrity
+    /// guarantee of the Werner protocol: a judge is drawn from a pool the
+    /// generator can never draw from, so a model cannot review work produced
+    /// by itself or by a sibling of itself. `config::tests::werner_judges_are_disjoint_from_generators`
+    /// enforces this, so the property cannot erode silently as roles change.
+    WernerJudge,
 }
 
 impl std::fmt::Display for Role {
@@ -25,6 +34,7 @@ impl std::fmt::Display for Role {
             Role::A3Gate => write!(f, "A.3 Gate"),
             Role::B1Solver => write!(f, "B.1 Solver"),
             Role::B2Reviewer => write!(f, "B.2 Reviewer"),
+            Role::WernerJudge => write!(f, "Werner Judge"),
         }
     }
 }
