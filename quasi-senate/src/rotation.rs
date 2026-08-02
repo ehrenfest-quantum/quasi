@@ -83,9 +83,21 @@ fn pick_from<'a>(
     last_provider: Option<&str>,
 ) -> Result<&'a RotationEntry> {
     // Step 1: get all eligible candidates for this role.
+    //
+    // Exclusion is by model FAMILY, not just by entry id. Excluding only the id
+    // lets a retry pick the same model served by another provider, which is not
+    // a second opinion — it is the first one again. Observed on issue #1115:
+    // attempt 1 used glm-5.2-together (returned empty content), attempt 2 then
+    // picked glm-5.2-fireworks, spending both attempts on GLM-5.2.
+    let excluded_families: Vec<String> = entries
+        .iter()
+        .filter(|e| exclude.contains(&e.id.as_str()))
+        .map(|e| crate::config::model_family(&e.model))
+        .collect();
     let candidates: Vec<&RotationEntry> = eligible_from(entries, role)
         .into_iter()
         .filter(|e| !exclude.contains(&e.id.as_str()))
+        .filter(|e| !excluded_families.contains(&crate::config::model_family(&e.model)))
         .collect();
 
     if candidates.is_empty() {
@@ -153,6 +165,33 @@ mod tests {
         let picked = pick_from(&entries, &Role::B1Solver, &[], &counts, None)
             .expect("a model should be eligible");
         assert_eq!(picked.id, "free-model");
+    }
+
+    /// Regression for issue #1115: excluding by id alone let the retry pick the
+    /// same model from another provider, so both solve attempts went to GLM-5.2.
+    #[test]
+    fn retry_excludes_the_whole_model_family_not_just_the_id() {
+        let _guard = crate::availability::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        setup_env();
+
+        let mut a = test_entry("glm-together", "groq", 1);
+        a.model = "zai-org/GLM-5.2".to_string();
+        let mut b = test_entry("glm-fireworks", "groq", 1);
+        b.model = "accounts/fireworks/models/glm-5p2".to_string();
+        let mut c = test_entry("other-model", "groq", 1);
+        c.model = "deepseek/deepseek-v4-flash".to_string();
+        let entries = vec![a, b, c];
+        let counts: HashMap<String, u32> = HashMap::new();
+
+        // Exclude the first GLM entry, as the retry loop does after a failure.
+        let picked = pick_from(&entries, &Role::B1Solver, &["glm-together"], &counts, None)
+            .expect("a different model should remain");
+        assert_eq!(
+            picked.id, "other-model",
+            "retry must not pick the same model family via another provider"
+        );
     }
 
     #[test]

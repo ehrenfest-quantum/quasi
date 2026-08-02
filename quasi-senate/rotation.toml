@@ -1859,7 +1859,7 @@ model = "zai-org/GLM-5.2"
 provider = "together"
 license = "MIT"
 origin = "China / Z.ai"
-roles = ["a2_drafter", "b1_solver"]
+roles = ["a2_drafter"]  # b1_solver removed: returned HTTP 200 with empty content twice on solver-scale prompts (issue 1115)
 max_tokens = 16384
 
 [[rotation]]
@@ -1868,7 +1868,7 @@ model = "accounts/fireworks/models/glm-5p2"
 provider = "fireworks"
 license = "MIT"
 origin = "China / Z.ai"
-roles = ["a2_drafter", "b1_solver"]
+roles = ["a2_drafter"]  # b1_solver removed: 4096 max_tokens cannot hold a solve response; issue 1115 truncated mid-JSON at 14.7KB
 max_tokens = 4096
 
 # ── Werner — the trained architectural gatekeeper ────────────────────────────
