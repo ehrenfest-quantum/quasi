@@ -173,6 +173,41 @@ pub const PROVIDERS: &[(&str, Provider)] = &[
     ),
 ];
 
+/// Reduce a provider-qualified model string to a coarse family key.
+///
+/// `zai-org/GLM-5.2`, `z-ai/glm-5.2` and `accounts/fireworks/models/glm-5p2`
+/// are the same underlying model served three ways. Callers use this to avoid
+/// treating a re-served model as an independent choice — both for judge
+/// disjointness and for retrying with a genuinely different model.
+pub fn model_family(model: &str) -> String {
+    let tail = model.rsplit('/').next().unwrap_or(model).to_lowercase();
+
+    // Join a version number split by a separator, so "5.2" and Fireworks'
+    // "5p2" convention both collapse to "52". Without this, GLM-5.2 served by
+    // Together ("glm-5.2") and by Fireworks ("glm-5p2") look like different
+    // families and a retry treats the second as a fresh opinion.
+    let bytes: Vec<char> = tail.chars().collect();
+    let mut joined = String::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let is_version_sep = i > 0
+            && i + 1 < bytes.len()
+            && bytes[i - 1].is_ascii_digit()
+            && bytes[i + 1].is_ascii_digit()
+            && (bytes[i] == '.' || bytes[i] == 'p');
+        if !is_version_sep {
+            joined.push(bytes[i]);
+        }
+        i += 1;
+    }
+
+    let alnum: String = joined
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { ' ' })
+        .collect();
+    alnum.split_whitespace().take(2).collect::<Vec<_>>().concat()
+}
+
 pub fn get_provider(name: &str) -> Option<&'static Provider> {
     PROVIDERS
         .iter()
@@ -306,6 +341,7 @@ pub const LABEL_TAXONOMY: &str =
 mod tests {
     use super::*;
     use crate::types::Role;
+    use super::model_family;
 
     fn ensure_init() {
         init_rotation();
@@ -370,22 +406,6 @@ mod tests {
         );
     }
 
-    /// Reduce a provider-qualified model string to a coarse family key.
-    ///
-    /// `zai-org/GLM-5.2`, `z-ai/glm-5.2` and
-    /// `accounts/fireworks/models/glm-5p2` are the same underlying model served
-    /// three ways; role-level disjointness alone would let it both judge and
-    /// generate.
-    fn model_family(model: &str) -> String {
-        let tail = model.rsplit('/').next().unwrap_or(model).to_lowercase();
-        let alnum: String = tail
-            .chars()
-            .map(|c| if c.is_ascii_alphanumeric() { c } else { ' ' })
-            .collect();
-        // First two whitespace-separated chunks are enough to identify a family
-        // ("glm 5 2" -> "glm5", "deepseek v4 flash" -> "deepseekv4").
-        alnum.split_whitespace().take(2).collect::<Vec<_>>().concat()
-    }
 
     /// Role-level disjointness is necessary but not sufficient: the same model
     /// served by two providers can sit on both sides under different ids.
