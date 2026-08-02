@@ -156,6 +156,14 @@ pub fn direct_issues_enabled() -> bool {
     std::env::var("SENATE_DIRECT_ISSUES").as_deref() == Ok("1")
 }
 
+/// Rollback lever: `SENATE_BLIND_SOLVER=1` restores the legacy single-shot
+/// blind find/replace solver (`solver::solve_issue`). Default (unset) is the
+/// agentic solver (`agent::solve_agentic`), which works in a real checkout
+/// and runs the tests itself.
+pub fn blind_solver_enabled() -> bool {
+    std::env::var("SENATE_BLIND_SOLVER").as_deref() == Ok("1")
+}
+
 /// Run the A-track pipeline for one issue: A.2 draft, A.3 gate, retry up to 2×.
 ///
 /// On approval, queues a `quasi:Propose` proposal on the quasi-board and
@@ -775,20 +783,41 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
 
         let exclude_refs: Vec<&str> = solver_exclude.iter().map(|s| s.as_str()).collect();
 
-        // B.1 — Solve
-        let solve_result_r = crate::solver::solve_issue(
-            &ctx.github,
-            issue_number,
-            &issue_title,
-            &issue_body,
-            &issue_labels,
-            &exclude_refs,
-            &counts,
-            last_provider,
-            retry_feedback.as_deref(),
-            ctx.dry_run,
-        )
-        .await;
+        // B.1 — Solve. Default is the agentic solver (real checkout, runs the
+        // tests itself); SENATE_BLIND_SOLVER=1 rolls back to the legacy
+        // single-shot find/replace solver.
+        let solve_result_r = if blind_solver_enabled() {
+            warn!(
+                "pipeline: SENATE_BLIND_SOLVER=1 — using the legacy single-shot \
+                 blind find/replace solver instead of the agentic solver"
+            );
+            crate::solver::solve_issue(
+                &ctx.github,
+                issue_number,
+                &issue_title,
+                &issue_body,
+                &issue_labels,
+                &exclude_refs,
+                &counts,
+                last_provider,
+                retry_feedback.as_deref(),
+                ctx.dry_run,
+            )
+            .await
+        } else {
+            crate::agent::solve_agentic(
+                &ctx.github,
+                issue_number,
+                &issue_title,
+                &issue_body,
+                &issue_labels,
+                &exclude_refs,
+                &counts,
+                last_provider,
+                ctx.dry_run,
+            )
+            .await
+        };
         let (mut solve_result, b1_entry, b1_call, repo_context) = match solve_result_r {
             Ok(quad) => quad,
             Err(e) => {
