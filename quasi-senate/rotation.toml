@@ -1870,3 +1870,35 @@ license = "MIT"
 origin = "China / Z.ai"
 roles = ["a2_drafter", "b1_solver"]
 max_tokens = 4096
+
+# ── Werner — the trained architectural gatekeeper ────────────────────────────
+#
+# NOT a generic judge. Qwen3-8B fine-tuned (SFT 259 examples + anti-classical
+# poison + DPO 134 pairs) until it evaluates issues only in quantum primitives.
+# Canonical winner of the Phase A ground-truth eval: 4/4 on the Classical Drift
+# cases, beating the 30B DPO's 3/4 — it catches #31 (Qiskit-in-Afana), the
+# subtle one the 30B misses.
+#
+# Output space is its own 3-class taxonomy, not the generic rubric:
+#   quantum-first | classical-contaminated | reformulate
+# The `reformulate` middle class is the thing a CI grep cannot express.
+#
+# QUARANTINED because the Together endpoint is dedicated (non-serverless) and
+# currently cold: "Unable to access non-serverless model ...". Starting it is
+# ~$4/h on 1xH100, and the intended pattern is batch — spin up, drain the
+# queue, spin down (~$1/batch) — not always-on. Un-quarantine once the
+# endpoint is started; the generic werner_judge pool covers the gap until then.
+#
+# The 30B DPO sibling is deliberately absent: it is a Qwen3-Coder fine-tune and
+# so shares a model family with the active `qwen3-coder` generator, which
+# werner_judge_models_do_not_also_generate correctly rejects.
+[[rotation]]
+id = "werner-8b-dpo"
+model = "dhinderink_a8fd/Qwen3-8B-werner-8b-dpo-4e4fbbe9"
+provider = "together"
+license = "Apache-2.0 (Qwen3-8B base, fine-tuned)"
+origin = "Local / Valiant Quantum — Werner v7 DPO"
+roles = ["werner_judge"]
+cost_tier = 0
+max_tokens = 4096
+quarantined = true

@@ -73,12 +73,21 @@ invariants are enforced by CI, not by convention.
 Review is not performed by "another model from the pool" — it is performed from a **declared
 disjoint pool**. A model holding the `werner_judge` role may hold no generator role, and the
 separation is enforced by test rather than by convention, including at model-family level so the
-same model served by two providers cannot sit on both sides. Alongside this runs **Werner**, an
-independent shadow judge whose integrity guarantee is *deliberate statelessness*: every verdict is
-a single context-free call with no history, no exemplars and no retrieval over prior verdicts, so
-the judge cannot drift toward the distribution it judges. Verdicts are sealed in a hash chain that
-is never read at judging time — audit only. Before this was declared, 61 of 93 reviewer-capable
-models were also generator-capable.
+same model served by two providers cannot sit on both sides. Before this was declared, 61 of 93
+reviewer-capable models were also generator-capable.
+
+The stronger form is **Werner**: not a general model applying a rubric, but a model *trained until
+it cannot reason outside the domain*. Qwen3-8B fine-tuned on 259 hand-classified issues, adversarial
+anti-classical examples, then DPO — until its output space is `quantum-first` /
+`classical-contaminated` / `reformulate` and general software-engineering plausibility is no longer
+available to it as a way to say yes. Catastrophic forgetting, normally the central obstacle in
+continual learning, used deliberately as the integrity guarantee: the capability is *removed*, not
+withheld. That is a different claim from per-call statelessness, which any API gives you for free.
+
+Its middle verdict, `reformulate`, is what a CI grep cannot express — not classical enough to
+reject, not quantum enough to approve. So the architectural invariants are enforced twice:
+mechanically by CI, and conceptually by a judge that has been made incapable of arguing itself out
+of them.
 
 **7. Constrained model pool by policy.**
 Open-weight models only — no closed commercial APIs — with rotation across ~9 providers, fair
@@ -117,7 +126,10 @@ queue for three months. It now also collects `proposal_accepted`, and issued ver
 first since May, and the first ever on an issue that reached GitHub through human approval rather
 than auto-publication.
 
-Solver pool spans 9 models across 6 providers; the judge pool is 7, disjoint by construction.
-**The timers are disabled** — the loop runs only when invoked manually. The ledger reports
-`valid: false` from a single lost entry caused by an unlocked read-modify-write, tracked
-separately.
+Solver pool spans 9 models across 6 providers; the judge pool is 7 generic models, disjoint by
+construction, plus the trained Werner held quarantined until its dedicated endpoint is started.
+Note that the deployed shadow evaluator does **not** yet call the trained model — all 602 chained
+verdicts to date came from generic judges applying a generic rubric, so the harness currently has
+Werner's protocol without Werner's judgement. **The timers are disabled** — the loop runs only when
+invoked manually. The ledger reports `valid: false` from a single lost entry caused by an unlocked
+read-modify-write, tracked separately.
