@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Werner Shadow Collector — collects new issues without evaluating.
+"""Ledger Collector — queues judgeable issues from the quasi-board ledger.
+
+Pure event-to-task adapter: holds no opinion about issue content. Feeds
+rubric_judge.py. Not Werner-specific.
 
 Polls the quasi-ledger on Camelot, records issue_generated events
-into a queue file. No Werner API calls — just collection.
+into a queue file. No judging happens here — just collection.
 
 Evaluation happens later in batch via shadow_sealed.py --batch.
 
@@ -35,14 +38,14 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-log = logging.getLogger("werner-collector")
+log = logging.getLogger("shadow-collector")
 
 QUEUE_FILE = Path(__file__).parent / "shadow-queue.jsonl"
 STATE_FILE = Path(__file__).parent / ".collector-state.json"
 
 # Remote paths (when running on Camelot directly)
-REMOTE_QUEUE = "/home/vops/werner-shadow/queue.jsonl"
-REMOTE_STATE = "/home/vops/werner-shadow/.collector-state.json"
+REMOTE_QUEUE = "/home/vops/shadow-judge/queue.jsonl"
+REMOTE_STATE = "/home/vops/shadow-judge/.collector-state.json"
 
 
 # Ledger event types that mean "a GitHub issue now exists and is judgeable".
@@ -162,7 +165,7 @@ def run(once: bool = False, interval: int = 300) -> None:
 
     state = load_state()
     last_seen = state.get("last_seen_index", -1)
-    log.info("Werner Collector started. last_seen=%d, interval=%ds", last_seen, interval)
+    log.info("Shadow collector started. last_seen=%d, interval=%ds", last_seen, interval)
 
     while not _shutdown:
         try:
@@ -226,7 +229,7 @@ def show_status() -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Werner Shadow Collector")
+    parser = argparse.ArgumentParser(description="Shadow Collector")
     parser.add_argument("--once", action="store_true", help="Single pass")
     parser.add_argument("--status", action="store_true", help="Show queue status")
     parser.add_argument("--interval", type=int, default=300, help="Poll interval (default: 5 min)")

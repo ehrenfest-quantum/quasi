@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Werner Shadow Evaluator — judges issue quality from collector queue.
+"""Shadow Judge — batch issue-quality rubric over the collector queue.
+
+NOT Werner. Werner is a fine-tuned quantum-first gatekeeper whose taxonomy is
+quantum-first / classical-contaminated / reformulate. This module applies a
+generic specification-quality rubric using a generic open-weight model, and
+keeps the tamper-evident hash chain around the result.
+
+See quasi-senate/werner/README.md for the distinction.
 
 Consumes queue.jsonl entries written by shadow_collector.py,
 evaluates each issue via LLM, stores cleartext verdicts with
@@ -35,13 +42,13 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-log = logging.getLogger("werner-evaluator")
+log = logging.getLogger("shadow-judge")
 
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 
-BASE_DIR = Path("/home/vops/werner-shadow")
+BASE_DIR = Path("/home/vops/shadow-judge")
 QUEUE_FILE = BASE_DIR / "queue.jsonl"
 CHAIN_FILE = BASE_DIR / "chain.jsonl"
 VERDICT_LOG = BASE_DIR / "verdict-log.jsonl"
@@ -162,7 +169,7 @@ def fetch_issue(issue_number: int) -> dict[str, str] | None:
     req = urllib.request.Request(url, headers={
         "Authorization": f"token {GITHUB_TOKEN}",
         "Accept": "application/vnd.github.v3+json",
-        "User-Agent": "werner-evaluator/1.0",
+        "User-Agent": "shadow-judge/1.0",
     })
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -243,7 +250,7 @@ def judge_issue(title: str, body: str) -> tuple[dict[str, Any], str, str]:
     issue_text = f"# {title}\n\n{body}"
 
     # Open-weight judges only (project rule). The Anthropic leg was removed:
-    # Werner judges an automated pipeline, so a commercial closed-weight model
+    # This judges an automated pipeline, so a commercial closed-weight model
     # is not permitted here. Groq leads because llama-3.3-70b-versatile is fast
     # and free-tier; phi-4 on OpenRouter is the fallback. Both are open-weight
     # and neither shares a model family with any active senate generator.
@@ -440,7 +447,7 @@ def show_status() -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Werner Shadow Evaluator")
+    parser = argparse.ArgumentParser(description="Shadow Judge — issue-quality rubric (not Werner)")
     parser.add_argument("--batch", type=int, default=5, help="Evaluate N issues (default: 5)")
     parser.add_argument("--backfill", action="store_true", help="Evaluate ALL unevaluated (6s delay)")
     parser.add_argument("--verify", action="store_true", help="Verify chain integrity")

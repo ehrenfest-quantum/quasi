@@ -27,17 +27,23 @@ fine-tuning" (§3.2). Read it as a description of the harness, not of Werner.
 ## Components
 
 ```
-ledger  →  shadow_collector.py  →  shadow-queue.jsonl
+ledger  →  ledger_collector.py  →  shadow-queue.jsonl
                                        ↓
-                               shadow_evaluator.py  →  verdicts/{n}.json
-                                                    →  verdict-log.jsonl
-                                                    →  chain.jsonl   (hash chain)
+                                 rubric_judge.py  →  verdicts/{n}.json
+                                                  →  verdict-log.jsonl
+                                                  →  chain.jsonl   (hash chain)
 ```
 
-- **`shadow_collector.py`** — polls the quasi-board ledger and queues any event
+The deployed harness was renamed on 2026-08-02. It ran as `werner-collector`
+and `werner-evaluator` out of `/home/vops/werner-shadow`, which made 602
+generic-model verdicts look like Werner's. It now runs as `shadow-collector`
+and `shadow-judge` from `/home/vops/shadow-judge`; the verdict chain moved
+intact and continues from seq 596.
+
+- **`ledger_collector.py`** (deployed as `shadow-collector`) — polls the quasi-board ledger and queues any event
   meaning "a judgeable GitHub issue now exists". It holds no opinion about
   content; it is a pure event-to-task adapter.
-- **`shadow_evaluator.py`** — A-track judge **as currently deployed**. Scores
+- **`rubric_judge.py`** (deployed as `shadow-judge`) — A-track judge **as currently deployed**. Scores
   issue *specification quality* against a generic rubric
   (`well-specified | underspecified | ambiguous | trivial | unsolvable`).
   Note this is **not** Werner's taxonomy and does **not** call the trained
@@ -153,7 +159,11 @@ post-hoc audit.
 
 ## Deployment
 
-Runs on Camelot from `/home/vops/werner-shadow/`, as
-`werner-collector.service` (continuous poll) and `werner-evaluator.timer`
-(batch, every 30 min). This directory is the version-controlled source; the
-deployed copy was previously untracked.
+Runs on Camelot from `/home/vops/shadow-judge/`, as `shadow-collector.service`
+(continuous poll) and `shadow-judge.timer` (batch, every 30 min). This
+directory is the version-controlled source; the deployed copy was previously
+untracked.
+
+The trained Werner is **not** deployed: its Together endpoint is dedicated and
+cold, and `werner-8b-dpo` ships quarantined in `rotation.toml` for that reason.
+Nothing in this directory calls it.
