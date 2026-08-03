@@ -82,6 +82,38 @@ fn pick_from<'a>(
     counts: &HashMap<String, u32>,
     last_provider: Option<&str>,
 ) -> Result<&'a RotationEntry> {
+    // Step 0: an explicit operator override, for evaluating one model against a
+    // known issue. Rotation is designed to make any single model's turn hard to
+    // predict, which is exactly wrong when the question is "how does THIS model
+    // do on THIS task". Deliberately narrow: it must still support the role and
+    // have a live provider, so the override can pin a model but not conjure an
+    // unusable one. It ignores `exclude`, so a retry re-runs the same model —
+    // that is the point when measuring, and the reason it is not a default.
+    if let Ok(forced) = std::env::var("SENATE_FORCE_MODEL") {
+        let forced = forced.trim();
+        if !forced.is_empty() {
+            let hit = eligible_from(entries, role)
+                .into_iter()
+                .find(|e| e.id == forced);
+            return match hit {
+                Some(e) => {
+                    tracing::warn!(
+                        model = %e.id,
+                        %role,
+                        "SENATE_FORCE_MODEL is set — rotation bypassed for this role"
+                    );
+                    Ok(e)
+                }
+                // Fail loudly. Silently falling back to rotation would attribute
+                // another model's result to the one being measured.
+                None => Err(anyhow!(
+                    "SENATE_FORCE_MODEL={forced} is not an eligible model for role {role} \
+                     (unknown id, quarantined, missing API key, or provider down)"
+                )),
+            };
+        }
+    }
+
     // Step 1: get all eligible candidates for this role.
     //
     // Exclusion is by model FAMILY, not just by entry id. Excluding only the id
@@ -191,6 +223,55 @@ mod tests {
         assert_eq!(
             picked.id, "other-model",
             "retry must not pick the same model family via another provider"
+        );
+    }
+
+    /// The override exists to measure one model on one issue, so it must win
+    /// over cost tier, fairness and the exclusion list alike.
+    #[test]
+    fn force_model_overrides_rotation_and_exclusions() {
+        let _guard = crate::availability::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        setup_env();
+        crate::availability::force_provider_live("ollama");
+
+        let entries = vec![
+            test_entry("free-model", "ollama", 0),
+            test_entry("wanted-model", "groq", 1),
+        ];
+        let counts: HashMap<String, u32> = HashMap::new();
+
+        std::env::set_var("SENATE_FORCE_MODEL", "wanted-model");
+        let picked = pick_from(&entries, &Role::B1Solver, &["wanted-model"], &counts, None);
+        std::env::remove_var("SENATE_FORCE_MODEL");
+
+        assert_eq!(
+            picked.expect("the forced model should be picked").id,
+            "wanted-model",
+            "the override must beat the free tier and survive the exclusion list"
+        );
+    }
+
+    /// Falling back to rotation here would credit another model with the
+    /// forced model's result, which defeats the purpose of forcing one.
+    #[test]
+    fn force_model_errors_rather_than_silently_falling_back() {
+        let _guard = crate::availability::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        setup_env();
+
+        let entries = vec![test_entry("real-model", "groq", 1)];
+        let counts: HashMap<String, u32> = HashMap::new();
+
+        std::env::set_var("SENATE_FORCE_MODEL", "typo-model");
+        let picked = pick_from(&entries, &Role::B1Solver, &[], &counts, None);
+        std::env::remove_var("SENATE_FORCE_MODEL");
+
+        assert!(
+            picked.is_err(),
+            "an unknown forced model must fail, not quietly pick something else"
         );
     }
 

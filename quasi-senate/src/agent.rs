@@ -26,7 +26,14 @@ use crate::github::GitHubClient;
 use crate::types::{Role, RotationEntry, SolveResult};
 
 /// Maximum number of model calls (steps) in one agentic solve session.
-const MAX_STEPS: u32 = 12;
+///
+/// The floor for a real fix is about six steps: read, write, test, read the
+/// failure, write again, test again. Twelve left almost no room for a wrong
+/// turn, and on issue #1118 the agent hit the budget mid-iteration rather than
+/// converging — it was still working, not stuck. The wall-clock deadline below
+/// is the real guard against a runaway session; the step budget only needs to
+/// be generous enough that exhausting it means something.
+const MAX_STEPS: u32 = 30;
 
 /// Wall-clock ceiling for one agent session, independent of the step budget.
 ///
@@ -35,7 +42,9 @@ const MAX_STEPS: u32 = 12;
 /// (minimax-m3) sat on a single call for 22 minutes and would have consumed the
 /// whole 50-minute process timeout while producing zero file changes. A step
 /// budget multiplies exposure to that by MAX_STEPS; a deadline does not.
-const MAX_WALL_CLOCK: std::time::Duration = std::time::Duration::from_secs(900);
+/// Raised alongside MAX_STEPS: a `test` action runs the whole workspace suite
+/// and costs minutes on its own, so thirty steps do not fit in fifteen minutes.
+const MAX_WALL_CLOCK: std::time::Duration = std::time::Duration::from_secs(1500);
 
 /// Cap on `read` results, in characters (after line-number prefixing).
 const READ_CAP: usize = 120_000;
