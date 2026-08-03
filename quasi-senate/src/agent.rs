@@ -420,6 +420,7 @@ where
     let mut steps: u32 = 0;
     let started = std::time::Instant::now();
     let mut timed_out = false;
+    let mut call_error: Option<String> = None;
 
     while steps < MAX_STEPS {
         // Check before spending another call, not after: the point is to stop
@@ -435,7 +436,25 @@ where
         }
         steps += 1;
 
-        let call = model_call(transcript.clone()).await?;
+        // A failed call ends the session but must not discard it. Propagating
+        // with `?` here threw away 146 lines of working edits on issue #1118
+        // when the provider stalled on the last step: the work was on disk and
+        // `git status` could see it, but the error returned before collection.
+        // A model that has already produced a good edit should not be punished
+        // for its provider dying afterwards.
+        let call = match model_call(transcript.clone()).await {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    steps_used = steps,
+                    "agent loop lost its model — keeping whatever it already wrote"
+                );
+                call_error = Some(e.to_string());
+                steps = steps.saturating_sub(1); // the step bought nothing
+                break;
+            }
+        };
         total_latency_ms = total_latency_ms.saturating_add(call.latency_ms);
         let raw = call.content.clone();
         last_call = Some(call);
@@ -456,8 +475,21 @@ where
         }
     }
 
-    let last_call = last_call
-        .ok_or_else(|| anyhow!("agent loop ran zero steps (MAX_STEPS={MAX_STEPS})"))?;
+    // No successful call at all means there is nothing to collect and no
+    // telemetry to report, so this really is a failure — but say which kind.
+    let last_call = last_call.ok_or_else(|| match &call_error {
+        Some(e) => anyhow!("agent loop made no successful model call: {e}"),
+        None => anyhow!("agent loop ran zero steps (MAX_STEPS={MAX_STEPS})"),
+    })?;
+
+    if summary.is_none() {
+        if let Some(e) = &call_error {
+            summary = Some(format!(
+                "agent loop ended at step {steps} because the model call failed ({e}); \
+                 any changes below are partial"
+            ));
+        }
+    }
 
     if timed_out && summary.is_none() {
         // Distinguish "ran out of thinking" from "ran out of time" — the two
@@ -908,6 +940,63 @@ mod tests {
         assert!(outcome.transcript.contains("rewrote f.rs"));
         let content = std::fs::read_to_string(ws.path().join("f.rs")).expect("read");
         assert_eq!(content, "new\n");
+    }
+
+    /// Issue #1118: the agent wrote 146 working lines, then the provider
+    /// stalled on a later step and the whole session was discarded. The edits
+    /// were on disk the entire time. A provider dying after good work is not a
+    /// reason to throw the work away.
+    #[tokio::test]
+    async fn loop_keeps_its_edits_when_the_model_call_fails() {
+        let ws = TestWorkspace::new("loop-call-err");
+        std::fs::write(ws.path().join("f.rs"), "old\n").expect("write");
+
+        let mut calls: u32 = 0;
+        let outcome = run_agent_loop(ws.path(), "ISSUE", move |_transcript| {
+            calls += 1;
+            let step: Result<crate::provider::CallResult> = match calls {
+                1 => Ok(call_result(
+                    r#"{"action":"write","path":"f.rs","content":"good edit\n"}"#,
+                    100,
+                )),
+                _ => Err(anyhow!("Provider openrouter did not respond within 540s")),
+            };
+            async move { step }
+        })
+        .await
+        .expect("a dead provider must not fail the whole session");
+
+        assert_eq!(
+            std::fs::read_to_string(ws.path().join("f.rs")).expect("read"),
+            "good edit\n",
+            "the edit made before the failure must survive"
+        );
+        assert_eq!(outcome.steps, 1, "the failed call bought nothing");
+        let summary = outcome.summary.unwrap_or_default();
+        assert!(
+            summary.contains("partial") && summary.contains("540s"),
+            "the summary must say the work is partial and why: {summary}"
+        );
+    }
+
+    /// The other half: if the very first call fails there is nothing to keep,
+    /// and the session should report that rather than an empty success.
+    #[tokio::test]
+    async fn loop_fails_when_no_call_ever_succeeds() {
+        let ws = TestWorkspace::new("loop-all-err");
+        let result = run_agent_loop(ws.path(), "ISSUE", move |_transcript| async {
+            Err(anyhow!("provider down"))
+        })
+        .await;
+
+        // Matched rather than `expect_err`, which would need AgentOutcome: Debug.
+        match result {
+            Ok(_) => panic!("no successful call means there is no session to return"),
+            Err(e) => assert!(
+                e.to_string().contains("provider down"),
+                "the cause must survive into the error: {e}"
+            ),
+        }
     }
 
     #[tokio::test]
