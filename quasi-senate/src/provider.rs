@@ -22,6 +22,29 @@ use tracing::{info, warn};
 use crate::config::get_provider;
 use crate::types::RotationEntry;
 
+/// Test-only shrink of the overall call budget, in seconds. Zero means unset.
+///
+/// The production budget is minutes long by design, which no unit test can wait
+/// out. Rather than leave the ceiling untested — it exists precisely because the
+/// per-attempt timeout proved unreliable — tests shrink it to a couple of
+/// seconds and point a provider at a socket that never answers.
+#[cfg(test)]
+static CALL_BUDGET_OVERRIDE_SECS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+/// Ceiling for one `call_model`, covering every retry attempt together:
+/// four attempts at `timeout_secs` plus 14 s of cumulative backoff, with slack.
+fn overall_call_budget(timeout_secs: u64) -> std::time::Duration {
+    #[cfg(test)]
+    {
+        let o = CALL_BUDGET_OVERRIDE_SECS.load(std::sync::atomic::Ordering::SeqCst);
+        if o > 0 {
+            return std::time::Duration::from_secs(o);
+        }
+    }
+    std::time::Duration::from_secs(timeout_secs * 4 + 60)
+}
+
 // ── Request body ──────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
@@ -231,7 +254,22 @@ pub async fn call_model_with_format(
     let start_time = std::time::Instant::now();
     let attempt_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
 
-    let inner_result = Retry::spawn(retry_strategy, || {
+    // See `overall_call_budget`. Hard ceiling on the entire retry sequence.
+    //
+    // Each attempt already builds a client with `.timeout(timeout_secs)`, and
+    // that usually fires — a 122 s gap between attempts is the 120 s timeout
+    // plus backoff. But it does not always: on issue #1118, deepseek-v4-flash
+    // sat in a single call for 39 minutes at 0% CPU, and minimax-m3 for 22
+    // before it. reqwest's request timeout does not cover every way a call can
+    // stall (connection establishment and name resolution among them), so a
+    // per-attempt timeout is not a bound on the call as a whole.
+    //
+    // This wrapper does not depend on the client's internals being right: four
+    // attempts plus 14 s of cumulative backoff, with slack. Whatever hangs
+    // inside, the future is dropped and the caller gets an error it can act on.
+    let overall_budget = overall_call_budget(timeout_secs);
+
+    let inner_result = match tokio::time::timeout(overall_budget, Retry::spawn(retry_strategy, || {
         // Clone what we need for each attempt.
         let headers = headers.clone();
         let request_json = request_json.clone();
@@ -371,8 +409,27 @@ pub async fn call_model_with_format(
 
             Ok::<(String, u16, Option<bool>, Option<String>), anyhow::Error>((content, status_code, model_verified, served_model_val))
         }
-    })
-    .await;
+    })).await {
+        Ok(r) => r,
+        Err(_elapsed) => {
+            // Take the provider out of selection: a stall this long means the
+            // endpoint is not serving, and the next role should not discover
+            // that the same slow way.
+            crate::availability::mark_provider_down(&entry.provider);
+            warn!(
+                model = model_id,
+                provider = entry.provider.as_str(),
+                budget_s = overall_budget.as_secs(),
+                "LLM call exceeded its overall budget — abandoning and marking provider down"
+            );
+            Err(anyhow::anyhow!(
+                "Provider {} did not respond within {}s for model {} (overall budget across all retries)",
+                entry.provider,
+                overall_budget.as_secs(),
+                model_id
+            ))
+        }
+    };
 
     let (content, http_status, model_verified, served_model) = inner_result?;
     let latency_ms = start_time.elapsed().as_millis() as u64;
@@ -636,6 +693,62 @@ mod tests {
     struct Simple {
         key: String,
         value: u32,
+    }
+
+    /// The failure this reproduces: a socket that completes the TCP handshake
+    /// and then answers nothing. reqwest's per-attempt timeout did not bound it
+    /// in production — deepseek-v4-flash stalled 39 minutes on issue #1118 and
+    /// minimax-m3 22 minutes before that, both at 0% CPU — so the overall
+    /// budget must return an error on its own.
+    /// Sync test driving its own runtime rather than `#[tokio::test]`: the lock
+    /// must be held while the call runs, because the endpoint is read from the
+    /// environment inside it, and a std guard may not be held across an await.
+    #[test]
+    fn call_model_gives_up_when_the_endpoint_never_answers() {
+        let _guard = crate::availability::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+
+        // Accept connections, never write a response. Not a closed port: a
+        // refused connection fails fast and would pass even without the fix.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind a local port");
+        let addr = listener.local_addr().expect("read the bound address");
+        std::thread::spawn(move || {
+            let mut held = Vec::new();
+            while let Ok((sock, _)) = listener.accept() {
+                held.push(sock); // hold it open; write nothing
+            }
+        });
+
+        std::env::set_var("OLLAMA_URL", format!("http://{addr}/v1/chat/completions"));
+        CALL_BUDGET_OVERRIDE_SECS.store(2, std::sync::atomic::Ordering::SeqCst);
+
+        let entry = RotationEntry {
+            id: "hanging-model".to_string(),
+            model: "hanging-model".to_string(),
+            provider: "ollama".to_string(),
+            license: "test".to_string(),
+            origin: "test".to_string(),
+            roles: vec![crate::types::Role::B1Solver],
+            quarantined: false,
+            max_tokens: None,
+            max_context: None,
+            cost_tier: 0,
+        };
+
+        let rt = tokio::runtime::Runtime::new().expect("build a test runtime");
+        let started = std::time::Instant::now();
+        let result = rt.block_on(call_model(&entry, "sys", "user", 0.0, 16));
+        let elapsed = started.elapsed();
+
+        CALL_BUDGET_OVERRIDE_SECS.store(0, std::sync::atomic::Ordering::SeqCst);
+        std::env::remove_var("OLLAMA_URL");
+
+        assert!(result.is_err(), "a silent endpoint must produce an error");
+        assert!(
+            elapsed < std::time::Duration::from_secs(20),
+            "the call must be abandoned near its budget, not hang; took {elapsed:?}"
+        );
     }
 
     #[test]
