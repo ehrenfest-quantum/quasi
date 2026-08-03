@@ -1504,6 +1504,20 @@ async fn pre_review_cargo_check(
             .env("RUSTUP_HOME", "/root/.rustup")
             .env("CARGO_HOME", "/root/.cargo")
             .env("CARGO_TARGET_DIR", target_dir);
+
+        // Operator levers must not reach the tests. The child inherits this
+        // process's environment, so a lever set to steer the senate also steers
+        // the library code under test: with SENATE_FORCE_MODEL exported,
+        // quasi-senate's own test_rotation asserts against a rotation that has
+        // been forcibly overridden, and fails. That rejected a solve attempt on
+        // issue #1118 for a reason having nothing to do with its work.
+        //
+        // The gate's job is to judge the repo as it would build in CI, where
+        // none of these are set.
+        for lever in ["SENATE_FORCE_MODEL", "SENATE_BLIND_SOLVER", "SENATE_DIRECT_ISSUES"] {
+            command.env_remove(lever);
+        }
+
         for arg in extra {
             command.arg(*arg);
         }
