@@ -312,7 +312,7 @@ fn tail(s: &str, cap: usize) -> &str {
 /// ("test result: FAILED", compiling lines) while the real `error[Exxxx]:`
 /// block sits much earlier — on issue #1118 a tail-only view swallowed the
 /// actual failure entirely.
-fn format_test_failure(output: &str) -> String {
+pub(crate) fn format_test_failure(output: &str) -> String {
     let mut result = String::from("cargo test FAILED.\n");
 
     let error_lines: Vec<&str> = output
@@ -940,6 +940,22 @@ mod tests {
         assert!(outcome.transcript.contains("rewrote f.rs"));
         let content = std::fs::read_to_string(ws.path().join("f.rs")).expect("read");
         assert_eq!(content, "new\n");
+    }
+
+    /// The gate used to slice cargo output at `len() - 2000` bytes, which
+    /// panics when that index lands inside a multi-byte character. Cargo emits
+    /// them routinely — `─`, `…`, and arrows in diagnostics are all multi-byte.
+    #[test]
+    fn test_failure_formatting_survives_multibyte_output() {
+        let noise = "─".repeat(4000); // 3 bytes each, so byte cuts land mid-char
+        let output = format!("error[E0308]: mismatched types\n{noise}");
+
+        let formatted = format_test_failure(&output); // must not panic
+
+        assert!(
+            formatted.contains("error[E0308]"),
+            "the error line must survive multi-byte truncation"
+        );
     }
 
     /// Issue #1118: the agent wrote 146 working lines, then the provider

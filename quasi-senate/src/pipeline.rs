@@ -1528,12 +1528,19 @@ async fn pre_review_cargo_check(
             String::from_utf8_lossy(&test_output.stdout),
             String::from_utf8_lossy(&test_output.stderr)
         );
-        let truncated: String = if combined.len() > 2000 {
-            format!("…{}", &combined[combined.len() - 2000..])
-        } else {
-            combined
-        };
-        return Err(format!("cargo test failed:\n{truncated}"));
+        // Same formatting the agent gets from its own `test` action: error
+        // lines first, then the tail. A tail-only view of cargo output shows
+        // passing tests and "Running tests/…" banners while the real
+        // error[Exxxx] block sits thousands of lines earlier — on issue #1118
+        // both rejections were undiagnosable for exactly this reason.
+        //
+        // It also slices on a char boundary. The previous code indexed a String
+        // at `len() - 2000`, which panics outright when that byte lands inside
+        // a multi-byte character — and cargo emits plenty of those.
+        return Err(format!(
+            "cargo test failed:\n{}",
+            crate::agent::format_test_failure(&combined)
+        ));
     }
 
     // 5. Run cargo clippy — advisory only.
