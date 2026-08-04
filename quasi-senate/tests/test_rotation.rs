@@ -122,10 +122,13 @@ fn test_rotation_count() {
 #[test]
 fn test_pick_model_excludes() {
     ensure_init();
-    // Collect all A2Drafter-capable model IDs.
-    let all_drafter_ids: Vec<&str> = rotation()
-        .iter()
-        .filter(|e| e.roles.contains(&Role::A2Drafter))
+    // Only models pick_model could actually return. Building this from the
+    // whole roster lets the test choose a target that is quarantined or whose
+    // provider is down, then assert pick_model returns it — which it never
+    // will. Against the production roster that is exactly what happened:
+    // "No eligible models for role A.2 Drafter after exclusions".
+    let all_drafter_ids: Vec<&str> = eligible_for_role(&Role::A2Drafter)
+        .into_iter()
         .map(|e| e.id.as_str())
         .collect();
 
