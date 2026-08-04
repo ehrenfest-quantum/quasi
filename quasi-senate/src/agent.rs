@@ -315,9 +315,20 @@ fn tail(s: &str, cap: usize) -> &str {
 pub(crate) fn format_test_failure(output: &str) -> String {
     let mut result = String::from("cargo test FAILED.\n");
 
+    // `error`-prefixed lines name the crate but not the test: cargo prints
+    // "error: test failed, to rerun pass -p X --test Y" and nothing more. The
+    // panic line and the assertion text are what identify the actual failure,
+    // and both sit in the middle of the output where neither the prefix filter
+    // nor the tail reaches. On issue #1118 that cost a manual reproduction to
+    // learn which of six tests had failed.
     let error_lines: Vec<&str> = output
         .lines()
-        .filter(|l| l.starts_with("error"))
+        .filter(|l| {
+            l.starts_with("error")
+                || l.contains("panicked at")
+                || l.trim_start().starts_with("assertion")
+                || l.starts_with("---- ") // cargo's per-test failure header
+        })
         .take(TEST_ERROR_LINES)
         .collect();
     if !error_lines.is_empty() {
@@ -789,6 +800,33 @@ mod tests {
     }
 
     // ── Test-output helper ──────────────────────────────────────────────────
+
+    /// A failing test's identity lives in the panic line, not the `error:`
+    /// line — cargo's error line names only the crate. On issue #1118 the gate
+    /// reported "-p quasi-senate --test test_rotation" and it took a manual
+    /// reproduction to find which of six tests failed and why.
+    #[test]
+    fn test_failure_output_names_the_failing_test_and_assertion() {
+        let mut output = String::from("error: test failed, to rerun pass `-p q --test test_rotation`\n");
+        output.push_str("---- test_pick_model_excludes stdout ----\n");
+        output.push_str("thread 'test_pick_model_excludes' panicked at tests/test_rotation.rs:165:13:\n");
+        output.push_str("pick_model failed unexpectedly: No eligible models\n");
+        for i in 0..500 {
+            output.push_str(&format!("     Running tests/other_{i}.rs\n"));
+        }
+
+        let formatted = format_test_failure(&output);
+        let head = &formatted[..formatted.find("Output tail").unwrap_or(formatted.len())];
+
+        assert!(
+            head.contains("test_pick_model_excludes"),
+            "the failing test's name must appear before the tail: {head}"
+        );
+        assert!(
+            head.contains("panicked at"),
+            "the panic location must appear before the tail: {head}"
+        );
+    }
 
     #[test]
     fn test_failure_output_puts_error_lines_before_the_tail() {

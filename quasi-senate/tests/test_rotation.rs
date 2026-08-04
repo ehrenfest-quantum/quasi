@@ -133,8 +133,36 @@ fn test_pick_model_excludes() {
         return;
     }
 
-    // Pick the last one as the "only allowed" candidate.
-    let target_id = all_drafter_ids[all_drafter_ids.len() - 1];
+    // Pick the last candidate whose model family is unique among drafters.
+    //
+    // Exclusion is family-level, not id-level: excluding "deepseek-v4-flash"
+    // also excludes "deepseek-v4-flash-fw", because the same model behind a
+    // second provider is not a second opinion. So "exclude every id but one"
+    // does not leave one candidate when the target shares a family with an
+    // excluded entry — it leaves none, and pick_model correctly errors.
+    //
+    // That is not a bug in pick_model, it is a stale premise in this test: it
+    // predates family exclusion and only passed while every model appeared
+    // once. Serving one model from two providers is now normal.
+    let family_of = |id: &str| -> String {
+        rotation()
+            .iter()
+            .find(|e| e.id == id)
+            .map(|e| quasi_senate::config::model_family(&e.model))
+            .unwrap_or_default()
+    };
+    let target_id = match all_drafter_ids.iter().rev().find(|id| {
+        let fam = family_of(id);
+        all_drafter_ids
+            .iter()
+            .filter(|other| family_of(other) == fam)
+            .count()
+            == 1
+    }) {
+        Some(id) => *id,
+        // Every drafter shares a family with another. Nothing to assert.
+        None => return,
+    };
 
     // Build exclusion list of all other A2Drafter models.
     let exclusions: Vec<&str> = all_drafter_ids
