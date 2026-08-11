@@ -92,6 +92,33 @@ fn pick_from<'a>(
     if let Ok(forced) = std::env::var("SENATE_FORCE_MODEL") {
         let forced = forced.trim();
         if !forced.is_empty() {
+            // A model can only be forced into a role it is declared to hold.
+            // Forcing globally made a solver the Werner judge on issue 1118,
+            // which the disjoint-pool invariant rightly refuses — and the error
+            // threw away a solve that had just passed the test gate.
+            //
+            // Not holding the role is not the misattribution case the check
+            // below guards against: nobody asked this model to judge. Normal
+            // rotation is correct for those roles, and is logged so the run is
+            // not silently broader than intended.
+            // A name that matches nothing is a typo, and must never be quietly
+            // ignored — that would silently measure a model nobody chose.
+            if !entries.iter().any(|e| e.id == forced) {
+                return Err(anyhow!(
+                    "SENATE_FORCE_MODEL={forced} matches no model in the roster"
+                ));
+            }
+
+            let declares_role = entries
+                .iter()
+                .any(|e| e.id == forced && e.roles.contains(role));
+            if !declares_role {
+                tracing::info!(
+                    forced_model = forced,
+                    %role,
+                    "SENATE_FORCE_MODEL does not hold this role — using normal rotation for it"
+                );
+            } else {
             let hit = eligible_from(entries, role)
                 .into_iter()
                 .find(|e| e.id == forced);
@@ -111,6 +138,7 @@ fn pick_from<'a>(
                      (unknown id, quarantined, missing API key, or provider down)"
                 )),
             };
+            }
         }
     }
 
@@ -250,6 +278,35 @@ mod tests {
             picked.expect("the forced model should be picked").id,
             "wanted-model",
             "the override must beat the free tier and survive the exclusion list"
+        );
+    }
+
+    /// Issue 1118: a forced solver was also forced into the Werner judge seat,
+    /// the disjoint-pool invariant refused it, and the error discarded a solve
+    /// that had just passed the test gate. A model may only be forced into a
+    /// role it actually declares.
+    #[test]
+    fn force_model_does_not_apply_to_roles_it_does_not_hold() {
+        let _guard = crate::availability::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        setup_env();
+
+        let mut solver = test_entry("forced-solver", "groq", 1);
+        solver.roles = vec![Role::B1Solver];
+        let mut judge = test_entry("only-judge", "groq", 1);
+        judge.roles = vec![Role::B2Reviewer];
+        let entries = vec![solver, judge];
+        let counts: HashMap<String, u32> = HashMap::new();
+
+        std::env::set_var("SENATE_FORCE_MODEL", "forced-solver");
+        let picked = pick_from(&entries, &Role::B2Reviewer, &[], &counts, None);
+        std::env::remove_var("SENATE_FORCE_MODEL");
+
+        assert_eq!(
+            picked.expect("a role the forced model lacks must still resolve").id,
+            "only-judge",
+            "forcing a solver must not reach into a role it does not declare"
         );
     }
 
