@@ -156,6 +156,14 @@ pub fn direct_issues_enabled() -> bool {
     std::env::var("SENATE_DIRECT_ISSUES").as_deref() == Ok("1")
 }
 
+/// Rollback lever: `SENATE_BLIND_SOLVER=1` restores the legacy single-shot
+/// blind find/replace solver (`solver::solve_issue`). Default (unset) is the
+/// agentic solver (`agent::solve_agentic`), which works in a real checkout
+/// and runs the tests itself.
+pub fn blind_solver_enabled() -> bool {
+    std::env::var("SENATE_BLIND_SOLVER").as_deref() == Ok("1")
+}
+
 /// Run the A-track pipeline for one issue: A.2 draft, A.3 gate, retry up to 2×.
 ///
 /// On approval, queues a `quasi:Propose` proposal on the quasi-board and
@@ -775,20 +783,41 @@ pub async fn run_solve_pipeline(ctx: &mut AppContext, issue_number: u32) -> Resu
 
         let exclude_refs: Vec<&str> = solver_exclude.iter().map(|s| s.as_str()).collect();
 
-        // B.1 — Solve
-        let solve_result_r = crate::solver::solve_issue(
-            &ctx.github,
-            issue_number,
-            &issue_title,
-            &issue_body,
-            &issue_labels,
-            &exclude_refs,
-            &counts,
-            last_provider,
-            retry_feedback.as_deref(),
-            ctx.dry_run,
-        )
-        .await;
+        // B.1 — Solve. Default is the agentic solver (real checkout, runs the
+        // tests itself); SENATE_BLIND_SOLVER=1 rolls back to the legacy
+        // single-shot find/replace solver.
+        let solve_result_r = if blind_solver_enabled() {
+            warn!(
+                "pipeline: SENATE_BLIND_SOLVER=1 — using the legacy single-shot \
+                 blind find/replace solver instead of the agentic solver"
+            );
+            crate::solver::solve_issue(
+                &ctx.github,
+                issue_number,
+                &issue_title,
+                &issue_body,
+                &issue_labels,
+                &exclude_refs,
+                &counts,
+                last_provider,
+                retry_feedback.as_deref(),
+                ctx.dry_run,
+            )
+            .await
+        } else {
+            crate::agent::solve_agentic(
+                &ctx.github,
+                issue_number,
+                &issue_title,
+                &issue_body,
+                &issue_labels,
+                &exclude_refs,
+                &counts,
+                last_provider,
+                ctx.dry_run,
+            )
+            .await
+        };
         let (mut solve_result, b1_entry, b1_call, repo_context) = match solve_result_r {
             Ok(quad) => quad,
             Err(e) => {
@@ -1475,6 +1504,20 @@ async fn pre_review_cargo_check(
             .env("RUSTUP_HOME", "/root/.rustup")
             .env("CARGO_HOME", "/root/.cargo")
             .env("CARGO_TARGET_DIR", target_dir);
+
+        // Operator levers must not reach the tests. The child inherits this
+        // process's environment, so a lever set to steer the senate also steers
+        // the library code under test: with SENATE_FORCE_MODEL exported,
+        // quasi-senate's own test_rotation asserts against a rotation that has
+        // been forcibly overridden, and fails. That rejected a solve attempt on
+        // issue #1118 for a reason having nothing to do with its work.
+        //
+        // The gate's job is to judge the repo as it would build in CI, where
+        // none of these are set.
+        for lever in ["SENATE_FORCE_MODEL", "SENATE_BLIND_SOLVER", "SENATE_DIRECT_ISSUES"] {
+            command.env_remove(lever);
+        }
+
         for arg in extra {
             command.arg(*arg);
         }
@@ -1499,12 +1542,19 @@ async fn pre_review_cargo_check(
             String::from_utf8_lossy(&test_output.stdout),
             String::from_utf8_lossy(&test_output.stderr)
         );
-        let truncated: String = if combined.len() > 2000 {
-            format!("…{}", &combined[combined.len() - 2000..])
-        } else {
-            combined
-        };
-        return Err(format!("cargo test failed:\n{truncated}"));
+        // Same formatting the agent gets from its own `test` action: error
+        // lines first, then the tail. A tail-only view of cargo output shows
+        // passing tests and "Running tests/…" banners while the real
+        // error[Exxxx] block sits thousands of lines earlier — on issue #1118
+        // both rejections were undiagnosable for exactly this reason.
+        //
+        // It also slices on a char boundary. The previous code indexed a String
+        // at `len() - 2000`, which panics outright when that byte lands inside
+        // a multi-byte character — and cargo emits plenty of those.
+        return Err(format!(
+            "cargo test failed:\n{}",
+            crate::agent::format_test_failure(&combined)
+        ));
     }
 
     // 5. Run cargo clippy — advisory only.
