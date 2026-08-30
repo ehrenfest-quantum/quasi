@@ -431,6 +431,63 @@ qreg q[3];
         assert_eq!(result.counts[0].1, 50);
     }
 
+    /// Pins the exact OpenQASM that QuasiCircuitBuilder (the C++ side of the
+    /// CUDA-Q backend, quasi-cudaq/src/QuasiCircuitBuilder.h) emits, including
+    /// the `include`, `creg` and `measure` lines the other tests omit. If
+    /// either side drifts, this fails instead of silently returning wrong
+    /// statistics.
+    #[test]
+    fn cudaq_builder_qasm_round_trips() {
+        let qasm_str = r#"OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[5];
+creg c[5];
+h q[0];
+cx q[0],q[1];
+cx q[1],q[2];
+cx q[2],q[3];
+cx q[3],q[4];
+measure q[0] -> c[0];
+measure q[1] -> c[1];
+measure q[2] -> c[2];
+measure q[3] -> c[3];
+measure q[4] -> c[4];
+"#;
+        let circuit = qasm::parse_qasm(qasm_str).unwrap();
+        assert_eq!(circuit.n_qubits, 5);
+        assert_eq!(circuit.n_clbits, 5);
+
+        let result = simulate(&circuit, &[0, 1, 2, 3, 4], 10000);
+        assert_eq!(result.counts.len(), 2);
+        for (bits, _) in &result.counts {
+            assert!(bits == "00000" || bits == "11111", "unexpected: {bits}");
+        }
+    }
+
+    /// The builder's controlled and parametric gates must all be understood by
+    /// the parser — cz, ccx and a full-precision rotation angle.
+    #[test]
+    fn cudaq_builder_controlled_and_parametric_qasm_parses() {
+        let qasm_str = r#"OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[3];
+creg c[3];
+ry(1.5707963267948966) q[0];
+cz q[0],q[1];
+ccx q[0],q[1],q[2];
+measure q[0] -> c[0];
+measure q[1] -> c[1];
+measure q[2] -> c[2];
+"#;
+        let circuit = qasm::parse_qasm(qasm_str).unwrap();
+        assert_eq!(circuit.n_qubits, 3);
+        assert_eq!(
+            circuit.ops.len(),
+            6,
+            "3 gates + 3 measurements, none dropped"
+        );
+    }
+
     #[test]
     fn ghz_5_only_00000_and_11111() {
         let qasm_str = r#"

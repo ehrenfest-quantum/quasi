@@ -213,8 +213,12 @@ fn parse_gate_line(line: &str) -> Result<Option<GateOp>, ParseError> {
             Ok(Some(GateOp::Ccx(qubits[0], qubits[1], qubits[2])))
         }
         _ => {
-            // Unknown gate — skip rather than fail (forward compat)
-            Ok(None)
+            // Unknown gate — fail rather than skip. Silently dropping a gate
+            // yields a circuit that is not the one the caller wrote, and the
+            // wrong measurement statistics are returned with full confidence.
+            // Parametric gates already fail this way; this keeps the two
+            // paths consistent.
+            Err(ParseError::InvalidGate(line.to_string()))
         }
     }
 }
@@ -333,6 +337,20 @@ cx q[0],q[1];
 "#;
         let circuit = parse_qasm(qasm).unwrap();
         assert_eq!(circuit.ops.len(), 2);
+    }
+
+    #[test]
+    fn unknown_gate_is_rejected_not_skipped() {
+        // Silently dropping an unsupported gate would return confident but
+        // wrong statistics for a circuit the caller never wrote.
+        let qasm = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\nsdg q[0];\n";
+        assert!(parse_qasm(qasm).is_err());
+
+        let qasm = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\nswap q[0],q[1];\n";
+        assert!(parse_qasm(qasm).is_err());
+
+        let qasm = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[1];\nreset q[0];\n";
+        assert!(parse_qasm(qasm).is_err());
     }
 
     #[test]

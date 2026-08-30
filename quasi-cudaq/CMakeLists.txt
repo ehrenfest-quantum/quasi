@@ -3,86 +3,94 @@
 #
 # Build system for the CUDA-Q → QUASI integration plugin.
 #
-# This builds libnvqir-quasi.so, which plugs into CUDA-Q's CircuitSimulator
-# API and routes circuit execution through QUASI's Huoma simulator.
+# Produces libnvqir-quasi.so, the NVQIR backend registered by
+# NVQIR_REGISTER_SIMULATOR in src/QuasiCircuitSimulator.cpp. CUDA-Q's plugin
+# loader resolves getCircuitSimulator_quasi() from it; the library name, the
+# printed name in the macro, and QuasiCircuitSimulator::name() must all agree
+# on "quasi".
 #
-# Prerequisites:
-#   - Rust toolchain (for quasi-cudaq-ffi)
-#   - CUDA-Q installation (headers only — no GPU needed)
-#   - CMake ≥ 3.18
+# Build the plugin (requires a CUDA-Q installation):
+#   cmake -S . -B build && cmake --build build -j
 #
-# Build:
-#   cd quasi-cudaq && mkdir build && cd build
-#   cmake .. [-DCUDAQ_INCLUDE_DIR=/path/to/cudaq/include]
-#   make -j$(nproc)
-#
-# The resulting libnvqir-quasi.so goes into CUDA-Q's plugin directory.
+# Build only the CUDA-Q-independent unit tests:
+#   cmake -S . -B build -DQUASI_CUDAQ_BUILD_PLUGIN=OFF
+#   cmake --build build -j && ctest --test-dir build --output-on-failure
 
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.24 FATAL_ERROR)
 project(quasi-cudaq LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# ── Find CUDA-Q headers (optional — needed only for full plugin build) ───────
+option(QUASI_CUDAQ_BUILD_PLUGIN
+    "Build the NVQIR backend plugin (requires a CUDA-Q installation)" ON)
 
-find_path(CUDAQ_INCLUDE_DIR "cudaq.h"
-    PATHS
-        /usr/local/include
-        /opt/nvidia/cudaq/include
-        $ENV{CUDAQ_INSTALL_PREFIX}/include
-    PATH_SUFFIXES cudaq
-    NO_DEFAULT_PATH
-)
+include(CTest)
 
-find_path(NVQIR_INCLUDE_DIR "CircuitSimulator.h"
-    PATHS
-        /usr/local/include
-        /opt/nvidia/cudaq/include
-        $ENV{CUDAQ_INSTALL_PREFIX}/include
-    PATH_SUFFIXES nvqir
-    NO_DEFAULT_PATH
-)
+# ── Unit tests that do not need CUDA-Q ───────────────────────────────────────
+#
+# QuasiCircuitBuilder is deliberately free of CUDA-Q dependencies so gate
+# recording and QASM emission can be tested without an installation.
 
-# ── Build the Rust FFI library ───────────────────────────────────────────────
+add_executable(test_circuit_builder tests/test_circuit_builder.cpp)
+target_include_directories(test_circuit_builder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_options(test_circuit_builder PRIVATE -Wall -Wextra)
+add_test(NAME circuit_builder COMMAND test_circuit_builder)
 
-set(RUST_FFI_LIB ${CMAKE_BINARY_DIR}/libquasi_cudaq_ffi.a)
-set(RUST_FFI_DYLIB ${CMAKE_BINARY_DIR}/libquasi_cudaq_ffi.so)
+if(NOT QUASI_CUDAQ_BUILD_PLUGIN)
+    message(STATUS "QUASI: plugin build disabled — building unit tests only")
+    return()
+endif()
+
+# ── CUDA-Q / NVQIR ───────────────────────────────────────────────────────────
+#
+# CUDA-Q ships NVQIRConfig.cmake, which provides nvqir_add_backend() and knows
+# the include paths, link line, and install locations for backends. Requiring
+# it is deliberate: a plugin built without NVQIR headers cannot subclass
+# CircuitSimulatorBase and would not be loadable by CUDA-Q, so failing here is
+# better than shipping a shared library that silently never registers.
+
+find_package(NVQIR QUIET)
+
+if(NOT NVQIR_FOUND)
+    message(FATAL_ERROR
+        "CUDA-Q (NVQIR) was not found.\n"
+        "Set CUDAQ_INSTALL_PREFIX (or CMAKE_PREFIX_PATH) to your CUDA-Q "
+        "installation, e.g.\n"
+        "  cmake -S . -B build -DCMAKE_PREFIX_PATH=$CUDAQ_INSTALL_PREFIX\n"
+        "To build only the CUDA-Q-independent unit tests instead, configure "
+        "with -DQUASI_CUDAQ_BUILD_PLUGIN=OFF.")
+endif()
+
+# ── Rust FFI library ─────────────────────────────────────────────────────────
+
+set(RUST_FFI_LIB ${CMAKE_CURRENT_BINARY_DIR}/libquasi_cudaq_ffi.a)
 
 add_custom_command(
     OUTPUT ${RUST_FFI_LIB}
     COMMAND cargo build --release -p quasi-cudaq-ffi
     COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_SOURCE_DIR}/../target/release/libquasi_cudaq_ffi.a
+        ${CMAKE_CURRENT_SOURCE_DIR}/../target/release/libquasi_cudaq_ffi.a
         ${RUST_FFI_LIB}
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/..
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/..
     COMMENT "Building quasi-cudaq-ffi Rust library"
     VERBATIM
 )
 
 add_custom_target(rust_ffi DEPENDS ${RUST_FFI_LIB})
 
-# ── Build the CUDA-Q backend plugin ─────────────────────────────────────────
+# ── NVQIR backend plugin ─────────────────────────────────────────────────────
+#
+# nvqir_add_backend(<name> <gpu-requirements> <sources> <extra-libs>) creates
+# the nvqir-<name> target with the naming and install conventions CUDA-Q
+# expects.
 
-add_library(nvqir-quasi SHARED
-    src/QuasiCircuitSimulator.cpp
-    src/HamiltonianInterceptor.cpp
-)
+nvqir_add_backend(quasi false
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/QuasiCircuitSimulator.cpp;${CMAKE_CURRENT_SOURCE_DIR}/src/HamiltonianInterceptor.cpp"
+    "")
 
-target_include_directories(nvqir-quasi PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-)
-
-# Add CUDA-Q headers if found
-if(CUDAQ_INCLUDE_DIR)
-    target_include_directories(nvqir-quasi PRIVATE ${CUDAQ_INCLUDE_DIR})
-    message(STATUS "Found CUDA-Q headers: ${CUDAQ_INCLUDE_DIR}")
-endif()
-
-if(NVQIR_INCLUDE_DIR)
-    target_include_directories(nvqir-quasi PRIVATE ${NVQIR_INCLUDE_DIR})
-    message(STATUS "Found NVQIR headers: ${NVQIR_INCLUDE_DIR}")
-endif()
+target_include_directories(nvqir-quasi PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 target_link_libraries(nvqir-quasi PRIVATE
     ${RUST_FFI_LIB}
@@ -94,14 +102,17 @@ target_link_libraries(nvqir-quasi PRIVATE
 add_dependencies(nvqir-quasi rust_ffi)
 
 # ── Install ──────────────────────────────────────────────────────────────────
+#
+# nvqir_add_backend installs the library itself. The target config tells
+# CUDA-Q how to select this backend; newer releases read it from targets/,
+# older ones from platforms/.
 
-install(TARGETS nvqir-quasi
-    LIBRARY DESTINATION lib
-)
+install(FILES quasi.yml DESTINATION targets)
 
 install(FILES
     src/HuomaFFI.h
     src/SolvayeurFFI.h
+    src/QuasiCircuitBuilder.h
     src/QuasiCircuitSimulator.h
     DESTINATION include/quasi-cudaq
 )

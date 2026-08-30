@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# QUASI target configuration for CUDA-Q.
+#
+# Install to $CUDAQ_INSTALL_PREFIX/targets/ (older CUDA-Q releases read
+# target configs from $CUDAQ_INSTALL_PREFIX/platforms/ instead), alongside
+# libnvqir-quasi.so in $CUDAQ_INSTALL_PREFIX/lib/.
+#
+# Usage:
+#   cudaq.set_target("quasi")   # Python
+#   nvq++ --target quasi        # C++
+#
+# `platform-library: default` means CUDA-Q's single-QPU platform: the
+# Solvayeur currently rides along inside the simulator and therefore only
+# ever sees one backend. Giving QUASI its own platform library is what turns
+# the Solvayeur into a real scheduling layer; that is a separate change.
+
+name: quasi
+description: "Routes CUDA-Q circuits through the QUASI stack: Afana compilation (Trotter, ZX-calculus) and Huoma simulation, with each execution reported back to the Solvayeur kernel."
+gpu-requirements: false
+
+config:
+  nvqir-simulation-backend: quasi
+  platform-library: default
